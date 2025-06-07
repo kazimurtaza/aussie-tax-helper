@@ -27,6 +27,23 @@ const MEDICARE_LEVY_RATE = 0.02; // 2%
 const MEDICARE_LEVY_THRESHOLD_SINGLE = 24276;
 const MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE = 30345; // Upper threshold for phase-in rate
 
+// --- ADDED: Medicare Levy Surcharge (MLS) for 2024-2025 ---
+// Source: https://www.ato.gov.au/rates/medicare-levy-surcharge-income-thresholds-and-rates/
+const MLS_THRESHOLDS_SINGLE = [
+    { min: 0, max: 97000, rate: 0 },
+    { min: 97001, max: 113000, rate: 0.01 },
+    { min: 113001, max: 151000, rate: 0.0125 },
+    { min: 151001, max: Infinity, rate: 0.015 }
+];
+// ADDED: Family thresholds
+const MLS_THRESHOLDS_FAMILY = [
+    { min: 0, max: 194000, rate: 0 },
+    { min: 194001, max: 226000, rate: 0.01 },
+    { min: 226001, max: 302000, rate: 0.0125 },
+    { min: 302001, max: Infinity, rate: 0.015 }
+];
+const MLS_CHILD_ADJUSTMENT = 1500; // Threshold increases by this amount for each dependent child after the first.
+
 // --- Work From Home Fixed Rate for 2024-2025 ---
 // The 67 cents per hour rate is confirmed for the 2024-25 financial year.
 // Source: https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/working-from-home-deductions/fixed-rate-method-work-from-home-expenses
@@ -45,5 +62,8 @@ window.LITO_REDUCTION_RATE_2 = LITO_REDUCTION_RATE_2;
 window.MEDICARE_LEVY_RATE = MEDICARE_LEVY_RATE;
 window.MEDICARE_LEVY_THRESHOLD_SINGLE = MEDICARE_LEVY_THRESHOLD_SINGLE;
 window.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE = MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE;
+window.MLS_THRESHOLDS_SINGLE = MLS_THRESHOLDS_SINGLE;
+window.MLS_THRESHOLDS_FAMILY = MLS_THRESHOLDS_FAMILY; // Expose new constant
+window.MLS_CHILD_ADJUSTMENT = MLS_CHILD_ADJUSTMENT; // Expose new constant
 window.WFH_FIXED_RATE_PER_HOUR = WFH_FIXED_RATE_PER_HOUR;
 window.FINANCIAL_YEAR = FINANCIAL_YEAR;

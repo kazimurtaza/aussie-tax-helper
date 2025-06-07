@@ -12,7 +12,7 @@ const TaxCalculations = (() => {
         return paygIncome + otherIncome;
     };
 
-    const calculateDepreciation = (cost, effectiveLifeYears, workPercentage, purchaseDateString) => {
+    const calculateDepreciation = (cost, workPercentage, effectiveLifeYears, purchaseDateString) => {
         const numCost = parseFloat(cost || 0);
         const numEffectiveLife = parseInt(effectiveLifeYears || 0);
         const numWorkPercentage = parseInt(workPercentage || 0);
@@ -41,7 +41,7 @@ const TaxCalculations = (() => {
             const cost = parseFloat(exp.cost || 0);
             const workPercentage = parseFloat(exp.workPercentage || 0);
             const deduction = exp.isDepreciable 
-                ? calculateDepreciation(cost, exp.effectiveLife, workPercentage, exp.date)
+                ? calculateDepreciation(cost, exp.workPercentage, exp.effectiveLife, exp.date)
                 : (cost * (workPercentage / 100));
             return total + deduction;
         }, 0);
@@ -71,7 +71,7 @@ const TaxCalculations = (() => {
 
         if (details.assets && details.assets.length > 0) {
             details.assets.forEach(asset => {
-                totalDeduction += calculateDepreciation(asset.cost, asset.effectiveLife, 100, asset.date);
+                totalDeduction += calculateDepreciation(asset.cost, 100, asset.effectiveLife, asset.date);
             });
         }
         return totalDeduction;
@@ -101,28 +101,28 @@ const TaxCalculations = (() => {
     const calculateGrossTax = (taxableIncome) => {
         const income = Math.floor(taxableIncome);
         if (income <= 18200) return 0;
-        
         const bracket = window.TAX_RATES_2025.slice().reverse().find(b => income >= b.min);
         if (!bracket) return 0;
-
         return bracket.base + ((income - (bracket.min - 1)) * bracket.rate);
     };
 
     const calculateLITO = (taxableIncome) => {
         if (taxableIncome <= window.LITO_THRESHOLD_1) return window.LITO_MAX_OFFSET;
         if (taxableIncome > window.LITO_THRESHOLD_3) return 0;
-        
         let offset;
         if (taxableIncome <= window.LITO_THRESHOLD_2) {
             offset = window.LITO_MAX_OFFSET - (taxableIncome - window.LITO_THRESHOLD_1) * window.LITO_REDUCTION_RATE_1;
         } else {
-            const baseReduction = (window.LITO_THRESHOLD_2 - window.LITO_THRESHOLD_1) * window.LITO_REDUCTION_RATE_1; // This is 375
+            const baseReduction = (window.LITO_THRESHOLD_2 - window.LITO_THRESHOLD_1) * window.LITO_REDUCTION_RATE_1;
             offset = (window.LITO_MAX_OFFSET - baseReduction) - ((taxableIncome - window.LITO_THRESHOLD_2) * window.LITO_REDUCTION_RATE_2);
         }
         return Math.max(0, offset);
     };
     
-    const calculateMedicareLevy = (taxableIncome) => {
+    const calculateMedicareLevy = (taxableIncome, taxpayerDetails) => {
+        if (!taxpayerDetails || taxpayerDetails.isMedicareExempt) {
+            return 0;
+        }
         if (taxableIncome <= window.MEDICARE_LEVY_THRESHOLD_SINGLE) return 0;
         if (taxableIncome <= window.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE) {
             return (taxableIncome - window.MEDICARE_LEVY_THRESHOLD_SINGLE) * 0.10;
@@ -130,12 +130,50 @@ const TaxCalculations = (() => {
         return taxableIncome * window.MEDICARE_LEVY_RATE;
     };
 
+    const calculateMLS = (taxableIncome, taxpayerDetails) => {
+        if (!taxpayerDetails || taxpayerDetails.hasPrivateHospitalCover) {
+            return 0;
+        }
+        
+        const userIncomeForMls = taxableIncome + (taxpayerDetails.reportableFringeBenefits || 0);
+        let surchargeRate = 0;
+
+        if (taxpayerDetails.filingStatus === 'family') {
+            const familyIncomeForMls = userIncomeForMls + (taxpayerDetails.spouseIncome || 0);
+            const childAdjustment = taxpayerDetails.dependentChildren > 0
+                ? (taxpayerDetails.dependentChildren) * window.MLS_CHILD_ADJUSTMENT
+                : 0;
+
+            const familyThresholds = window.MLS_THRESHOLDS_FAMILY.map(tier => ({
+                ...tier,
+                min: tier.min > 0 ? tier.min + childAdjustment : 0,
+                max: tier.max !== Infinity ? tier.max + childAdjustment : Infinity,
+            }));
+            
+            const bracket = familyThresholds.slice().reverse().find(b => familyIncomeForMls >= b.min);
+            if (bracket) {
+                surchargeRate = bracket.rate;
+            }
+        } else {
+            const bracket = window.MLS_THRESHOLDS_SINGLE.slice().reverse().find(b => userIncomeForMls >= b.min);
+            if (bracket) {
+                surchargeRate = bracket.rate;
+            }
+        }
+
+        if (surchargeRate === 0) {
+            return 0;
+        }
+        
+        return userIncomeForMls * surchargeRate;
+    };
+
     const calculateTotalOffsets = (otherIncome, lito) => {
         return lito + parseFloat(otherIncome.frankingCredits || 0);
     };
 
-    const calculateNetTaxPayable = (grossTax, medicareLevy, totalOffsets) => {
-        return Math.max(0, grossTax + medicareLevy - totalOffsets);
+    const calculateNetTaxPayable = (grossTax, medicareLevy, mls, totalOffsets) => {
+        return Math.max(0, grossTax + medicareLevy + mls - totalOffsets);
     };
 
     const calculateFinalOutcome = (totalTaxWithheld, netTaxPayable) => {
@@ -151,6 +189,7 @@ const TaxCalculations = (() => {
         calculateGrossTax,
         calculateLITO,
         calculateMedicareLevy,
+        calculateMLS,
         calculateTotalOffsets,
         calculateNetTaxPayable,
         calculateFinalOutcome,

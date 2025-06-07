@@ -5,7 +5,18 @@ const StorageManager = (() => {
     const APP_STORAGE_KEY = 'aussieTaxHelperData-2025';
 
     const getDefaultData = () => ({
-        userSettings: { currentSection: 'dashboard-section', financialYear: FINANCIAL_YEAR },
+        userSettings: {
+            currentSection: 'dashboard-section',
+            financialYear: FINANCIAL_YEAR,
+        },
+        taxpayerDetails: {
+            isMedicareExempt: false,
+            hasPrivateHospitalCover: false,
+            reportableFringeBenefits: 0,
+            filingStatus: 'single', // 'single' or 'family'
+            spouseIncome: 0,
+            dependentChildren: 0,
+        },
         income: {
             payg: [],
             other: { bankInterest: 0, dividendsUnfranked: 0, dividendsFranked: 0, frankingCredits: 0 }
@@ -26,16 +37,27 @@ const StorageManager = (() => {
     const loadData = () => {
         try {
             const storedData = localStorage.getItem(APP_STORAGE_KEY);
-            if (!storedData) return getDefaultData();
-            const parsedData = JSON.parse(storedData);
             const defaultData = getDefaultData();
+            if (!storedData) {
+                return defaultData;
+            }
+            
+            const parsedData = JSON.parse(storedData);
+            
+            // Deep merge with default data to ensure new properties from updates are included.
             const mergedData = {
-                ...defaultData, ...parsedData,
+                ...defaultData,
+                ...parsedData,
                 userSettings: { ...defaultData.userSettings, ...(parsedData.userSettings || {}) },
-                income: { ...defaultData.income, ...(parsedData.income || {}),
+                taxpayerDetails: { ...defaultData.taxpayerDetails, ...(parsedData.taxpayerDetails || {}) },
+                income: { 
+                    ...defaultData.income, 
+                    ...(parsedData.income || {}),
                     other: { ...defaultData.income.other, ...(parsedData.income?.other || {}) }
                 },
-                wfh: { ...defaultData.wfh, ...(parsedData.wfh || {}),
+                wfh: { 
+                    ...defaultData.wfh, 
+                    ...(parsedData.wfh || {}),
                     actualCostDetails: { ...defaultData.wfh.actualCostDetails, ...(parsedData.wfh?.actualCostDetails || {}) }
                 },
             };
@@ -72,7 +94,7 @@ const StorageManager = (() => {
                 dataStr = JSON.stringify(data, null, 2);
                 blobType = 'application/json';
                 fileExtension = 'json';
-            } else { // csv
+            } else { 
                 let csvContent = `Tax Calculator Data - Financial Year: ${data.userSettings.financialYear}\n\n`;
                 const arrayToCsv = (arr, headers, keys) => {
                     if (!arr || arr.length === 0) return `No data for this category.\n`;
@@ -82,6 +104,7 @@ const StorageManager = (() => {
                     );
                     return [headerRow, ...dataRows].join('\n');
                 };
+                csvContent += `"Taxpayer Details"\n${arrayToCsv([data.taxpayerDetails], ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Has Private Hospital Cover', 'Reportable Fringe Benefits'], ['filingStatus', 'spouseIncome', 'dependentChildren', 'isMedicareExempt', 'hasPrivateHospitalCover', 'reportableFringeBenefits'])}\n\n`;
                 csvContent += `"PAYG Income"\n${arrayToCsv(data.income.payg, ['Source Name', 'Gross Salary', 'Tax Withheld'], ['sourceName', 'grossSalary', 'taxWithheld'])}\n\n`;
                 csvContent += `"Other Income"\n${arrayToCsv([data.income.other], ['Bank Interest', 'Unfranked Dividends', 'Franked Dividends', 'Franking Credits'], ['bankInterest', 'dividendsUnfranked', 'dividendsFranked', 'frankingCredits'])}\n\n`;
                 csvContent += `"General Expenses"\n${arrayToCsv(data.generalExpenses, ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life'], ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife'])}\n\n`;
@@ -105,26 +128,17 @@ const StorageManager = (() => {
             UIManager.showNotification("Failed to export data.");
         }
     };
-
-    /**
-     * Validates the structure of imported data.
-     * @param {object} data - The parsed data from the imported file.
-     * @returns {boolean} - True if the data structure is valid, false otherwise.
-     */
+    
     const validateImportedData = (data) => {
         if (!data || typeof data !== 'object') return false;
-        
-        const hasTopLevelKeys = 'userSettings' in data && 'income' in data && 'generalExpenses' in data && 'wfh' in data;
+        const hasTopLevelKeys = 'userSettings' in data && 'income' in data && 'generalExpenses' in data && 'wfh' in data && 'taxpayerDetails' in data;
         if (!hasTopLevelKeys) return false;
-
         const hasIncomeKeys = 'payg' in data.income && 'other' in data.income;
         const hasWfhKeys = 'method' in data.wfh && 'hoursLog' in data.wfh && 'actualCostDetails' in data.wfh;
         if (!hasIncomeKeys || !hasWfhKeys) return false;
-
         const areArrays = Array.isArray(data.income.payg) && Array.isArray(data.generalExpenses) && Array.isArray(data.wfh.hoursLog);
         if(!areArrays) return false;
-
-        return true; // All checks passed
+        return true;
     };
 
     const importData = (file, callback) => {
@@ -133,7 +147,6 @@ const StorageManager = (() => {
         reader.onload = (e) => {
             try {
                 const importedData = JSON.parse(e.target.result);
-                // UPDATED: Using the more robust validation function
                 if (validateImportedData(importedData)) {
                     callback(importedData);
                 } else {

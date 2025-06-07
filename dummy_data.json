@@ -3,6 +3,14 @@
         "currentSection": "wfh-section",
         "financialYear": "2024-2025"
     },
+    "taxpayerDetails": {
+        "isMedicareExempt": false,
+        "hasPrivateHospitalCover": false,
+        "reportableFringeBenefits": 0,
+        "filingStatus": "single",
+        "spouseIncome": 0,
+        "dependentChildren": 0
+    },
     "income": {
         "payg": [
             {

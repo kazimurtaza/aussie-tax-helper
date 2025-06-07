@@ -12,6 +12,7 @@ const App = (() => {
     const refreshUI = () => {
         UIManager.updateAllSummaries(appData);
         UIManager.displayIncomeList(appData.income.payg, appData.income.other);
+        UIManager.populateTaxpayerDetailsForm(appData.taxpayerDetails);
         UIManager.displayGeneralExpensesList(appData.generalExpenses);
         UIManager.displayWfhHoursList(appData.wfh.hoursLog);
         UIManager.displayWfhAssetsList(appData.wfh.actualCostDetails.assets);
@@ -55,6 +56,12 @@ const App = (() => {
             e.target.value = null;
         });
 
+        document.getElementById('taxpayer-details-form').addEventListener('submit', handleUpdateTaxpayerDetails);
+        const filingStatusDropdown = document.getElementById('filing-status');
+        filingStatusDropdown.addEventListener('change', () => {
+            UIManager.toggleFamilyFields(filingStatusDropdown.value === 'family');
+        });
+
         document.getElementById('income-form').addEventListener('submit', handleAddPaygIncome);
         document.getElementById('other-income-form').addEventListener('submit', handleUpdateOtherIncome);
         document.getElementById('general-expense-form').addEventListener('submit', handleAddGeneralExpense);
@@ -69,6 +76,20 @@ const App = (() => {
     };
     
     // --- Event Handlers ---
+    function handleUpdateTaxpayerDetails(e) {
+        e.preventDefault();
+        const form = e.target;
+        appData.taxpayerDetails = {
+            isMedicareExempt: form['medicare-exempt'].checked,
+            hasPrivateHospitalCover: form['private-cover'].checked,
+            reportableFringeBenefits: parseFloat(form['rfb-amount'].value) || 0,
+            filingStatus: form['filing-status'].value,
+            spouseIncome: parseFloat(form['spouse-income'].value) || 0,
+            dependentChildren: parseInt(form['dependent-children'].value) || 0,
+        };
+        saveAndRefresh();
+        UIManager.showNotification("Taxpayer details updated.");
+    }
 
     function handleClearAllData() {
         UIManager.showConfirmation("Are you sure you want to delete ALL data from this browser? This action cannot be undone.", () => {
@@ -192,7 +213,6 @@ const App = (() => {
         details.stationeryCost = parseFloat(form['wfh-stationery-cost'].value) || 0;
         saveAndRefresh();
         UIManager.showNotification("Actual cost details saved.");
-        // ADDED: Call to trigger visual feedback
         UIManager.flashHighlight('wfh-actual-cost-deduction');
     }
 

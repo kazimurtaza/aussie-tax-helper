@@ -1,0 +1,47 @@
+{
+    "userSettings": {
+        "currentSection": "summary-section",
+        "financialYear": "2024-2025"
+    },
+    "taxpayerDetails": {
+        "isMedicareExempt": false,
+        "hasPrivateHospitalCover": false,
+        "reportableFringeBenefits": 0,
+        "filingStatus": "single",
+        "spouseIncome": 0,
+        "dependentChildren": 0
+    },
+    "income": {
+        "payg": [
+            {
+                "id": "payg_1717800000000_medicaretest",
+                "sourceName": "Test Employer Inc.",
+                "grossSalary": 100000,
+                "taxWithheld": 25000
+            }
+        ],
+        "other": {
+            "bankInterest": 0,
+            "dividendsUnfranked": 0,
+            "dividendsFranked": 0,
+            "frankingCredits": 0
+        }
+    },
+    "generalExpenses": [],
+    "wfh": {
+        "method": "fixed_rate",
+        "hoursLog": [],
+        "totalHours": 0,
+        "actualCostDetails": {
+            "officeArea": 0,
+            "totalHomeArea": 0,
+            "electricityCost": 0,
+            "gasCost": 0,
+            "internetCost": 0,
+            "internetWorkPercent": 0,
+            "phoneCost": 0,
+            "stationeryCost": 0,
+            "assets": []
+        }
+    }
+}

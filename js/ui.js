@@ -8,9 +8,7 @@ const UIManager = (() => {
     const confirmBtn = document.getElementById('modal-confirm-btn');
     const cancelBtn = document.getElementById('modal-cancel-btn');
     let confirmCallback = null;
-
     const wfhAssetModal = document.getElementById('wfh-asset-modal');
-
     const showModal = (title, message, showCancel = false, onConfirm = null) => {
         modalTitle.textContent = title;
         modalMessage.textContent = message;
@@ -18,9 +16,7 @@ const UIManager = (() => {
         cancelBtn.style.display = showCancel ? 'inline-block' : 'none';
         modal.classList.add('visible');
     };
-
     const hideModal = () => modal.classList.remove('visible');
-    
     confirmBtn.addEventListener('click', () => {
         if (confirmCallback) {
             confirmCallback();
@@ -29,13 +25,11 @@ const UIManager = (() => {
         hideModal();
     });
     cancelBtn.addEventListener('click', hideModal);
-
     const showNotification = (message, onConfirm = null) => showModal('Notification', message, false, onConfirm);
     const showConfirmation = (message, onConfirm) => showModal('Confirmation', message, true, onConfirm);
     const showWfhAssetModal = () => wfhAssetModal.classList.add('visible');
     const hideWfhAssetModal = () => wfhAssetModal.classList.remove('visible');
 
-    // --- Visual Feedback Function ---
     const flashHighlight = (elementId) => {
         const element = document.getElementById(elementId);
         if (element) {
@@ -46,7 +40,6 @@ const UIManager = (() => {
         }
     };
 
-    // --- UI Update Logic ---
     const formatCurrency = (amount) => (amount || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
 
     const showSection = (sectionId) => {
@@ -56,6 +49,21 @@ const UIManager = (() => {
         document.querySelectorAll('.nav-button').forEach(button => {
             button.classList.toggle('active', button.dataset.section === sectionId);
         });
+    };
+
+    const toggleFamilyFields = (isFamily) => {
+        document.getElementById('family-fields').classList.toggle('hidden', !isFamily);
+    };
+
+    const populateTaxpayerDetailsForm = (details) => {
+        const form = document.getElementById('taxpayer-details-form');
+        form['medicare-exempt'].checked = details.isMedicareExempt;
+        form['private-cover'].checked = details.hasPrivateHospitalCover;
+        form['rfb-amount'].value = details.reportableFringeBenefits || '';
+        form['filing-status'].value = details.filingStatus || 'single';
+        form['spouse-income'].value = details.spouseIncome || '';
+        form['dependent-children'].value = details.dependentChildren || '';
+        toggleFamilyFields(details.filingStatus === 'family');
     };
 
     const populateOtherIncomeForm = (otherIncome) => {
@@ -97,12 +105,10 @@ const UIManager = (() => {
         if (!hasIncome) listEl.innerHTML = '<tr><td colspan="4" class="text-center text-gray-500 py-4">No income added yet.</td></tr>';
     };
 
-    // --- UPDATED to render the new "Claim Schedule" column ---
     const displayGeneralExpensesList = (expenses) => {
         const listEl = document.getElementById('general-expenses-list');
         listEl.innerHTML = '';
         if (expenses.length === 0) {
-            // Updated colspan to 7
             listEl.innerHTML = '<tr><td colspan="7" class="text-center text-gray-500 py-4">No general expenses added yet.</td></tr>';
             return;
         }
@@ -111,7 +117,6 @@ const UIManager = (() => {
                 ? TaxCalculations.calculateDepreciation(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date)
                 : (exp.cost * (exp.workPercentage / 100));
             
-            // Logic to build the claim schedule HTML
             let claimScheduleHtml = '';
             if (exp.isDepreciable && exp.effectiveLife > 0) {
                 const annualDepreciation = (exp.cost / exp.effectiveLife) * (exp.workPercentage / 100);
@@ -125,7 +130,6 @@ const UIManager = (() => {
             }
 
             const row = listEl.insertRow();
-            // Added new <td> for the claim schedule
             row.innerHTML = `
                 <td class="p-2 border-b border-gray-200">${exp.description}</td>
                 <td class="p-2 border-b border-gray-200">${exp.date}</td>
@@ -187,12 +191,16 @@ const UIManager = (() => {
         const totalWfhDeductions = TaxCalculations.calculateTotalWfhDeductions(appData.wfh);
         const overallTotalDeductions = totalGeneralDeductions + totalWfhDeductions;
         const taxableIncome = TaxCalculations.calculateTaxableIncome(appData);
+        
         const grossTax = TaxCalculations.calculateGrossTax(taxableIncome);
         const lito = TaxCalculations.calculateLITO(taxableIncome);
-        const medicareLevy = TaxCalculations.calculateMedicareLevy(taxableIncome);
+        const medicareLevy = TaxCalculations.calculateMedicareLevy(taxableIncome, appData.taxpayerDetails);
+        const mls = TaxCalculations.calculateMLS(taxableIncome, appData.taxpayerDetails);
+        
         const totalOffsets = TaxCalculations.calculateTotalOffsets(appData.income.other, lito);
-        const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, totalOffsets);
+        const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, mls, totalOffsets);
         const finalOutcome = TaxCalculations.calculateFinalOutcome(totalTaxWithheld, netTaxPayable);
+        
         const outcomeText = finalOutcome >= 0 ? `${formatCurrency(finalOutcome)} Refund` : `${formatCurrency(Math.abs(finalOutcome))} Payable`;
         
         document.getElementById('dashboard-taxable-income').textContent = formatCurrency(taxableIncome);
@@ -213,6 +221,7 @@ const UIManager = (() => {
         document.getElementById('summary-taxable-income').textContent = formatCurrency(taxableIncome);
         document.getElementById('summary-gross-tax').textContent = formatCurrency(grossTax);
         document.getElementById('summary-medicare-levy').textContent = formatCurrency(medicareLevy);
+        document.getElementById('summary-mls').textContent = formatCurrency(mls);
         document.getElementById('summary-tax-offsets').textContent = formatCurrency(totalOffsets);
         document.getElementById('summary-net-tax').textContent = formatCurrency(netTaxPayable);
         document.getElementById('summary-tax-withheld').textContent = formatCurrency(totalTaxWithheld);
@@ -224,6 +233,8 @@ const UIManager = (() => {
         displayIncomeList, displayGeneralExpensesList, displayWfhHoursList, 
         updateWfhMethodDisplay, updateAllSummaries, populateWfhActualCostForm,
         showWfhAssetModal, hideWfhAssetModal, displayWfhAssetsList,
-        flashHighlight
+        flashHighlight,
+        toggleFamilyFields,
+        populateTaxpayerDetailsForm
     };
 })();

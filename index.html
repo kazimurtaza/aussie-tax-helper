@@ -124,11 +124,11 @@
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-63JCXZHLQK"></script>
     <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
 
-    gtag('config', 'G-63JCXZHLQK');
+        gtag('config', 'G-63JCXZHLQK');
     </script>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -168,51 +168,97 @@
         </section>
 
         <section id="income-section" class="app-section bg-white p-6 rounded-lg shadow-lg">
-            <h2 class="text-2xl font-semibold mb-4 text-blue-800">Income Management</h2>
-            <form id="income-form">
+            <h2 class="text-2xl font-semibold mb-4 text-blue-800">Income & Taxpayer Details</h2>
+            
+            <form id="taxpayer-details-form" class="mb-6">
                 <fieldset>
-                    <legend class="text-lg font-medium text-gray-700">PAYG Income Statement</legend>
-                    <div class="mt-2 space-y-4">
+                    <legend class="text-lg font-medium text-gray-700">Taxpayer Details</legend>
+                    <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                         <div>
-                            <label for="income-source-name" class="block text-sm font-medium text-gray-700">Employer/Payer Name:</label>
-                            <input type="text" id="income-source-name" name="income-source-name">
+                            <label for="filing-status" class="block text-sm font-medium text-gray-700">Filing Status:</label>
+                            <select id="filing-status" name="filing-status">
+                                <option value="single">Single</option>
+                                <option value="family">Family</option>
+                            </select>
                         </div>
                         <div>
-                            <label for="gross-salary" class="block text-sm font-medium text-gray-700">Gross Salary/Wages ($):</label>
-                            <input type="number" id="gross-salary" name="gross-salary" step="0.01" required>
+                            <label for="rfb-amount" class="block text-sm font-medium text-gray-700">Reportable Fringe Benefits Amount ($):</label>
+                            <input type="number" id="rfb-amount" name="rfb-amount" step="0.01">
+                             <p class="tooltip-text mt-1">Found on your income statement. Used for income tests.</p>
                         </div>
-                        <div>
-                            <label for="tax-withheld" class="block text-sm font-medium text-gray-700">Total Tax Withheld ($):</label>
-                            <input type="number" id="tax-withheld" name="tax-withheld" step="0.01" required>
+
+                        <div id="family-fields" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 hidden">
+                            <div>
+                                <label for="spouse-income" class="block text-sm font-medium text-gray-700">Spouse's Income for MLS ($):</label>
+                                <input type="number" id="spouse-income" name="spouse-income" step="0.01">
+                            </div>
+                            <div>
+                                <label for="dependent-children" class="block text-sm font-medium text-gray-700">Number of Dependent Children:</label>
+                                <input type="number" id="dependent-children" name="dependent-children" step="1" min="0">
+                            </div>
+                        </div>
+
+                        <div class="md:col-span-2 space-y-3 pt-2">
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" id="medicare-exempt" name="medicare-exempt" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                <label for="medicare-exempt" class="text-sm font-medium text-gray-700">I am exempt from the Medicare Levy.</label>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" id="private-cover" name="private-cover" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                <label for="private-cover" class="text-sm font-medium text-gray-700">I have appropriate private patient hospital cover for the full year.</label>
+                            </div>
                         </div>
                     </div>
-                    <button type="submit" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Add PAYG Income</button>
+                    <button type="submit" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors">Save Details</button>
                 </fieldset>
             </form>
-            <form id="other-income-form">
-                <fieldset>
-                    <legend class="text-lg font-medium text-gray-700">Other Income</legend>
-                     <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label for="bank-interest" class="block text-sm font-medium text-gray-700">Bank Interest ($):</label>
-                            <input type="number" id="bank-interest" name="bank-interest" step="0.01">
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <form id="income-form">
+                    <fieldset>
+                        <legend class="text-lg font-medium text-gray-700">PAYG Income Statement</legend>
+                        <div class="mt-2 space-y-4">
+                            <div>
+                                <label for="income-source-name" class="block text-sm font-medium text-gray-700">Employer/Payer Name:</label>
+                                <input type="text" id="income-source-name" name="income-source-name">
+                            </div>
+                            <div>
+                                <label for="gross-salary" class="block text-sm font-medium text-gray-700">Gross Salary/Wages ($):</label>
+                                <input type="number" id="gross-salary" name="gross-salary" step="0.01" required>
+                            </div>
+                            <div>
+                                <label for="tax-withheld" class="block text-sm font-medium text-gray-700">Total Tax Withheld ($):</label>
+                                <input type="number" id="tax-withheld" name="tax-withheld" step="0.01" required>
+                            </div>
                         </div>
-                        <div>
-                            <label for="dividends-unfranked" class="block text-sm font-medium text-gray-700">Dividends (Unfranked):</label>
-                            <input type="number" id="dividends-unfranked" name="dividends-unfranked" step="0.01">
+                        <button type="submit" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Add PAYG Income</button>
+                    </fieldset>
+                </form>
+                <form id="other-income-form">
+                    <fieldset>
+                        <legend class="text-lg font-medium text-gray-700">Other Income</legend>
+                         <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="bank-interest" class="block text-sm font-medium text-gray-700">Bank Interest ($):</label>
+                                <input type="number" id="bank-interest" name="bank-interest" step="0.01">
+                            </div>
+                            <div>
+                                <label for="dividends-unfranked" class="block text-sm font-medium text-gray-700">Dividends (Unfranked):</label>
+                                <input type="number" id="dividends-unfranked" name="dividends-unfranked" step="0.01">
+                            </div>
+                            <div>
+                                <label for="dividends-franked" class="block text-sm font-medium text-gray-700">Dividends (Franked):</label>
+                                <input type="number" id="dividends-franked" name="dividends-franked" step="0.01">
+                            </div>
+                            <div>
+                                <label for="franking-credits" class="block text-sm font-medium text-gray-700">Franking Credits:</label>
+                                <input type="number" id="franking-credits" name="franking-credits" step="0.01">
+                            </div>
                         </div>
-                        <div>
-                            <label for="dividends-franked" class="block text-sm font-medium text-gray-700">Dividends (Franked):</label>
-                            <input type="number" id="dividends-franked" name="dividends-franked" step="0.01">
-                        </div>
-                        <div>
-                            <label for="franking-credits" class="block text-sm font-medium text-gray-700">Franking Credits:</label>
-                            <input type="number" id="franking-credits" name="franking-credits" step="0.01">
-                        </div>
-                    </div>
-                    <button type="submit" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Add/Update Other Income</button>
-                </fieldset>
-            </form>
+                        <button type="submit" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Add/Update Other Income</button>
+                    </fieldset>
+                </form>
+            </div>
             <h3 class="text-xl font-semibold mt-8 mb-2 text-gray-800">Income Summary</h3>
             <div id="income-summary-table-container" class="overflow-x-auto mb-4">
                 <table class="w-full">
@@ -381,7 +427,7 @@
                      <fieldset>
                         <legend class="text-sm font-medium text-gray-600">3. WFH Depreciable Assets</legend>
                         <div id="wfh-assets-list" class="text-sm my-2 space-y-2">
-                            <p class="text-gray-400">No assets added yet.</p>
+                             <p class="text-gray-400">No assets added yet.</p>
                         </div>
                         <button type="button" id="add-wfh-asset-btn" class="text-sm bg-purple-400 hover:bg-purple-500 text-white px-3 py-1.5 rounded-md transition-colors">Add WFH Asset</button>
                     </fieldset>
@@ -424,6 +470,10 @@
                  <div class="summary-item flex justify-between py-2 border-b">
                     <span>Add: Medicare Levy:</span>
                     <strong id="summary-medicare-levy">$0.00</strong>
+                </div>
+                <div class="summary-item flex justify-between py-2 border-b">
+                    <span>Add: Medicare Levy Surcharge:</span>
+                    <strong id="summary-mls">$0.00</strong>
                 </div>
                 <div class="summary-item flex justify-between py-2 border-b">
                     <span>Less: Tax Offsets (LITO, Franking Credits):</span>
