@@ -22,7 +22,6 @@
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        /* ADDED: Animation for visual feedback on save */
         @keyframes highlight-flash {
             0% { background-color: rgba(199, 210, 254, 0.7); } /* Tailwind's indigo-200 with opacity */
             100% { background-color: transparent; }
@@ -62,16 +61,21 @@
             margin-bottom: 0.5rem;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
+        /* Restored original accessible focus style for inputs */
         input:focus, select:focus {
             outline: none;
             border-color: #2563EB;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
         }
+        
+        /* This rule replaces the fieldset border with a modern card-like shadow and background */
         fieldset {
-            border: 1px solid #D1D5DB; /* Tailwind's gray-300 */
+            border: none; /* Removed the 1px border */
+            background-color: #FFFFFF; /* Added a white background */
             padding: 1rem;
-            margin-bottom: 1rem;
-            border-radius: 0.375rem; /* Tailwind's rounded-md */
+            margin-bottom: 1.5rem; /* Increased margin slightly */
+            border-radius: 0.5rem; /* Tailwind's rounded-lg */
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1); /* Tailwind's shadow-md */
         }
         legend {
             font-weight: 600; /* Tailwind's semibold */
@@ -156,52 +160,50 @@
 
         <section id="income-section" class="app-section bg-white p-6 rounded-lg shadow-lg">
             <h2 class="text-2xl font-semibold mb-4 text-blue-800">Income Management</h2>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <form id="income-form">
-                    <fieldset>
-                        <legend class="text-lg font-medium text-gray-700">PAYG Income Statement</legend>
-                        <div class="mt-2 space-y-4">
-                            <div>
-                                <label for="income-source-name" class="block text-sm font-medium text-gray-700">Employer/Payer Name:</label>
-                                <input type="text" id="income-source-name" name="income-source-name">
-                            </div>
-                            <div>
-                                <label for="gross-salary" class="block text-sm font-medium text-gray-700">Gross Salary/Wages ($):</label>
-                                <input type="number" id="gross-salary" name="gross-salary" step="0.01" required>
-                            </div>
-                            <div>
-                                <label for="tax-withheld" class="block text-sm font-medium text-gray-700">Total Tax Withheld ($):</label>
-                                <input type="number" id="tax-withheld" name="tax-withheld" step="0.01" required>
-                            </div>
+            <form id="income-form">
+                <fieldset>
+                    <legend class="text-lg font-medium text-gray-700">PAYG Income Statement</legend>
+                    <div class="mt-2 space-y-4">
+                        <div>
+                            <label for="income-source-name" class="block text-sm font-medium text-gray-700">Employer/Payer Name:</label>
+                            <input type="text" id="income-source-name" name="income-source-name">
                         </div>
-                        <button type="submit" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Add PAYG Income</button>
-                    </fieldset>
-                </form>
-                <form id="other-income-form">
-                    <fieldset>
-                        <legend class="text-lg font-medium text-gray-700">Other Income</legend>
-                         <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label for="bank-interest" class="block text-sm font-medium text-gray-700">Bank Interest ($):</label>
-                                <input type="number" id="bank-interest" name="bank-interest" step="0.01">
-                            </div>
-                            <div>
-                                <label for="dividends-unfranked" class="block text-sm font-medium text-gray-700">Dividends (Unfranked):</label>
-                                <input type="number" id="dividends-unfranked" name="dividends-unfranked" step="0.01">
-                            </div>
-                            <div>
-                                <label for="dividends-franked" class="block text-sm font-medium text-gray-700">Dividends (Franked):</label>
-                                <input type="number" id="dividends-franked" name="dividends-franked" step="0.01">
-                            </div>
-                            <div>
-                                <label for="franking-credits" class="block text-sm font-medium text-gray-700">Franking Credits:</label>
-                                <input type="number" id="franking-credits" name="franking-credits" step="0.01">
-                            </div>
+                        <div>
+                            <label for="gross-salary" class="block text-sm font-medium text-gray-700">Gross Salary/Wages ($):</label>
+                            <input type="number" id="gross-salary" name="gross-salary" step="0.01" required>
                         </div>
-                        <button type="submit" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Add/Update Other Income</button>
-                    </fieldset>
-                </form>
-            </div>
+                        <div>
+                            <label for="tax-withheld" class="block text-sm font-medium text-gray-700">Total Tax Withheld ($):</label>
+                            <input type="number" id="tax-withheld" name="tax-withheld" step="0.01" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Add PAYG Income</button>
+                </fieldset>
+            </form>
+            <form id="other-income-form">
+                <fieldset>
+                    <legend class="text-lg font-medium text-gray-700">Other Income</legend>
+                     <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="bank-interest" class="block text-sm font-medium text-gray-700">Bank Interest ($):</label>
+                            <input type="number" id="bank-interest" name="bank-interest" step="0.01">
+                        </div>
+                        <div>
+                            <label for="dividends-unfranked" class="block text-sm font-medium text-gray-700">Dividends (Unfranked):</label>
+                            <input type="number" id="dividends-unfranked" name="dividends-unfranked" step="0.01">
+                        </div>
+                        <div>
+                            <label for="dividends-franked" class="block text-sm font-medium text-gray-700">Dividends (Franked):</label>
+                            <input type="number" id="dividends-franked" name="dividends-franked" step="0.01">
+                        </div>
+                        <div>
+                            <label for="franking-credits" class="block text-sm font-medium text-gray-700">Franking Credits:</label>
+                            <input type="number" id="franking-credits" name="franking-credits" step="0.01">
+                        </div>
+                    </div>
+                    <button type="submit" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Add/Update Other Income</button>
+                </fieldset>
+            </form>
             <h3 class="text-xl font-semibold mt-8 mb-2 text-gray-800">Income Summary</h3>
             <div id="income-summary-table-container" class="overflow-x-auto mb-4">
                 <table class="w-full">
@@ -278,12 +280,13 @@
                             <th class="p-2 text-left text-sm font-semibold text-gray-600">Date</th>
                             <th class="p-2 text-left text-sm font-semibold text-gray-600">Cost</th>
                             <th class="p-2 text-left text-sm font-semibold text-gray-600">Work %</th>
-                            <th class="p-2 text-left text-sm font-semibold text-gray-600">Deductible</th>
+                            <th class="p-2 text-left text-sm font-semibold text-gray-600">Deductible (This FY)</th>
+                            <th class="p-2 text-left text-sm font-semibold text-gray-600">Claim Schedule</th>
                             <th class="p-2 text-left text-sm font-semibold text-gray-600">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="general-expenses-list">
-                        <tr><td colspan="6" class="text-center text-gray-500 py-4">No general expenses added yet.</td></tr>
+                        <tr><td colspan="7" class="text-center text-gray-500 py-4">No general expenses added yet.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -292,46 +295,52 @@
 
         <section id="wfh-section" class="app-section bg-white p-6 rounded-lg shadow-lg">
             <h2 class="text-2xl font-semibold mb-4 text-blue-800">Work-From-Home (WFH) Expenses</h2>
-            <div class="wfh-method-choice mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <p class="text-md font-medium text-gray-800 mb-3">Choose your WFH calculation method:</p>
-                <div class="flex space-x-4">
-                    <button id="wfh-use-fixed-rate-btn" class="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-md transition-colors">Use ATO Fixed Rate</button>
-                    <button id="wfh-use-actual-cost-btn" class="flex-1 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md transition-colors">Use Actual Cost</button>
-                </div>
-                <p class="mt-3 text-sm">Current Method: <strong id="wfh-current-method-display" class="text-gray-800 font-semibold">Not Selected</strong></p>
+            <div class="wfh-method-choice mb-6">
+                <fieldset>
+                    <legend class="text-md font-medium text-gray-800 mb-3">Choose your WFH calculation method:</legend>
+                    <div class="flex space-x-4 mt-2">
+                        <button id="wfh-use-fixed-rate-btn" class="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-md transition-colors">Use ATO Fixed Rate</button>
+                        <button id="wfh-use-actual-cost-btn" class="flex-1 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md transition-colors">Use Actual Cost</button>
+                    </div>
+                    <p class="mt-3 text-sm">Current Method: <strong id="wfh-current-method-display" class="text-gray-800 font-semibold">Not Selected</strong></p>
+                </fieldset>
             </div>
 
             <div id="wfh-hours-logging" class="mb-6">
-                <h3 class="text-lg font-semibold text-gray-700 mb-2">Log WFH Hours (Required for Fixed Rate)</h3>
-                <form id="wfh-hours-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end p-4 border rounded-md mb-4 bg-gray-50">
-                    <div>
-                        <label for="wfh-date" class="block text-sm font-medium text-gray-700">Date:</label>
-                        <input type="date" id="wfh-date" name="wfh-date" required>
+                <fieldset>
+                    <legend class="text-lg font-semibold text-gray-700 mb-2">Log WFH Hours (Required for Fixed Rate)</legend>
+                    <form id="wfh-hours-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end mt-2">
+                        <div>
+                            <label for="wfh-date" class="block text-sm font-medium text-gray-700">Date:</label>
+                            <input type="date" id="wfh-date" name="wfh-date" required>
+                        </div>
+                        <div>
+                            <label for="wfh-hours" class="block text-sm font-medium text-gray-700">Hours Worked From Home:</label>
+                            <input type="number" id="wfh-hours" name="wfh-hours" step="0.25" min="0" required>
+                        </div>
+                        <button type="submit" class="h-10 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Log Hours</button>
+                    </form>
+                    <p class="mb-2 font-medium mt-4">Total WFH Hours Logged: <strong id="wfh-total-hours" class="text-blue-600">0.00</strong> hours</p>
+                    <h4 class="font-medium text-gray-600 mb-1">Logged Hours Diary:</h4>
+                    <div id="wfh-hours-list-container" class="max-h-40 overflow-y-auto bg-gray-50 p-2 rounded-md border text-sm">
+                        <ul id="wfh-hours-list" class="list-disc list-inside pl-4">
+                             <li class="text-gray-400">No hours logged yet.</li>
+                        </ul>
                     </div>
-                    <div>
-                        <label for="wfh-hours" class="block text-sm font-medium text-gray-700">Hours Worked From Home:</label>
-                        <input type="number" id="wfh-hours" name="wfh-hours" step="0.25" min="0" required>
-                    </div>
-                    <button type="submit" class="h-10 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Log Hours</button>
-                </form>
-                <p class="mb-2 font-medium">Total WFH Hours Logged: <strong id="wfh-total-hours" class="text-blue-600">0.00</strong> hours</p>
-                <h4 class="font-medium text-gray-600 mb-1">Logged Hours Diary:</h4>
-                <div id="wfh-hours-list-container" class="max-h-40 overflow-y-auto bg-gray-50 p-2 rounded-md border text-sm">
-                    <ul id="wfh-hours-list" class="list-disc list-inside pl-4">
-                         <li class="text-gray-400">No hours logged yet.</li>
-                    </ul>
-                </div>
+                </fieldset>
             </div>
 
-            <div id="wfh-fixed-rate-details" class="wfh-method-details hidden p-4 border-indigo-200 border rounded-lg bg-indigo-50 mb-6">
-                <h3 class="text-md font-semibold text-indigo-700 mb-2">ATO Fixed Rate Method Details</h3>
-                <p class="text-sm mb-1">The ATO fixed rate for <span class="financialYearDisplay font-semibold">2024-2025</span> is <strong id="wfh-fixed-rate-value" class="text-indigo-700">$0.67</strong> per hour.</p>
-                <p class="text-sm mb-1">This rate covers electricity, gas, internet, phone, stationery, and computer consumables. You cannot claim separate deductions for these items.</p>
-                <p class="text-sm font-semibold">Estimated Deduction (Fixed Rate): <strong id="wfh-fixed-rate-deduction" class="text-indigo-700">$0.00</strong></p>
-                <p class="tooltip-text mt-2"><b>Record keeping:</b> You need a record of all hours worked from home (e.g., timesheets, diary) and evidence you paid for at least one of the expenses covered by the rate (e.g., one energy bill).</p>
+            <div id="wfh-fixed-rate-details" class="wfh-method-details hidden mb-6">
+                <fieldset>
+                    <legend class="text-md font-semibold text-indigo-700 mb-2">ATO Fixed Rate Method Details</legend>
+                    <p class="text-sm mb-1 mt-2">The ATO fixed rate for <span class="financialYearDisplay font-semibold">2024-2025</span> is <strong id="wfh-fixed-rate-value" class="text-indigo-700">$0.67</strong> per hour.</p>
+                    <p class="text-sm mb-1">This rate covers electricity, gas, internet, phone, stationery, and computer consumables. You cannot claim separate deductions for these items.</p>
+                    <p class="text-sm font-semibold">Estimated Deduction (Fixed Rate): <strong id="wfh-fixed-rate-deduction" class="text-indigo-700">$0.00</strong></p>
+                    <p class="tooltip-text mt-2"><b>Record keeping:</b> You need a record of all hours worked from home (e.g., timesheets, diary) and evidence you paid for at least one of the expenses covered by the rate (e.g., one energy bill).</p>
+                </fieldset>
             </div>
 
-            <div id="wfh-actual-cost-details" class="wfh-method-details hidden p-4 border-purple-200 border rounded-lg bg-purple-50 mb-6">
+            <div id="wfh-actual-cost-details" class="wfh-method-details hidden mb-6">
                  <h3 class="text-md font-semibold text-purple-700 mb-2">Actual Cost Method Details</h3>
                  <p class="text-sm mb-4">Calculate the work-related portion of your actual WFH expenses. You must keep detailed records for all claimed expenses.</p>
                  <form id="wfh-actual-cost-form">

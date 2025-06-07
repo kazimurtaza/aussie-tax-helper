@@ -35,19 +35,14 @@ const UIManager = (() => {
     const showWfhAssetModal = () => wfhAssetModal.classList.add('visible');
     const hideWfhAssetModal = () => wfhAssetModal.classList.remove('visible');
 
-    // --- ADDED: Visual Feedback Function ---
-    /**
-     * Applies a temporary highlight animation to a UI element.
-     * @param {string} elementId - The ID of the element to highlight.
-     */
+    // --- Visual Feedback Function ---
     const flashHighlight = (elementId) => {
         const element = document.getElementById(elementId);
         if (element) {
             element.classList.add('flash-highlight');
-            // Remove the class after the animation completes to allow re-triggering
             setTimeout(() => {
                 element.classList.remove('flash-highlight');
-            }, 1200); // Must match the animation duration
+            }, 1200);
         }
     };
 
@@ -102,17 +97,44 @@ const UIManager = (() => {
         if (!hasIncome) listEl.innerHTML = '<tr><td colspan="4" class="text-center text-gray-500 py-4">No income added yet.</td></tr>';
     };
 
+    // --- UPDATED to render the new "Claim Schedule" column ---
     const displayGeneralExpensesList = (expenses) => {
         const listEl = document.getElementById('general-expenses-list');
         listEl.innerHTML = '';
         if (expenses.length === 0) {
-            listEl.innerHTML = '<tr><td colspan="6" class="text-center text-gray-500 py-4">No expenses added yet.</td></tr>';
+            // Updated colspan to 7
+            listEl.innerHTML = '<tr><td colspan="7" class="text-center text-gray-500 py-4">No general expenses added yet.</td></tr>';
             return;
         }
         expenses.forEach(exp => {
-            const deduction = exp.isDepreciable ? TaxCalculations.calculateDepreciation(exp.cost, exp.effectiveLife, exp.workPercentage, exp.date) : (exp.cost * (exp.workPercentage / 100));
+            const deduction = exp.isDepreciable
+                ? TaxCalculations.calculateDepreciation(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date)
+                : (exp.cost * (exp.workPercentage / 100));
+            
+            // Logic to build the claim schedule HTML
+            let claimScheduleHtml = '';
+            if (exp.isDepreciable && exp.effectiveLife > 0) {
+                const annualDepreciation = (exp.cost / exp.effectiveLife) * (exp.workPercentage / 100);
+                let schedule = [];
+                for (let i = 1; i <= exp.effectiveLife; i++) {
+                    schedule.push(`Y${i}: ${formatCurrency(annualDepreciation)}`);
+                }
+                claimScheduleHtml = schedule.join('<br>');
+            } else {
+                claimScheduleHtml = formatCurrency(deduction);
+            }
+
             const row = listEl.insertRow();
-            row.innerHTML = `<td class="p-2 border-b border-gray-200">${exp.description}</td><td class="p-2 border-b border-gray-200">${exp.date}</td><td class="p-2 border-b border-gray-200">${formatCurrency(exp.cost)}</td><td class="p-2 border-b border-gray-200">${exp.workPercentage}%</td><td class="p-2 border-b border-gray-200 font-semibold">${formatCurrency(deduction)}</td><td class="p-2 border-b border-gray-200"><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeGeneralExpense('${exp.id}')">Remove</button></td>`;
+            // Added new <td> for the claim schedule
+            row.innerHTML = `
+                <td class="p-2 border-b border-gray-200">${exp.description}</td>
+                <td class="p-2 border-b border-gray-200">${exp.date}</td>
+                <td class="p-2 border-b border-gray-200">${formatCurrency(exp.cost)}</td>
+                <td class="p-2 border-b border-gray-200">${exp.workPercentage}%</td>
+                <td class="p-2 border-b border-gray-200 font-semibold">${formatCurrency(deduction)}</td>
+                <td class="p-2 border-b border-gray-200 text-xs">${claimScheduleHtml}</td>
+                <td class="p-2 border-b border-gray-200"><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeGeneralExpense('${exp.id}')">Remove</button></td>
+            `;
         });
     };
 
@@ -202,6 +224,6 @@ const UIManager = (() => {
         displayIncomeList, displayGeneralExpensesList, displayWfhHoursList, 
         updateWfhMethodDisplay, updateAllSummaries, populateWfhActualCostForm,
         showWfhAssetModal, hideWfhAssetModal, displayWfhAssetsList,
-        flashHighlight // Expose the new function
+        flashHighlight
     };
 })();
