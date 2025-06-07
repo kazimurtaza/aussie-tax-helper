@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aussie Tax Helper (2024-2025)</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Custom styles complementing Tailwind */
@@ -22,6 +21,14 @@
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+        /* ADDED: Animation for visual feedback on save */
+        @keyframes highlight-flash {
+            0% { background-color: rgba(199, 210, 254, 0.7); } /* Tailwind's indigo-200 with opacity */
+            100% { background-color: transparent; }
+        }
+        .flash-highlight {
+            animation: highlight-flash 1.2s ease-out;
         }
         .nav-button.active {
             background-color: #1D4ED8; /* Tailwind's blue-700 */
@@ -113,12 +120,10 @@
 </head>
 <body class="bg-gray-50 text-gray-800">
 
-    <!-- Header -->
     <header class="bg-blue-600 text-white p-6 shadow-md">
         <h1 class="text-3xl font-bold text-center">Aussie Tax Helper <span id="financialYearDisplay" class="text-2xl font-semibold">2024-2025</span></h1>
     </header>
 
-    <!-- Navigation -->
     <nav id="main-nav" class="bg-blue-500 p-3 flex justify-center space-x-1 sm:space-x-2 shadow sticky top-0 z-50">
         <button data-section="dashboard-section" class="nav-button px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">Dashboard</button>
         <button data-section="income-section" class="nav-button px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">Income</button>
@@ -127,9 +132,7 @@
         <button data-section="summary-section" class="nav-button px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">Summary</button>
     </nav>
 
-    <!-- Main Content -->
     <main id="app-container" class="p-4 md:p-8 max-w-5xl mx-auto">
-        <!-- Dashboard Section -->
         <section id="dashboard-section" class="app-section bg-white p-6 rounded-lg shadow-lg">
             <h2 class="text-2xl font-semibold mb-4 text-blue-800">Dashboard</h2>
             <p class="mb-6">Welcome! This tool helps you estimate your tax outcome for the <span class="financialYearDisplay font-semibold">2024-2025</span> financial year.</p>
@@ -151,7 +154,6 @@
             <p class="text-sm text-gray-600">Remember to save your data regularly by exporting it, as all information is stored locally in your browser.</p>
         </section>
 
-        <!-- Income Section -->
         <section id="income-section" class="app-section bg-white p-6 rounded-lg shadow-lg">
             <h2 class="text-2xl font-semibold mb-4 text-blue-800">Income Management</h2>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -222,7 +224,6 @@
             </div>
         </section>
 
-        <!-- General Expenses Section -->
         <section id="general-expenses-section" class="app-section bg-white p-6 rounded-lg shadow-lg">
             <h2 class="text-2xl font-semibold mb-4 text-blue-800">General Work-Related Expenses</h2>
             <form id="general-expense-form" class="mb-6">
@@ -289,7 +290,6 @@
             <p class="text-right font-semibold text-lg">Total General Deductions: <strong id="total-general-deductions" class="text-red-600">$0.00</strong></p>
         </section>
 
-        <!-- Work-From-Home (WFH) Section -->
         <section id="wfh-section" class="app-section bg-white p-6 rounded-lg shadow-lg">
             <h2 class="text-2xl font-semibold mb-4 text-blue-800">Work-From-Home (WFH) Expenses</h2>
             <div class="wfh-method-choice mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -363,30 +363,26 @@
                      <fieldset>
                         <legend class="text-sm font-medium text-gray-600">3. WFH Depreciable Assets</legend>
                         <div id="wfh-assets-list" class="text-sm my-2 space-y-2">
-                            <!-- WFH assets will be listed here by JS -->
-                             <p class="text-gray-400">No assets added yet.</p>
+                            <p class="text-gray-400">No assets added yet.</p>
                         </div>
                         <button type="button" id="add-wfh-asset-btn" class="text-sm bg-purple-400 hover:bg-purple-500 text-white px-3 py-1.5 rounded-md transition-colors">Add WFH Asset</button>
                     </fieldset>
                      <button type="submit" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Save & Calculate Actual Costs</button>
                  </form>
-                 <p class="text-sm font-semibold mt-4">Estimated Deduction (Actual Costs): <strong id="wfh-actual-cost-deduction" class="text-purple-700">$0.00</strong></p>
+                 <p class="text-sm font-semibold mt-4 rounded-md p-2">Estimated Deduction (Actual Costs): <strong id="wfh-actual-cost-deduction" class="text-purple-700">$0.00</strong></p>
              </div>
 
             <hr class="my-4">
             <p class="text-right font-semibold text-lg">Total WFH Deduction Claimed: <strong id="total-wfh-deduction" class="text-red-600">$0.00</strong></p>
         </section>
 
-        <!-- Tax Summary Section -->
         <section id="summary-section" class="app-section bg-white p-6 rounded-lg shadow-lg">
             <h2 class="text-2xl font-semibold mb-4 text-blue-800">Tax Estimation Summary (<span class="financialYearDisplay">2024-2025</span>)</h2>
             <div class="summary-grid space-y-2 text-gray-700 text-lg">
-                <!-- Income -->
                 <div class="summary-item flex justify-between py-2 border-b">
                     <span>Total Assessable Income:</span>
                     <strong id="summary-assessable-income" class="text-green-600">$0.00</strong>
                 </div>
-                <!-- Deductions -->
                 <div class="summary-item flex justify-between py-2 border-b">
                     <span>Total Deductions:</span>
                     <strong id="summary-total-deductions" class="text-red-600">$0.00</strong>
@@ -399,12 +395,10 @@
                     <span>- WFH Deductions:</span>
                     <span id="summary-wfh-deductions" class="text-red-500">$0.00</span>
                 </div>
-                <!-- Taxable Income -->
                 <div class="summary-item flex justify-between py-2 border-b font-semibold">
                     <span>Taxable Income:</span>
                     <strong id="summary-taxable-income" class="text-blue-700">$0.00</strong>
                 </div>
-                <!-- Tax & Levies -->
                 <div class="summary-item flex justify-between py-2 border-b">
                     <span>Gross Tax on Income:</span>
                     <strong id="summary-gross-tax">$0.00</strong>
@@ -417,12 +411,10 @@
                     <span>Less: Tax Offsets (LITO, Franking Credits):</span>
                     <strong id="summary-tax-offsets" class="text-green-500">$0.00</strong>
                 </div>
-                <!-- Net Tax -->
                 <div class="summary-item flex justify-between py-2 border-b font-semibold">
                     <span>Net Tax Payable:</span>
                     <strong id="summary-net-tax" class="text-red-700">$0.00</strong>
                 </div>
-                <!-- Final Outcome -->
                 <div class="summary-item flex justify-between py-2 border-b">
                     <span>Tax Already Withheld (from PAYG):</span>
                     <strong id="summary-tax-withheld" class="text-green-600">$0.00</strong>
@@ -437,21 +429,19 @@
 
     </main>
 
-    <!-- Footer -->
     <footer class="bg-gray-800 text-gray-300 p-6 mt-8 text-center text-sm">
         <div class="data-management mb-4 flex justify-center items-center flex-wrap gap-2">
             <button id="exportDataBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-md text-xs">Export Data (JSON)</button>
             <button id="exportCsvDataBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-md text-xs">Export Data (CSV)</button>
             <label for="importDataInput" class="button-like-label bg-gray-600 hover:bg-gray-700 text-xs">Import Data (JSON)</label>
             <input type="file" id="importDataInput" accept=".json" class="hidden">
-            <button id="clearAllDataBtn" class="bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded-md text-xs">Clear All Local Data</button>
+            <button id="clearAllDataBtn" class="bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded-md text-xs">Clear All Data (from this browser)</button>
         </div>
         <p class="mb-1">All data is stored locally in your browser. Clearing browser data for this site will erase your records. Export your data for backup.</p>
         <p class="mb-1">This tool provides an estimate only for the <span class="financialYearDisplay font-semibold">2024-2025</span> financial year and is not professional tax advice.</p>
         <p>Always verify current ATO rates, thresholds, and guidelines from <a href="https://www.ato.gov.au" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 underline">ato.gov.au</a>.</p>
     </footer>
 
-    <!-- Modal for Notifications and Confirmations -->
     <div id="app-modal" class="modal-backdrop">
         <div class="modal-content">
             <h3 id="modal-title" class="text-xl font-semibold text-gray-800">Notification</h3>
@@ -463,7 +453,6 @@
         </div>
     </div>
     
-    <!-- ADDED: Modal for WFH Asset -->
     <div id="wfh-asset-modal" class="modal-backdrop">
         <div class="modal-content">
             <h3 class="text-xl font-semibold text-gray-800 mb-4">Add WFH Depreciable Asset</h3>
@@ -496,7 +485,6 @@
     </div>
 
 
-    <!-- JAVASCRIPT LOGIC (FIXED PATHS) -->
     <script src="js/constants.js"></script>
     <script src="js/calculations.js"></script>
     <script src="js/storage.js"></script>

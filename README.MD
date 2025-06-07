@@ -216,3 +216,28 @@ aussie-tax-helper/
 │   ├── storage.js      // Functions for saving to and loading from local storage, CSV export/import
 │   └── constants.js    // Store tax rates, thresholds, WFH fixed rate (for easy updates)
 └── assets/             // For any images, icons, etc. (if needed)
+
+### Todo
+
+* ***Critical Issue:*** 2024-2025 Tax Rates: The TAX_RATES_2025 array in constants.js appears to be incorrect for the 2024-2025 financial year. The Australian government has legislated new "Stage 3" tax cuts that take effect from July 1, 2024. The current rates in your file resemble the 2023-2024 brackets.
+
+* ***Recommendation:*** Update the tax brackets in js/constants.js to reflect the correct 2024-2025 income tax rates. The ATO is the official source for these figures. The correct resident tax rates for 2024-25 are:
+    * $0 – $18,200: 0%
+    * $18,201 – $45,000: 16%
+    * $45,001 – $135,000: 30%
+    * $135,001 – $190,000: 37%
+    * $190,001 and over: 45%
+
+* ***Minor Inconsistency:*** LITO Calculation: The calculateLITO function in calculations.js uses constants like LITO_THRESHOLD_1 and LITO_REDUCTION_RATE_1 that are not defined in your js/constants.js file. This indicates that the logic in the calculation file might be out of sync with your intended constants.
+
+* ***Recommendation:*** Consolidate all constants into constants.js and ensure the calculateLITO function imports and uses them directly. This makes annual updates much easier.
+
+### 🖥️ User Interface & Experience (UI/UX)
+
+* ***Suggestion:*** Form Resets: After submitting a new PAYG income or expense, the forms are correctly reset. However, the "Other Income" form updates the data but doesn't clear. This is acceptable, as it's more of an "update" than an "add" action, but ensure this is the intended behavior.
+* ***Suggestion:*** Visual Feedback on Save: In the "Actual Cost Method" for WFH, the user clicks "Save & Calculate Actual Costs". While a notification appears, consider adding a subtle visual cue, like briefly flashing the background of the calculated deduction field, to immediately draw the user's eye to the result of their action.
+
+### 💾 Data Management
+
+* ***Suggestion:*** Import Validation: The importData function in storage.js performs a basic validation check to see if the top-level keys exist. To make it more robust, you could implement a more thorough schema validation, perhaps checking for expected data types or nested properties. This would prevent malformed data from corrupting the application state.
+* ***Suggestion:*** Clearer Button Text: The "Clear All Local Data" button is red and imposing, which is good. A small tweak could be to rename it to "Clear All Data (from this browser)" to be even more explicit about the scope of the action.

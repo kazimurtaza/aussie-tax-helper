@@ -9,7 +9,6 @@ const UIManager = (() => {
     const cancelBtn = document.getElementById('modal-cancel-btn');
     let confirmCallback = null;
 
-    // --- NEW: WFH Asset Modal ---
     const wfhAssetModal = document.getElementById('wfh-asset-modal');
 
     const showModal = (title, message, showCancel = false, onConfirm = null) => {
@@ -25,61 +24,53 @@ const UIManager = (() => {
     confirmBtn.addEventListener('click', () => {
         if (confirmCallback) {
             confirmCallback();
-            confirmCallback = null; // Prevent multiple executions
+            confirmCallback = null;
         }
         hideModal();
     });
     cancelBtn.addEventListener('click', hideModal);
 
-    const showNotification = (message, onConfirm = null) => {
-        showModal('Notification', message, false, onConfirm);
-    };
-    const showConfirmation = (message, onConfirm) => {
-        showModal('Confirmation', message, true, onConfirm);
-    };
-
-    // --- NEW WFH Asset Modal functions ---
+    const showNotification = (message, onConfirm = null) => showModal('Notification', message, false, onConfirm);
+    const showConfirmation = (message, onConfirm) => showModal('Confirmation', message, true, onConfirm);
     const showWfhAssetModal = () => wfhAssetModal.classList.add('visible');
     const hideWfhAssetModal = () => wfhAssetModal.classList.remove('visible');
 
+    // --- ADDED: Visual Feedback Function ---
+    /**
+     * Applies a temporary highlight animation to a UI element.
+     * @param {string} elementId - The ID of the element to highlight.
+     */
+    const flashHighlight = (elementId) => {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.classList.add('flash-highlight');
+            // Remove the class after the animation completes to allow re-triggering
+            setTimeout(() => {
+                element.classList.remove('flash-highlight');
+            }, 1200); // Must match the animation duration
+        }
+    };
 
     // --- UI Update Logic ---
-    const formatCurrency = (amount) => {
-        return (amount || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
-    };
-    
-    /**
-     * Shows the specified section and hides all others. Updates nav button states.
-     * This is the core function for tab navigation.
-     * @param {string} sectionId - The ID of the section to make active.
-     */
+    const formatCurrency = (amount) => (amount || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+
     const showSection = (sectionId) => {
-        // Hide all sections first
-        document.querySelectorAll('.app-section').forEach(section => {
-            section.classList.remove('active-section');
-        });
-
-        // Show the target section
+        document.querySelectorAll('.app-section').forEach(section => section.classList.remove('active-section'));
         const sectionToShow = document.getElementById(sectionId);
-        if (sectionToShow) {
-            sectionToShow.classList.add('active-section');
-        }
-
-        // Update the active state of navigation buttons
+        if (sectionToShow) sectionToShow.classList.add('active-section');
         document.querySelectorAll('.nav-button').forEach(button => {
             button.classList.toggle('active', button.dataset.section === sectionId);
         });
     };
 
     const populateOtherIncomeForm = (otherIncome) => {
-        const otherIncomeForm = document.getElementById('other-income-form');
-        otherIncomeForm['bank-interest'].value = otherIncome.bankInterest || '';
-        otherIncomeForm['dividends-unfranked'].value = otherIncome.dividendsUnfranked || '';
-        otherIncomeForm['dividends-franked'].value = otherIncome.dividendsFranked || '';
-        otherIncomeForm['franking-credits'].value = otherIncome.frankingCredits || '';
+        const form = document.getElementById('other-income-form');
+        form['bank-interest'].value = otherIncome.bankInterest || '';
+        form['dividends-unfranked'].value = otherIncome.dividendsUnfranked || '';
+        form['dividends-franked'].value = otherIncome.dividendsFranked || '';
+        form['franking-credits'].value = otherIncome.frankingCredits || '';
     };
 
-    // NEW: Populates the WFH Actual Cost form from saved data
     const populateWfhActualCostForm = (details) => {
         const form = document.getElementById('wfh-actual-cost-form');
         form['wfh-office-area'].value = details.officeArea || '';
@@ -96,34 +87,19 @@ const UIManager = (() => {
         const listEl = document.getElementById('income-list');
         listEl.innerHTML = '';
         let hasIncome = false;
-
         paygItems.forEach(item => {
             hasIncome = true;
             const row = listEl.insertRow();
-            row.innerHTML = `
-                <td class="p-2 border-b border-gray-200">${item.sourceName}</td>
-                <td class="p-2 border-b border-gray-200">${formatCurrency(item.grossSalary)}</td>
-                <td class="p-2 border-b border-gray-200">${formatCurrency(item.taxWithheld)}</td>
-                <td class="p-2 border-b border-gray-200"><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removePaygIncome('${item.id}')">Remove</button></td>
-            `;
+            row.innerHTML = `<td class="p-2 border-b border-gray-200">${item.sourceName}</td><td class="p-2 border-b border-gray-200">${formatCurrency(item.grossSalary)}</td><td class="p-2 border-b border-gray-200">${formatCurrency(item.taxWithheld)}</td><td class="p-2 border-b border-gray-200"><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removePaygIncome('${item.id}')">Remove</button></td>`;
         });
-
         const otherIncomeTotal = (otherIncome.bankInterest || 0) + (otherIncome.dividendsUnfranked || 0) + (otherIncome.dividendsFranked || 0);
         if(otherIncomeTotal > 0){
             hasIncome = true;
             const row = listEl.insertRow();
             row.className = 'bg-gray-50';
-            row.innerHTML = `
-                <td class="p-2 border-b border-gray-200 italic">Other Income (Interest, Dividends)</td>
-                <td class="p-2 border-b border-gray-200 italic">${formatCurrency(otherIncomeTotal)}</td>
-                <td class="p-2 border-b border-gray-200 italic">${formatCurrency(otherIncome.frankingCredits)} (Credits)</td>
-                <td class="p-2 border-b border-gray-200"></td>
-            `;
+            row.innerHTML = `<td class="p-2 border-b border-gray-200 italic">Other Income (Interest, Dividends)</td><td class="p-2 border-b border-gray-200 italic">${formatCurrency(otherIncomeTotal)}</td><td class="p-2 border-b border-gray-200 italic">${formatCurrency(otherIncome.frankingCredits)} (Credits)</td><td class="p-2 border-b border-gray-200"></td>`;
         }
-
-        if (!hasIncome) {
-            listEl.innerHTML = '<tr><td colspan="4" class="text-center text-gray-500 py-4">No income added yet.</td></tr>';
-        }
+        if (!hasIncome) listEl.innerHTML = '<tr><td colspan="4" class="text-center text-gray-500 py-4">No income added yet.</td></tr>';
     };
 
     const displayGeneralExpensesList = (expenses) => {
@@ -134,19 +110,9 @@ const UIManager = (() => {
             return;
         }
         expenses.forEach(exp => {
-            const deduction = exp.isDepreciable
-                ? TaxCalculations.calculateDepreciation(exp.cost, exp.effectiveLife, exp.workPercentage, exp.date)
-                : (exp.cost * (exp.workPercentage / 100));
-            
+            const deduction = exp.isDepreciable ? TaxCalculations.calculateDepreciation(exp.cost, exp.effectiveLife, exp.workPercentage, exp.date) : (exp.cost * (exp.workPercentage / 100));
             const row = listEl.insertRow();
-            row.innerHTML = `
-                <td class="p-2 border-b border-gray-200">${exp.description}</td>
-                <td class="p-2 border-b border-gray-200">${exp.date}</td>
-                <td class="p-2 border-b border-gray-200">${formatCurrency(exp.cost)}</td>
-                <td class="p-2 border-b border-gray-200">${exp.workPercentage}%</td>
-                <td class="p-2 border-b border-gray-200 font-semibold">${formatCurrency(deduction)}</td>
-                <td class="p-2 border-b border-gray-200"><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeGeneralExpense('${exp.id}')">Remove</button></td>
-            `;
+            row.innerHTML = `<td class="p-2 border-b border-gray-200">${exp.description}</td><td class="p-2 border-b border-gray-200">${exp.date}</td><td class="p-2 border-b border-gray-200">${formatCurrency(exp.cost)}</td><td class="p-2 border-b border-gray-200">${exp.workPercentage}%</td><td class="p-2 border-b border-gray-200 font-semibold">${formatCurrency(deduction)}</td><td class="p-2 border-b border-gray-200"><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeGeneralExpense('${exp.id}')">Remove</button></td>`;
         });
     };
 
@@ -157,19 +123,14 @@ const UIManager = (() => {
             listEl.innerHTML = '<li class="text-gray-400">No hours logged yet.</li>';
             return;
         }
-        // Display in reverse chronological order
         [...hoursLog].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(log => {
             const li = document.createElement('li');
             li.className = "flex justify-between items-center py-1";
-            li.innerHTML = `
-                <span>${log.date}: <strong>${log.hours.toFixed(2)}</strong> hours</span>
-                <button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeWfhHour('${log.id}')">Remove</button>
-            `;
+            li.innerHTML = `<span>${log.date}: <strong>${log.hours.toFixed(2)}</strong> hours</span><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeWfhHour('${log.id}')">Remove</button>`;
             listEl.appendChild(li);
         });
     };
     
-    // NEW: Renders the list of WFH assets
     const displayWfhAssetsList = (assets) => {
         const container = document.getElementById('wfh-assets-list');
         container.innerHTML = '';
@@ -177,14 +138,10 @@ const UIManager = (() => {
             container.innerHTML = '<p class="text-gray-400">No assets added yet.</p>';
             return;
         }
-        
         assets.forEach(asset => {
             const assetDiv = document.createElement('div');
             assetDiv.className = 'flex justify-between items-center bg-gray-100 p-2 rounded-md';
-            assetDiv.innerHTML = `
-                <span>${asset.description} (${formatCurrency(asset.cost)})</span>
-                <button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeWfhAsset('${asset.id}')">Remove</button>
-            `;
+            assetDiv.innerHTML = `<span>${asset.description} (${formatCurrency(asset.cost)})</span><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeWfhAsset('${asset.id}')">Remove</button>`;
             container.appendChild(assetDiv);
         });
     };
@@ -193,8 +150,6 @@ const UIManager = (() => {
         document.getElementById('wfh-current-method-display').textContent = method === 'fixed_rate' ? 'ATO Fixed Rate' : 'Actual Cost';
         document.getElementById('wfh-fixed-rate-details').classList.toggle('hidden', method !== 'fixed_rate');
         document.getElementById('wfh-actual-cost-details').classList.toggle('hidden', method !== 'actual_cost');
-        
-        // Update button styles to show active selection
         const fixedRateBtn = document.getElementById('wfh-use-fixed-rate-btn');
         const actualCostBtn = document.getElementById('wfh-use-actual-cost-btn');
         fixedRateBtn.classList.toggle('bg-indigo-700', method === 'fixed_rate');
@@ -216,29 +171,19 @@ const UIManager = (() => {
         const totalOffsets = TaxCalculations.calculateTotalOffsets(appData.income.other, lito);
         const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, totalOffsets);
         const finalOutcome = TaxCalculations.calculateFinalOutcome(totalTaxWithheld, netTaxPayable);
-        
         const outcomeText = finalOutcome >= 0 ? `${formatCurrency(finalOutcome)} Refund` : `${formatCurrency(Math.abs(finalOutcome))} Payable`;
         
-        // Dashboard
         document.getElementById('dashboard-taxable-income').textContent = formatCurrency(taxableIncome);
         document.getElementById('dashboard-total-deductions').textContent = formatCurrency(overallTotalDeductions);
         document.getElementById('dashboard-tax-outcome').textContent = outcomeText;
-
-        // Income section
         document.getElementById('total-assessable-income').textContent = formatCurrency(totalAssessableIncome);
         document.getElementById('total-tax-withheld-summary').textContent = formatCurrency(totalTaxWithheld);
-
-        // Expense section
         document.getElementById('total-general-deductions').textContent = formatCurrency(totalGeneralDeductions);
-
-        // WFH section
         document.getElementById('wfh-total-hours').textContent = `${(appData.wfh.totalHours || 0).toFixed(2)}`;
         document.getElementById('wfh-fixed-rate-deduction').textContent = formatCurrency((appData.wfh.totalHours || 0) * WFH_FIXED_RATE_PER_HOUR);
         document.getElementById('wfh-actual-cost-deduction').textContent = formatCurrency(TaxCalculations.calculateWfhActualCostDeduction(appData.wfh.actualCostDetails));
         document.getElementById('wfh-floor-area-percentage').textContent = TaxCalculations.calculateFloorAreaPercentage(appData.wfh.actualCostDetails);
         document.getElementById('total-wfh-deduction').textContent = formatCurrency(totalWfhDeductions);
-        
-        // Summary page
         document.getElementById('summary-assessable-income').textContent = formatCurrency(totalAssessableIncome);
         document.getElementById('summary-total-deductions').textContent = formatCurrency(overallTotalDeductions);
         document.getElementById('summary-general-deductions').textContent = formatCurrency(totalGeneralDeductions);
@@ -256,6 +201,7 @@ const UIManager = (() => {
         showNotification, showConfirmation, showSection, populateOtherIncomeForm,
         displayIncomeList, displayGeneralExpensesList, displayWfhHoursList, 
         updateWfhMethodDisplay, updateAllSummaries, populateWfhActualCostForm,
-        showWfhAssetModal, hideWfhAssetModal, displayWfhAssetsList
+        showWfhAssetModal, hideWfhAssetModal, displayWfhAssetsList,
+        flashHighlight // Expose the new function
     };
 })();

@@ -4,15 +4,8 @@ const StorageManager = (() => {
     // Unique key for storing data in localStorage, specific to the financial year.
     const APP_STORAGE_KEY = 'aussieTaxHelperData-2025';
 
-    /**
-     * Returns the default data structure for the application.
-     * Ensures all necessary keys and objects exist, preventing errors.
-     */
     const getDefaultData = () => ({
-        userSettings: {
-            currentSection: 'dashboard-section',
-            financialYear: FINANCIAL_YEAR,
-        },
+        userSettings: { currentSection: 'dashboard-section', financialYear: FINANCIAL_YEAR },
         income: {
             payg: [],
             other: { bankInterest: 0, dividendsUnfranked: 0, dividendsFranked: 0, frankingCredits: 0 }
@@ -23,46 +16,26 @@ const StorageManager = (() => {
             hoursLog: [],
             totalHours: 0,
             actualCostDetails: {
-                officeArea: 0,
-                totalHomeArea: 0,
-                electricityCost: 0,
-                gasCost: 0,
-                internetCost: 0,
-                internetWorkPercent: 0,
-                phoneCost: 0,
-                stationeryCost: 0,
-                assets: []
+                officeArea: 0, totalHomeArea: 0, electricityCost: 0, gasCost: 0,
+                internetCost: 0, internetWorkPercent: 0, phoneCost: 0,
+                stationeryCost: 0, assets: []
             }
         }
     });
 
-    /**
-     * Loads application data from localStorage.
-     * If no data is found, or if data is corrupt, returns the default structure.
-     * It performs a deep merge to ensure data integrity if the app is updated with new fields.
-     */
     const loadData = () => {
         try {
             const storedData = localStorage.getItem(APP_STORAGE_KEY);
-            if (!storedData) {
-                return getDefaultData();
-            }
+            if (!storedData) return getDefaultData();
             const parsedData = JSON.parse(storedData);
-            
-            // Deep merge with default data to ensure new properties from updates are included.
             const defaultData = getDefaultData();
             const mergedData = {
-                ...defaultData,
-                ...parsedData,
+                ...defaultData, ...parsedData,
                 userSettings: { ...defaultData.userSettings, ...(parsedData.userSettings || {}) },
-                income: { 
-                    ...defaultData.income, 
-                    ...(parsedData.income || {}),
+                income: { ...defaultData.income, ...(parsedData.income || {}),
                     other: { ...defaultData.income.other, ...(parsedData.income?.other || {}) }
                 },
-                wfh: { 
-                    ...defaultData.wfh, 
-                    ...(parsedData.wfh || {}),
+                wfh: { ...defaultData.wfh, ...(parsedData.wfh || {}),
                     actualCostDetails: { ...defaultData.wfh.actualCostDetails, ...(parsedData.wfh?.actualCostDetails || {}) }
                 },
             };
@@ -74,10 +47,6 @@ const StorageManager = (() => {
         }
     };
 
-    /**
-     * Saves the provided data object to localStorage.
-     * @param {object} data - The application state to save.
-     */
     const saveData = (data) => {
         try {
             localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(data));
@@ -87,9 +56,6 @@ const StorageManager = (() => {
         }
     };
 
-    /**
-     * Clears all application data from localStorage.
-     */
     const clearAllData = () => {
         try {
             localStorage.removeItem(APP_STORAGE_KEY);
@@ -99,11 +65,6 @@ const StorageManager = (() => {
         }
     };
 
-    /**
-     * Exports the current application data to a file (JSON or CSV).
-     * @param {object} data - The application state to export.
-     * @param {string} format - The desired format ('json' or 'csv').
-     */
     const exportData = (data, format) => {
         try {
             let dataStr, blobType, fileExtension;
@@ -146,21 +107,37 @@ const StorageManager = (() => {
     };
 
     /**
-     * Imports data from a JSON file and uses a callback to update the app's state.
-     * @param {File} file - The file selected by the user.
-     * @param {function} callback - The function to call with the imported data.
+     * Validates the structure of imported data.
+     * @param {object} data - The parsed data from the imported file.
+     * @returns {boolean} - True if the data structure is valid, false otherwise.
      */
+    const validateImportedData = (data) => {
+        if (!data || typeof data !== 'object') return false;
+        
+        const hasTopLevelKeys = 'userSettings' in data && 'income' in data && 'generalExpenses' in data && 'wfh' in data;
+        if (!hasTopLevelKeys) return false;
+
+        const hasIncomeKeys = 'payg' in data.income && 'other' in data.income;
+        const hasWfhKeys = 'method' in data.wfh && 'hoursLog' in data.wfh && 'actualCostDetails' in data.wfh;
+        if (!hasIncomeKeys || !hasWfhKeys) return false;
+
+        const areArrays = Array.isArray(data.income.payg) && Array.isArray(data.generalExpenses) && Array.isArray(data.wfh.hoursLog);
+        if(!areArrays) return false;
+
+        return true; // All checks passed
+    };
+
     const importData = (file, callback) => {
         if (!file) return;
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
                 const importedData = JSON.parse(e.target.result);
-                // Basic validation to check if the file seems correct.
-                if (importedData && importedData.userSettings && importedData.income && importedData.generalExpenses && importedData.wfh) {
-                    callback(importedData); // Pass the data back to the app controller.
+                // UPDATED: Using the more robust validation function
+                if (validateImportedData(importedData)) {
+                    callback(importedData);
                 } else {
-                    UIManager.showNotification("Invalid data format in JSON file.");
+                    UIManager.showNotification("Invalid or corrupted data format in JSON file.");
                 }
             } catch (error) {
                 console.error("Failed to import data:", error);
