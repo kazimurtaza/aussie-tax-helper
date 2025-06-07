@@ -1,0 +1,104 @@
+{
+    "financialYear": "2024-2025",
+    "income": {
+      "payg": [
+        {
+          "id": "payg_1717465200000_abc123",
+          "sourceName": "Global Corp Australia",
+          "grossSalary": 143100,
+          "taxWithheld": 40250
+        }
+      ],
+      "other": {
+        "bankInterest": 175.50,
+        "dividendsUnfranked": 0,
+        "dividendsFranked": 0,
+        "frankingCredits": 0
+      }
+    },
+    "generalExpenses": [
+      {
+        "id": "exp_1717465300000_chair01",
+        "description": "Ergonomic Office Chair (Home Office)",
+        "date": "2024-07-22",
+        "cost": 450,
+        "category": "tools",
+        "workPercentage": 100,
+        "isDepreciable": true,
+        "effectiveLife": 8
+      },
+      {
+        "id": "exp_1717465400000_monitor01",
+        "description": "27-inch 4K Monitor (Home Office)",
+        "date": "2024-08-05",
+        "cost": 380,
+        "category": "tools",
+        "workPercentage": 100,
+        "isDepreciable": true,
+        "effectiveLife": 4
+      },
+      {
+        "id": "exp_1717465500000_course01",
+        "description": "Advanced Project Management Course",
+        "date": "2025-01-15",
+        "cost": 1200,
+        "category": "education",
+        "workPercentage": 100,
+        "isDepreciable": false,
+        "effectiveLife": 0
+      }
+    ],
+    "wfh": {
+      "method": "fixed_rate",
+      "hoursLog": [
+        {
+          "id": "wfhlog_1717465600000_a",
+          "date": "2024-07-01",
+          "hours": 7.6
+        },
+        {
+          "id": "wfhlog_1717465600000_b",
+          "date": "2024-07-02",
+          "hours": 7.6
+        },
+        {
+          "id": "wfhlog_1717465600000_c",
+          "date": "2024-07-03",
+          "hours": 7.6
+        },
+        {
+          "id": "wfhlog_1717465600000_d",
+          "date": "2025-06-02",
+          "hours": 7.6
+        },
+        {
+          "id": "wfhlog_1717465600000_e",
+          "date": "2025-06-03",
+          "hours": 7.6
+        },
+        {
+          "id": "wfhlog_1717465600000_f",
+          "date": "2025-06-04",
+          "hours": 7.65
+        }
+      ],
+      "totalHours": 943.25,
+      "actualCostDetails": {
+        "officeArea": 10.73,
+        "totalHomeArea": 110.00,
+        "electricityCost": 0,
+        "electricityWorkPercent": 0,
+        "gasCost": 0,
+        "gasWorkPercent": 0,
+        "internetCost": 0,
+        "internetWorkPercent": 0,
+        "phoneCost": 0,
+        "stationeryCost": 0,
+        "cleaningCost": 0,
+        "assets": []
+      }
+    },
+    "userSettings": {
+      "currentSection": "dashboard-section"
+    }
+  }
