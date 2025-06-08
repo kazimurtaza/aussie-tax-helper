@@ -70,6 +70,7 @@ const UIManager = (() => {
     const populateOtherIncomeForm = (otherIncome) => {
         const form = document.getElementById('other-income-form');
         form['bank-interest'].value = otherIncome.bankInterest || '';
+        form['net-capital-gains'].value = otherIncome.netCapitalGains || '';
         form['dividends-unfranked'].value = otherIncome.dividendsUnfranked || '';
         form['dividends-franked'].value = otherIncome.dividendsFranked || '';
         form['franking-credits'].value = otherIncome.frankingCredits || '';
@@ -96,7 +97,7 @@ const UIManager = (() => {
             const row = listEl.insertRow();
             row.innerHTML = `<td class="p-2 border-b border-gray-200">${item.sourceName}</td><td class="p-2 border-b border-gray-200">${formatCurrency(item.grossSalary)}</td><td class="p-2 border-b border-gray-200">${formatCurrency(item.taxWithheld)}</td><td class="p-2 border-b border-gray-200"><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removePaygIncome('${item.id}')">Remove</button></td>`;
         });
-        const otherIncomeTotal = (otherIncome.bankInterest || 0) + (otherIncome.dividendsUnfranked || 0) + (otherIncome.dividendsFranked || 0);
+        const otherIncomeTotal = (otherIncome.bankInterest || 0) + (otherIncome.dividendsUnfranked || 0) + (otherIncome.dividendsFranked || 0) + (otherIncome.netCapitalGains || 0);
         if(otherIncomeTotal > 0){
             hasIncome = true;
             const row = listEl.insertRow();
