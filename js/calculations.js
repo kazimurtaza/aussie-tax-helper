@@ -8,7 +8,8 @@ const TaxCalculations = (() => {
         const dividendsUnfranked = parseFloat(incomeData.other.dividendsUnfranked || 0);
         const dividendsFranked = parseFloat(incomeData.other.dividendsFranked || 0);
         const frankingCredits = parseFloat(incomeData.other.frankingCredits || 0);
-        const otherIncome = bankInterest + dividendsUnfranked + dividendsFranked + frankingCredits;
+        const netCapitalGains = parseFloat(incomeData.other.netCapitalGains || 0);
+        const otherIncome = bankInterest + dividendsUnfranked + dividendsFranked + frankingCredits + netCapitalGains;
         return paygIncome + otherIncome;
     };
 

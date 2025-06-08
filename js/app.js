@@ -158,6 +158,7 @@ const App = (() => {
             dividendsUnfranked: parseFloat(form['dividends-unfranked'].value) || 0,
             dividendsFranked: parseFloat(form['dividends-franked'].value) || 0,
             frankingCredits: parseFloat(form['franking-credits'].value) || 0,
+            netCapitalGains: parseFloat(form['net-capital-gains'].value) || 0,
         };
         saveAndRefresh();
         UIManager.showNotification("Other income updated.");

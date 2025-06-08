@@ -20,7 +20,13 @@ const StorageManager = (() => {
         },
         income: {
             payg: [],
-            other: { bankInterest: 0, dividendsUnfranked: 0, dividendsFranked: 0, frankingCredits: 0 }
+            other: { 
+                bankInterest: 0,
+                dividendsUnfranked: 0,
+                dividendsFranked: 0,
+                frankingCredits: 0,
+                netCapitalGains: 0 
+            }
         },
         generalExpenses: [],
         wfh: {
