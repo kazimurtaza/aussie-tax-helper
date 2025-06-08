@@ -120,6 +120,15 @@
             gap: 0.5rem;
             margin-top: 1.5rem;
         }
+        #nav-scroll-container {
+            overflow-x: auto;
+            /* Hides the scrollbar for a cleaner look */
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        #nav-scroll-container::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, and Opera */
+        }
     </style>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-63JCXZHLQK"></script>
@@ -137,12 +146,14 @@
         <h1 class="text-3xl font-bold text-center">Aussie Tax Helper <span id="financialYearDisplay" class="text-2xl font-semibold">2024-2025</span></h1>
     </header>
 
-    <nav id="main-nav" class="bg-blue-500 p-3 flex justify-center space-x-1 sm:space-x-2 shadow sticky top-0 z-50">
-        <button data-section="dashboard-section" class="nav-button px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">Dashboard</button>
-        <button data-section="income-section" class="nav-button px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">Income</button>
-        <button data-section="general-expenses-section" class="nav-button px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">Expenses</button>
-        <button data-section="wfh-section" class="nav-button px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">WFH</button>
-        <button data-section="summary-section" class="nav-button px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">Summary</button>
+    <nav id="main-nav" class="bg-blue-500 p-2 shadow sticky top-0 z-50">
+        <div id="nav-scroll-container" class="flex items-center justify-start sm:justify-center space-x-1 sm:space-x-2">
+            <button data-section="dashboard-section" class="nav-button flex-shrink-0 px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">Dashboard</button>
+            <button data-section="income-section" class="nav-button flex-shrink-0 px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">Income</button>
+            <button data-section="general-expenses-section" class="nav-button flex-shrink-0 px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">Expenses</button>
+            <button data-section="wfh-section" class="nav-button flex-shrink-0 px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">WFH</button>
+            <button data-section="summary-section" class="nav-button flex-shrink-0 px-3 py-2 text-sm sm:text-base rounded-md text-white hover:bg-blue-700 transition-colors">Summary</button>
+        </div>
     </nav>
 
     <main id="app-container" class="p-4 md:p-8 max-w-5xl mx-auto">
