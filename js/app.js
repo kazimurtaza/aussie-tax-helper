@@ -180,6 +180,7 @@ const App = (() => {
             workPercentage: parseInt(form['expense-work-percentage'].value) || 100,
             isDepreciable: isDepreciable,
             effectiveLife: isDepreciable ? (parseInt(form['expense-effective-life'].value) || 0) : 0,
+            depreciationMethod: isDepreciable ? form['depreciation-method'].value : 'prime_cost',
         };
         if (newExpense.description && newExpense.date && newExpense.cost > 0) {
             appData.generalExpenses.push(newExpense);

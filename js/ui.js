@@ -60,7 +60,7 @@ const UIManager = (() => {
         form['medicare-exempt'].checked = details.isMedicareExempt;
         form['private-cover'].checked = details.hasPrivateHospitalCover;
         form['rfb-amount'].value = details.reportableFringeBenefits || '';
-        form['personal-super-contribution'].value = details.personalSuperContribution || ''; // ADD THIS LINE
+        form['personal-super-contribution'].value = details.personalSuperContribution || '';
         form['filing-status'].value = details.filingStatus || 'single';
         form['spouse-income'].value = details.spouseIncome || '';
         form['dependent-children'].value = details.dependentChildren || '';

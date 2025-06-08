@@ -204,40 +204,42 @@ This project will be a client-side web application. All data will be stored in t
 * **(Optional) CSS Framework:** Such as Bootstrap or Tailwind CSS for faster UI development (or custom CSS).
 
 ### Basic File Structure
-aussie-tax-helper/
-├── README.md
-├── index.html
-├── css/
-│   └── style.css
-├── js/
-│   ├── app.js          // Main application logic, event handling
-│   ├── ui.js           // Functions for updating the UI, creating elements
-│   ├── calculations.js // Core tax calculation logic, WFH methods, depreciation
-│   ├── storage.js      // Functions for saving to and loading from local storage, CSV export/import
-│   └── constants.js    // Store tax rates, thresholds, WFH fixed rate (for easy updates)
-└── assets/             // For any images, icons, etc. (if needed)
+aussie-tax-helper/\
+├── README.md \
+├── index.html \
+├── js/ \
+│   ├── app.js          // Main application logic, event handling \
+│   ├── ui.js           // Functions for updating the UI, creating elements \
+│   ├── calculations.js // Core tax calculation logic, WFH methods, depreciation \
+│   ├── storage.js      // Functions for saving to and loading from local storage, CSV export/import \
+│   └── constants.js    // Store tax rates, thresholds, WFH fixed rate (for easy updates) \
+└── assets/             // For any images, icons, etc. (if needed) \
 
-### Todo
+### Changelog
+All notable changes to this project will be documented here. This project aims to provide a comprehensive tax management tool for Australian individuals.
 
-* ***Critical Issue:*** 2024-2025 Tax Rates: The TAX_RATES_2025 array in constants.js appears to be incorrect for the 2024-2025 financial year. The Australian government has legislated new "Stage 3" tax cuts that take effect from July 1, 2024. The current rates in your file resemble the 2023-2024 brackets.
-
-* ***Recommendation:*** Update the tax brackets in js/constants.js to reflect the correct 2024-2025 income tax rates. The ATO is the official source for these figures. The correct resident tax rates for 2024-25 are:
-    * $0 – $18,200: 0%
-    * $18,201 – $45,000: 16%
-    * $45,001 – $135,000: 30%
-    * $135,001 – $190,000: 37%
-    * $190,001 and over: 45%
-
-* ***Minor Inconsistency:*** LITO Calculation: The calculateLITO function in calculations.js uses constants like LITO_THRESHOLD_1 and LITO_REDUCTION_RATE_1 that are not defined in your js/constants.js file. This indicates that the logic in the calculation file might be out of sync with your intended constants.
-
-* ***Recommendation:*** Consolidate all constants into constants.js and ensure the calculateLITO function imports and uses them directly. This makes annual updates much easier.
-
-### 🖥️ User Interface & Experience (UI/UX)
-
-* ***Suggestion:*** Form Resets: After submitting a new PAYG income or expense, the forms are correctly reset. However, the "Other Income" form updates the data but doesn't clear. This is acceptable, as it's more of an "update" than an "add" action, but ensure this is the intended behavior.
-* ***Suggestion:*** Visual Feedback on Save: In the "Actual Cost Method" for WFH, the user clicks "Save & Calculate Actual Costs". While a notification appears, consider adding a subtle visual cue, like briefly flashing the background of the calculated deduction field, to immediately draw the user's eye to the result of their action.
-
-### 💾 Data Management
-
-* ***Suggestion:*** Import Validation: The importData function in storage.js performs a basic validation check to see if the top-level keys exist. To make it more robust, you could implement a more thorough schema validation, perhaps checking for expected data types or nested properties. This would prevent malformed data from corrupting the application state.
-* ***Suggestion:*** Clearer Button Text: The "Clear All Local Data" button is red and imposing, which is good. A small tweak could be to rename it to "Clear All Data (from this browser)" to be even more explicit about the scope of the action.
+* ***Version 1.2.0***
+    * ***Added***
+        * ***Depreciation Method Choice:*** Users can now select between "Prime Cost (Straight Line)" and "Diminishing Value" methods when adding a depreciable asset, allowing for more accurate and preferable deduction calculations.
+        * ***Personal Super Deductions:*** A dedicated input field for "Deductible Personal Super Contributions" has been added to the "Taxpayer Details" section to be included in the total deductions.
+        * ***Summary Breakdown:*** Superannuation deductions are now listed as a separate line item in the Tax Estimation Summary for better clarity.
+* ***Version 1.1.0***
+    * ***Added***
+        * ***Family & Single MLS Calculations:*** The app now accurately calculates the Medicare Levy Surcharge (MLS) for both "Single" and "Family" filing statuses.
+        * ***Advanced Taxpayer Details:*** Added new inputs for "Filing Status", "Spouse's Income", "Number of Dependent Children", "Reportable Fringe Benefits", and checkboxes for "Medicare Levy Exemption" and "Private Hospital Cover" to support more complex tax scenarios.
+        * ***Event Tracking:*** Implemented custom event tracking for Google Analytics to monitor feature usage and JavaScript errors.
+        * ***Improved***
+        * ***Mobile Navigation:*** The main navigation bar is now horizontally scrollable on mobile devices, fixing a key UI issue on smaller screens.
+        * ***Fixed***
+            * ***JavaScript Stability:*** Resolved a TypeError by ensuring all JavaScript modules are loaded completely and function calls have the correct parameters.
+* ***Version 1.0.0***
+    * ***Added***
+        * ***Initial Release:*** First version of the Aussie Tax Helper application launched.
+        * ***Core Features:*** Full functionality for tracking PAYG and other income, general work-related expenses, and Work-From-Home expenses using both the ATO Fixed Rate and Actual Cost methods.
+        * ***Claim Schedule Column:*** Added a new column to the expenses table to display the full depreciation schedule for assets over their effective life.
+        * ***Data Management:*** Implemented features to import and export user data via JSON or CSV files.
+        * ***Fixed***
+            * ***Tax Rate Accuracy:*** Updated all income tax brackets to the correct, legislated Stage 3 tax rates for the 2024-2025 financial year.
+            * ***Constants Correction:*** Ensured all constants for calculating the Low Income Tax Offset (LITO) and Medicare Levy were accurate and correctly defined.
+        * ***Improved***
+            * ***UI Design:*** Replaced the default fieldset borders with a modern card-based design using shadows for a cleaner look and feel.
