@@ -213,7 +213,7 @@ aussie-tax-helper/\
 │   ├── calculations.js // Core tax calculation logic, WFH methods, depreciation \
 │   ├── storage.js      // Functions for saving to and loading from local storage, CSV export/import \
 │   └── constants.js    // Store tax rates, thresholds, WFH fixed rate (for easy updates) \
-└── assets/             // For any images, icons, etc. (if needed) \
+└── assets/             // For any images, icons, etc. (if needed) 
 
 ### Changelog
 All notable changes to this project will be documented here. This project aims to provide a comprehensive tax management tool for Australian individuals.
