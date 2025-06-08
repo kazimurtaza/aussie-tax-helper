@@ -60,6 +60,7 @@ const UIManager = (() => {
         form['medicare-exempt'].checked = details.isMedicareExempt;
         form['private-cover'].checked = details.hasPrivateHospitalCover;
         form['rfb-amount'].value = details.reportableFringeBenefits || '';
+        form['personal-super-contribution'].value = details.personalSuperContribution || ''; // ADD THIS LINE
         form['filing-status'].value = details.filingStatus || 'single';
         form['spouse-income'].value = details.spouseIncome || '';
         form['dependent-children'].value = details.dependentChildren || '';
@@ -109,12 +110,12 @@ const UIManager = (() => {
         const listEl = document.getElementById('general-expenses-list');
         listEl.innerHTML = '';
         if (expenses.length === 0) {
-            listEl.innerHTML = '<tr><td colspan="7" class="text-center text-gray-500 py-4">No general expenses added yet.</td></tr>';
+            listEl.innerHTML = '<tr><td colspan="8" class="text-center text-gray-500 py-4">No general expenses added yet.</td></tr>';
             return;
         }
         expenses.forEach(exp => {
             const deduction = exp.isDepreciable
-                ? TaxCalculations.calculateDepreciation(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date)
+                ? TaxCalculations.calculateDepreciation(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
                 : (exp.cost * (exp.workPercentage / 100));
             
             let claimScheduleHtml = '';
@@ -129,12 +130,15 @@ const UIManager = (() => {
                 claimScheduleHtml = formatCurrency(deduction);
             }
 
+            const methodDisplay = exp.depreciationMethod === 'prime_cost' ? 'Prime Cost' : 'Diminishing';
+
             const row = listEl.insertRow();
             row.innerHTML = `
                 <td class="p-2 border-b border-gray-200">${exp.description}</td>
                 <td class="p-2 border-b border-gray-200">${exp.date}</td>
                 <td class="p-2 border-b border-gray-200">${formatCurrency(exp.cost)}</td>
                 <td class="p-2 border-b border-gray-200">${exp.workPercentage}%</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${exp.isDepreciable ? methodDisplay : 'N/A'}</td>
                 <td class="p-2 border-b border-gray-200 font-semibold">${formatCurrency(deduction)}</td>
                 <td class="p-2 border-b border-gray-200 text-xs">${claimScheduleHtml}</td>
                 <td class="p-2 border-b border-gray-200"><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeGeneralExpense('${exp.id}')">Remove</button></td>
@@ -187,9 +191,12 @@ const UIManager = (() => {
     const updateAllSummaries = (appData) => {
         const totalAssessableIncome = TaxCalculations.calculateTotalAssessableIncome(appData.income);
         const totalTaxWithheld = appData.income.payg.reduce((sum, item) => sum + item.taxWithheld, 0);
+        
         const totalGeneralDeductions = TaxCalculations.calculateTotalGeneralDeductions(appData.generalExpenses);
         const totalWfhDeductions = TaxCalculations.calculateTotalWfhDeductions(appData.wfh);
-        const overallTotalDeductions = totalGeneralDeductions + totalWfhDeductions;
+        const totalSuperDeductions = parseFloat(appData.taxpayerDetails.personalSuperContribution) || 0;
+        
+        const overallTotalDeductions = totalGeneralDeductions + totalWfhDeductions + totalSuperDeductions;
         const taxableIncome = TaxCalculations.calculateTaxableIncome(appData);
         
         const grossTax = TaxCalculations.calculateGrossTax(taxableIncome);
@@ -197,8 +204,8 @@ const UIManager = (() => {
         const medicareLevy = TaxCalculations.calculateMedicareLevy(taxableIncome, appData.taxpayerDetails);
         const mls = TaxCalculations.calculateMLS(taxableIncome, appData.taxpayerDetails);
         
-        const totalOffsets = TaxCalculations.calculateTotalOffsets(appData.income.other, lito);
-        const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, mls, totalOffsets);
+        const frankingCredits = parseFloat(appData.income.other.frankingCredits) || 0;
+        const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, mls, { lito, frankingCredits });
         const finalOutcome = TaxCalculations.calculateFinalOutcome(totalTaxWithheld, netTaxPayable);
         
         const outcomeText = finalOutcome >= 0 ? `${formatCurrency(finalOutcome)} Refund` : `${formatCurrency(Math.abs(finalOutcome))} Payable`;
@@ -209,21 +216,18 @@ const UIManager = (() => {
         document.getElementById('total-assessable-income').textContent = formatCurrency(totalAssessableIncome);
         document.getElementById('total-tax-withheld-summary').textContent = formatCurrency(totalTaxWithheld);
         document.getElementById('total-general-deductions').textContent = formatCurrency(totalGeneralDeductions);
-        document.getElementById('wfh-total-hours').textContent = `${(appData.wfh.totalHours || 0).toFixed(2)}`;
-        document.getElementById('wfh-fixed-rate-deduction').textContent = formatCurrency((appData.wfh.totalHours || 0) * WFH_FIXED_RATE_PER_HOUR);
-        document.getElementById('wfh-actual-cost-deduction').textContent = formatCurrency(TaxCalculations.calculateWfhActualCostDeduction(appData.wfh.actualCostDetails));
-        document.getElementById('wfh-floor-area-percentage').textContent = TaxCalculations.calculateFloorAreaPercentage(appData.wfh.actualCostDetails);
         document.getElementById('total-wfh-deduction').textContent = formatCurrency(totalWfhDeductions);
         document.getElementById('summary-assessable-income').textContent = formatCurrency(totalAssessableIncome);
         document.getElementById('summary-total-deductions').textContent = formatCurrency(overallTotalDeductions);
         document.getElementById('summary-general-deductions').textContent = formatCurrency(totalGeneralDeductions);
         document.getElementById('summary-wfh-deductions').textContent = formatCurrency(totalWfhDeductions);
+        document.getElementById('summary-super-deductions').textContent = formatCurrency(totalSuperDeductions);
         document.getElementById('summary-taxable-income').textContent = formatCurrency(taxableIncome);
         document.getElementById('summary-gross-tax').textContent = formatCurrency(grossTax);
         document.getElementById('summary-medicare-levy').textContent = formatCurrency(medicareLevy);
         document.getElementById('summary-mls').textContent = formatCurrency(mls);
-        document.getElementById('summary-tax-offsets').textContent = formatCurrency(totalOffsets);
-        document.getElementById('summary-net-tax').textContent = formatCurrency(netTaxPayable);
+        document.getElementById('summary-tax-offsets').textContent = formatCurrency(lito + frankingCredits);
+        document.getElementById('summary-net-tax').textContent = formatCurrency(netTaxPayable < 0 ? 0 : netTaxPayable);
         document.getElementById('summary-tax-withheld').textContent = formatCurrency(totalTaxWithheld);
         document.getElementById('summary-final-outcome').textContent = outcomeText;
     };

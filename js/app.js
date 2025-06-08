@@ -106,6 +106,7 @@ const App = (() => {
             isMedicareExempt: form['medicare-exempt'].checked,
             hasPrivateHospitalCover: form['private-cover'].checked,
             reportableFringeBenefits: parseFloat(form['rfb-amount'].value) || 0,
+            personalSuperContribution: parseFloat(form['personal-super-contribution'].value) || 0, // ADD THIS LINE
             filingStatus: form['filing-status'].value,
             spouseIncome: parseFloat(form['spouse-income'].value) || 0,
             dependentChildren: parseInt(form['dependent-children'].value) || 0,

@@ -198,6 +198,11 @@
                              <p class="tooltip-text mt-1">Found on your income statement. Used for income tests.</p>
                         </div>
 
+                        <div class="md:col-span-2">
+                             <label for="personal-super-contribution" class="block text-sm font-medium text-gray-700">Deductible Personal Super Contribution ($):</label>
+                             <input type="number" id="personal-super-contribution" name="personal-super-contribution" step="0.01">
+                        </div>
+
                         <div id="family-fields" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 hidden">
                             <div>
                                 <label for="spouse-income" class="block text-sm font-medium text-gray-700">Spouse's Income for MLS ($):</label>
@@ -330,9 +335,18 @@
                         </div>
                     </div>
                     <div id="depreciation-fields" class="hidden mt-4">
-                        <label for="expense-effective-life" class="block text-sm font-medium text-gray-700">Effective Life (Years):</label>
-                        <input type="number" id="expense-effective-life" name="expense-effective-life" step="1">
-                        <p class="tooltip-text mt-1">Check ATO guidelines for standard effective life of assets.</p>
+                        <div>
+                            <label for="expense-effective-life" class="block text-sm font-medium text-gray-700">Effective Life (Years):</label>
+                            <input type="number" id="expense-effective-life" name="expense-effective-life" step="1">
+                            <p class="tooltip-text mt-1">Check ATO guidelines for standard effective life of assets.</p>
+                        </div>
+                        <div>
+                            <label for="depreciation-method" class="block text-sm font-medium text-gray-700">Depreciation Method:</label>
+                            <select id="depreciation-method" name="depreciation-method">
+                                <option value="prime_cost">Prime Cost (Straight Line)</option>
+                                <option value="diminishing_value">Diminishing Value</option>
+                            </select>
+                        </div>
                     </div>
                     <button type="submit" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Add Expense</button>
                 </fieldset>
@@ -346,13 +360,14 @@
                             <th class="p-2 text-left text-sm font-semibold text-gray-600">Date</th>
                             <th class="p-2 text-left text-sm font-semibold text-gray-600">Cost</th>
                             <th class="p-2 text-left text-sm font-semibold text-gray-600">Work %</th>
+                            <th class="p-2 text-left text-sm font-semibold text-gray-600">Method</th>
                             <th class="p-2 text-left text-sm font-semibold text-gray-600">Deductible (This FY)</th>
                             <th class="p-2 text-left text-sm font-semibold text-gray-600">Claim Schedule</th>
                             <th class="p-2 text-left text-sm font-semibold text-gray-600">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="general-expenses-list">
-                        <tr><td colspan="7" class="text-center text-gray-500 py-4">No general expenses added yet.</td></tr>
+                        <tr><td colspan="8" class="text-center text-gray-500 py-4">No general expenses added yet.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -466,9 +481,13 @@
                     <span>- General Deductions:</span>
                     <span id="summary-general-deductions" class="text-red-500">$0.00</span>
                 </div>
-                <div class="summary-item sub-item flex justify-between py-1 pl-6 text-base text-gray-600 border-b pb-2">
+                <div class="summary-item sub-item flex justify-between py-1 pl-6 text-base text-gray-600">
                     <span>- WFH Deductions:</span>
                     <span id="summary-wfh-deductions" class="text-red-500">$0.00</span>
+                </div>
+                <div class="summary-item sub-item flex justify-between py-1 pl-6 text-base text-gray-600 border-b pb-2">
+                    <span>- Super Deductions:</span>
+                    <span id="summary-super-deductions" class="text-red-500">$0.00</span>
                 </div>
                 <div class="summary-item flex justify-between py-2 border-b font-semibold">
                     <span>Taxable Income:</span>

@@ -12,14 +12,20 @@ const TaxCalculations = (() => {
         return paygIncome + otherIncome;
     };
 
-    const calculateDepreciation = (cost, workPercentage, effectiveLifeYears, purchaseDateString) => {
+    const calculateDepreciation = (cost, workPercentage, effectiveLifeYears, purchaseDateString, method = 'prime_cost') => {
         const numCost = parseFloat(cost || 0);
         const numEffectiveLife = parseInt(effectiveLifeYears || 0);
         const numWorkPercentage = parseInt(workPercentage || 0);
         if (numCost <= 0 || numEffectiveLife <= 0) return 0;
         if (numCost <= 300) return numCost * (numWorkPercentage / 100);
 
-        const annualDepreciation = numCost / numEffectiveLife;
+        let annualDepreciation;
+        if (method === 'diminishing_value') {
+            annualDepreciation = numCost * (2 / numEffectiveLife);
+        } else {
+            annualDepreciation = numCost / numEffectiveLife;
+        }
+        
         const workRelatedDepreciation = annualDepreciation * (numWorkPercentage / 100);
         
         const purchaseDate = new Date(purchaseDateString);
@@ -33,6 +39,7 @@ const TaxCalculations = (() => {
         const daysInYear = 365; 
         const daysOwned = Math.floor((financialYearEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
         const proRataFactor = Math.max(0, daysOwned / daysInYear);
+        
         return workRelatedDepreciation * proRataFactor;
     };
 
@@ -41,7 +48,7 @@ const TaxCalculations = (() => {
             const cost = parseFloat(exp.cost || 0);
             const workPercentage = parseFloat(exp.workPercentage || 0);
             const deduction = exp.isDepreciable 
-                ? calculateDepreciation(cost, exp.workPercentage, exp.effectiveLife, exp.date)
+                ? calculateDepreciation(cost, workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
                 : (cost * (workPercentage / 100));
             return total + deduction;
         }, 0);
@@ -89,7 +96,8 @@ const TaxCalculations = (() => {
     const calculateOverallTotalDeductions = (appData) => {
         const generalDeductions = calculateTotalGeneralDeductions(appData.generalExpenses);
         const wfhDeductions = calculateTotalWfhDeductions(appData.wfh);
-        return generalDeductions + wfhDeductions;
+        const superDeductions = parseFloat(appData.taxpayerDetails.personalSuperContribution) || 0;
+        return generalDeductions + wfhDeductions + superDeductions;
     };
 
     const calculateTaxableIncome = (appData) => {

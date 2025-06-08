@@ -13,7 +13,8 @@ const StorageManager = (() => {
             isMedicareExempt: false,
             hasPrivateHospitalCover: false,
             reportableFringeBenefits: 0,
-            filingStatus: 'single', // 'single' or 'family'
+            personalSuperContribution: 0,
+            filingStatus: 'single',
             spouseIncome: 0,
             dependentChildren: 0,
         },

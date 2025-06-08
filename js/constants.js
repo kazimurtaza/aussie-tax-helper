@@ -47,7 +47,7 @@ const MLS_CHILD_ADJUSTMENT = 1500; // Threshold increases by this amount for eac
 // --- Work From Home Fixed Rate for 2024-2025 ---
 // The 67 cents per hour rate is confirmed for the 2024-25 financial year.
 // Source: https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/working-from-home-deductions/fixed-rate-method-work-from-home-expenses
-const WFH_FIXED_RATE_PER_HOUR = 0.67;
+const WFH_FIXED_RATE_PER_HOUR = 0.70;
 
 const FINANCIAL_YEAR = "2024-2025";
 
