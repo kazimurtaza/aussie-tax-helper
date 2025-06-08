@@ -1,4 +1,21 @@
 // js/app.js
+const trackEvent = (eventName, eventParams = {}) => {
+    // Check if gtag is available
+    if (typeof gtag === 'function') {
+        gtag('event', eventName, eventParams);
+        console.log(`Event tracked: ${eventName}`, eventParams); // Optional: for debugging
+    }
+};
+
+window.onerror = function(message, source, lineno, colno, error) {
+  if (typeof gtag === 'function') {
+    gtag('event', 'exception', {
+      'description': `${message} at ${source}:${lineno}`,
+      'fatal': false // set to true if the error is critical
+    });
+  }
+  return true; // Prevents the error from showing in the user's browser console
+};
 
 const App = (() => {
     // The single source of truth for the application's state.
@@ -36,6 +53,8 @@ const App = (() => {
                 appData.userSettings.currentSection = sectionId;
                 UIManager.showSection(sectionId);
                 StorageManager.saveData(appData);
+
+                trackEvent('navigation_click', { section: sectionId });
             }
         });
         
@@ -43,7 +62,11 @@ const App = (() => {
             document.getElementById('depreciation-fields').classList.toggle('hidden', !e.target.checked);
         });
 
-        document.getElementById('exportDataBtn').addEventListener('click', () => StorageManager.exportData(appData, 'json'));
+        document.getElementById('exportDataBtn').addEventListener('click', () => {
+            StorageManager.exportData(appData, 'json');
+
+            trackEvent('data_management', { action: 'export_json' });
+        });
         document.getElementById('exportCsvDataBtn').addEventListener('click', () => StorageManager.exportData(appData, 'csv'));
         document.getElementById('clearAllDataBtn').addEventListener('click', handleClearAllData);
 
@@ -97,6 +120,8 @@ const App = (() => {
             appData = StorageManager.getDefaultData();
             saveAndRefresh();
             UIManager.showNotification("All data has been cleared.");
+
+            trackEvent('data_management', { action: 'clear_all_data' });
         });
     }
 
@@ -162,6 +187,8 @@ const App = (() => {
             document.getElementById('depreciation-fields').classList.add('hidden');
             document.getElementById('expense-is-depreciable').checked = false;
             UIManager.showNotification("Expense added successfully.");
+
+            trackEvent('add_general_expense', { category: newExpense.category, is_depreciable: newExpense.isDepreciable });
         } else { UIManager.showNotification("Please fill in description, date, and cost."); }
     }
 
