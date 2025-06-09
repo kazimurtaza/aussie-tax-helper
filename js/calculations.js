@@ -12,36 +12,68 @@ const TaxCalculations = (() => {
         const otherIncome = bankInterest + dividendsUnfranked + dividendsFranked + frankingCredits + netCapitalGains;
         return paygIncome + otherIncome;
     };
-
-    const calculateDepreciation = (cost, workPercentage, effectiveLifeYears, purchaseDateString, method = 'prime_cost') => {
+    
+    /**
+     * Calculates the depreciation deduction for a single asset for the current financial year.
+     * Implements both Prime Cost (Straight Line) and Diminishing Value methods correctly.
+     * @param {number} cost - The original cost of the asset.
+     * @param {number} workPercentage - The percentage of work-related use.
+     * @param {number} effectiveLifeYears - The effective life of the asset in years.
+     * @param {string} purchaseDateString - The date the asset was purchased (YYYY-MM-DD).
+     * @param {string} method - The depreciation method ('prime_cost' or 'diminishing_value').
+     * @returns {number} The depreciation deduction for the current financial year.
+     */
+    const calculateDepreciationForFinancialYear = (cost, workPercentage, effectiveLifeYears, purchaseDateString, method = 'prime_cost') => {
         const numCost = parseFloat(cost || 0);
         const numEffectiveLife = parseInt(effectiveLifeYears || 0);
         const numWorkPercentage = parseInt(workPercentage || 0);
+
+        // No depreciation if cost or life is zero, or for items under $300 (claimed in full).
         if (numCost <= 0 || numEffectiveLife <= 0) return 0;
         if (numCost <= 300) return numCost * (numWorkPercentage / 100);
 
-        let annualDepreciation;
-        if (method === 'diminishing_value') {
-            annualDepreciation = numCost * (2 / numEffectiveLife);
-        } else {
-            annualDepreciation = numCost / numEffectiveLife;
-        }
-        
-        const workRelatedDepreciation = annualDepreciation * (numWorkPercentage / 100);
-        
         const purchaseDate = new Date(purchaseDateString);
         const yearStart = parseInt(window.FINANCIAL_YEAR.split('-')[0]);
-        const financialYearStart = new Date(yearStart, 6, 1);
-        const financialYearEnd = new Date(yearStart + 1, 5, 30);
-
-        if (isNaN(purchaseDate.getTime()) || purchaseDate > financialYearEnd) return 0;
-        if (purchaseDate < financialYearStart) return workRelatedDepreciation;
-
-        const daysInYear = 365; 
-        const daysOwned = Math.floor((financialYearEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
-        const proRataFactor = Math.max(0, daysOwned / daysInYear);
+        const financialYearStart = new Date(yearStart, 6, 1); // 1 July
+        const financialYearEnd = new Date(yearStart + 1, 5, 30); // 30 June
         
-        return workRelatedDepreciation * proRataFactor;
+        // Return 0 if the purchase date is invalid or in a future financial year.
+        if (isNaN(purchaseDate.getTime()) || purchaseDate > financialYearEnd) return 0;
+
+        let openingValue = numCost;
+        
+        // For Diminishing Value, calculate the written-down value at the start of THIS financial year.
+        if (method === 'diminishing_value' && purchaseDate < financialYearStart) {
+            const purchaseYear = purchaseDate.getFullYear();
+            const purchaseMonth = purchaseDate.getMonth();
+            let yearsOwnedBeforeThisFY = yearStart - purchaseYear;
+            if (purchaseMonth > 5) { // after 30 June, so it's in the next FY's start
+                yearsOwnedBeforeThisFY -= 1;
+            }
+
+            for (let i = 0; i < yearsOwnedBeforeThisFY; i++) {
+                openingValue -= openingValue * (2 / numEffectiveLife);
+            }
+        }
+        
+        let annualDepreciation;
+        if (method === 'diminishing_value') {
+            annualDepreciation = openingValue * (2 / numEffectiveLife);
+        } else { // Prime Cost
+            annualDepreciation = numCost / numEffectiveLife;
+        }
+
+        const workRelatedDepreciation = annualDepreciation * (numWorkPercentage / 100);
+
+        // Pro-rata calculation if purchased within the current financial year.
+        if (purchaseDate >= financialYearStart && purchaseDate <= financialYearEnd) {
+            const daysInYear = 365;
+            const daysOwned = Math.floor((financialYearEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
+            const proRataFactor = Math.max(0, daysOwned / daysInYear);
+            return workRelatedDepreciation * proRataFactor;
+        }
+        
+        return workRelatedDepreciation;
     };
 
     const calculateTotalGeneralDeductions = (generalExpenses) => {
@@ -49,7 +81,7 @@ const TaxCalculations = (() => {
             const cost = parseFloat(exp.cost || 0);
             const workPercentage = parseFloat(exp.workPercentage || 0);
             const deduction = exp.isDepreciable 
-                ? calculateDepreciation(cost, workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
+                ? calculateDepreciationForFinancialYear(cost, workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
                 : (cost * (workPercentage / 100));
             return total + deduction;
         }, 0);
@@ -79,7 +111,7 @@ const TaxCalculations = (() => {
 
         if (details.assets && details.assets.length > 0) {
             details.assets.forEach(asset => {
-                totalDeduction += calculateDepreciation(asset.cost, 100, asset.effectiveLife, asset.date);
+                totalDeduction += calculateDepreciationForFinancialYear(asset.cost, 100, asset.effectiveLife, asset.date, 'prime_cost'); // WFH assets typically prime cost
             });
         }
         return totalDeduction;
@@ -138,17 +170,21 @@ const TaxCalculations = (() => {
         }
         return taxableIncome * window.MEDICARE_LEVY_RATE;
     };
+    
+    const getIncomeForMls = (taxableIncome, taxpayerDetails) => {
+         return taxableIncome + (taxpayerDetails.reportableFringeBenefits || 0);
+    }
 
     const calculateMLS = (taxableIncome, taxpayerDetails) => {
         if (!taxpayerDetails || taxpayerDetails.hasPrivateHospitalCover) {
             return 0;
         }
         
-        const userIncomeForMls = taxableIncome + (taxpayerDetails.reportableFringeBenefits || 0);
+        const incomeForMls = getIncomeForMls(taxableIncome, taxpayerDetails);
         let surchargeRate = 0;
 
         if (taxpayerDetails.filingStatus === 'family') {
-            const familyIncomeForMls = userIncomeForMls + (taxpayerDetails.spouseIncome || 0);
+            const familyIncomeForMls = incomeForMls + (taxpayerDetails.spouseIncome || 0);
             const childAdjustment = taxpayerDetails.dependentChildren > 0
                 ? (taxpayerDetails.dependentChildren) * window.MLS_CHILD_ADJUSTMENT
                 : 0;
@@ -160,25 +196,42 @@ const TaxCalculations = (() => {
             }));
             
             const bracket = familyThresholds.slice().reverse().find(b => familyIncomeForMls >= b.min);
-            if (bracket) {
-                surchargeRate = bracket.rate;
-            }
-        } else {
-            const bracket = window.MLS_THRESHOLDS_SINGLE.slice().reverse().find(b => userIncomeForMls >= b.min);
-            if (bracket) {
-                surchargeRate = bracket.rate;
-            }
+            if (bracket) surchargeRate = bracket.rate;
+        } else { // Single
+            const bracket = window.MLS_THRESHOLDS_SINGLE.slice().reverse().find(b => incomeForMls >= b.min);
+            if (bracket) surchargeRate = bracket.rate;
         }
 
-        if (surchargeRate === 0) {
-            return 0;
-        }
+        return incomeForMls * surchargeRate;
+    };
+    
+    const calculatePhiOffset = (taxableIncome, taxpayerDetails) => {
+        const { phiAgeBracket, phiPremiumsPaid, phiRebateReceived, filingStatus, spouseIncome } = taxpayerDetails;
+        if (!phiPremiumsPaid || phiPremiumsPaid <= 0) return 0;
+
+        const incomeForPhi = getIncomeForMls(taxableIncome, taxpayerDetails);
+        let incomeTier = 'base';
         
-        return userIncomeForMls * surchargeRate;
+        // Determine income tier
+        const thresholds = filingStatus === 'family' ? window.MLS_THRESHOLDS_FAMILY : window.MLS_THRESHOLDS_SINGLE;
+        const totalIncome = filingStatus === 'family' ? incomeForPhi + spouseIncome : incomeForPhi;
+
+        if (totalIncome >= thresholds[1].min && totalIncome <= thresholds[1].max) incomeTier = 'tier1';
+        else if (totalIncome >= thresholds[2].min && totalIncome <= thresholds[2].max) incomeTier = 'tier2';
+        else if (totalIncome >= thresholds[3].min) incomeTier = 'tier3';
+
+        const rebateRate = window.PHI_REBATE_RATES[phiAgeBracket][incomeTier];
+        const correctRebate = phiPremiumsPaid * rebateRate;
+        const offset = correctRebate - (phiRebateReceived || 0);
+        
+        return Math.max(0, offset); // Cannot be negative
     };
 
-    const calculateTotalOffsets = (otherIncome, lito) => {
-        return lito + parseFloat(otherIncome.frankingCredits || 0);
+    const calculateTotalOffsets = (taxableIncome, appData) => {
+        const lito = calculateLITO(taxableIncome);
+        const frankingCredits = parseFloat(appData.income.other.frankingCredits || 0);
+        const phiOffset = calculatePhiOffset(taxableIncome, appData.taxpayerDetails);
+        return { lito, frankingCredits, phiOffset, total: lito + frankingCredits + phiOffset };
     };
 
     const calculateNetTaxPayable = (grossTax, medicareLevy, mls, totalOffsets) => {
@@ -199,10 +252,11 @@ const TaxCalculations = (() => {
         calculateLITO,
         calculateMedicareLevy,
         calculateMLS,
+        calculatePhiOffset,
         calculateTotalOffsets,
         calculateNetTaxPayable,
         calculateFinalOutcome,
-        calculateDepreciation,
+        calculateDepreciationForFinancialYear,
         calculateWfhActualCostDeduction,
         calculateFloorAreaPercentage
     };

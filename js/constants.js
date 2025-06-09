@@ -6,10 +6,11 @@
 const TAX_RATES_2025 = [
     { min: 0,      max: 18200,   rate: 0,     base: 0 },
     { min: 18201,  max: 45000,   rate: 0.16,   base: 0 },
-    { min: 45001,  max: 135000,  rate: 0.30,   base: 4288 },   // 4288 = 16% of (45000 - 18200)
-    { min: 135001, max: 190000,  rate: 0.37,   base: 31288 },  // 31288 = 4288 + 30% of (135000 - 45000)
-    { min: 190001, max: Infinity,rate: 0.45,   base: 51638 }   // 51638 = 31288 + 37% of (190000 - 135000)
+    { min: 45001,  max: 135000,  rate: 0.30,   base: 4288 },
+    { min: 135001, max: 190000,  rate: 0.37,   base: 51638 }, 
+    { min: 190001, max: Infinity,rate: 0.45,   base: 71938 }   
 ];
+
 
 // --- Low Income Tax Offset (LITO) for 2024-2025 ---
 // Source: https://www.ato.gov.au/Individuals/Income-and-deductions/Offsets-and-rebates/Low-and-middle-income-tax-offset/
@@ -21,13 +22,13 @@ const LITO_REDUCTION_RATE_1 = 0.05;    // 5 cents per dollar
 const LITO_REDUCTION_RATE_2 = 0.015;   // 1.5 cents per dollar
 
 // --- Medicare Levy for 2024-2025 ---
-// Note: Thresholds are for 2023-24, verify for 2024-25 when released.
+// Note: Thresholds are for 2023-24, verify for 2024-25 when released. Using 23-24 as placeholder.
 // Source: https://www.ato.gov.au/individuals-and-families/medicare-and-private-health-insurance/medicare-levy/medicare-levy-reduction-for-low-income-earners
 const MEDICARE_LEVY_RATE = 0.02; // 2%
 const MEDICARE_LEVY_THRESHOLD_SINGLE = 24276;
 const MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE = 30345; // Upper threshold for phase-in rate
 
-// --- ADDED: Medicare Levy Surcharge (MLS) for 2024-2025 ---
+// --- Medicare Levy Surcharge (MLS) for 2024-2025 ---
 // Source: https://www.ato.gov.au/rates/medicare-levy-surcharge-income-thresholds-and-rates/
 const MLS_THRESHOLDS_SINGLE = [
     { min: 0, max: 97000, rate: 0 },
@@ -35,7 +36,6 @@ const MLS_THRESHOLDS_SINGLE = [
     { min: 113001, max: 151000, rate: 0.0125 },
     { min: 151001, max: Infinity, rate: 0.015 }
 ];
-// ADDED: Family thresholds
 const MLS_THRESHOLDS_FAMILY = [
     { min: 0, max: 194000, rate: 0 },
     { min: 194001, max: 226000, rate: 0.01 },
@@ -43,6 +43,15 @@ const MLS_THRESHOLDS_FAMILY = [
     { min: 302001, max: Infinity, rate: 0.015 }
 ];
 const MLS_CHILD_ADJUSTMENT = 1500; // Threshold increases by this amount for each dependent child after the first.
+
+// --- Private Health Insurance (PHI) Rebate for 2024-2025 ---
+// Note: Rates are for 1 April 2024 - 31 March 2025. Verify for updates.
+// Source: https://www.ato.gov.au/individuals-and-families/medicare-and-private-health-insurance/private-health-insurance-rebate/income-thresholds-and-rates-for-the-private-health-insurance-rebate
+const PHI_REBATE_RATES = {
+    'under65': { base: 0.24608, tier1: 0.16405, tier2: 0.08202, tier3: 0 },
+    '65to69':  { base: 0.28710, tier1: 0.20507, tier2: 0.12304, tier3: 0 },
+    '70plus':  { base: 0.32812, tier1: 0.24609, tier2: 0.16406, tier3: 0 }
+};
 
 // --- Work From Home Fixed Rate for 2024-2025 ---
 // The 67 cents per hour rate is confirmed for the 2024-25 financial year.
@@ -63,7 +72,8 @@ window.MEDICARE_LEVY_RATE = MEDICARE_LEVY_RATE;
 window.MEDICARE_LEVY_THRESHOLD_SINGLE = MEDICARE_LEVY_THRESHOLD_SINGLE;
 window.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE = MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE;
 window.MLS_THRESHOLDS_SINGLE = MLS_THRESHOLDS_SINGLE;
-window.MLS_THRESHOLDS_FAMILY = MLS_THRESHOLDS_FAMILY; // Expose new constant
-window.MLS_CHILD_ADJUSTMENT = MLS_CHILD_ADJUSTMENT; // Expose new constant
+window.MLS_THRESHOLDS_FAMILY = MLS_THRESHOLDS_FAMILY;
+window.MLS_CHILD_ADJUSTMENT = MLS_CHILD_ADJUSTMENT;
+window.PHI_REBATE_RATES = PHI_REBATE_RATES;
 window.WFH_FIXED_RATE_PER_HOUR = WFH_FIXED_RATE_PER_HOUR;
 window.FINANCIAL_YEAR = FINANCIAL_YEAR;

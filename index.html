@@ -225,8 +225,34 @@
                             </div>
                         </div>
                     </div>
-                    <button type="submit" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors">Save Details</button>
                 </fieldset>
+                
+                <!-- Private Health Insurance Section -->
+                <fieldset>
+                    <legend class="text-lg font-medium text-gray-700">Private Health Insurance</legend>
+                    <div class="mt-2 grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
+                        <div>
+                            <label for="phi-age-bracket" class="block text-sm font-medium text-gray-700">Your Age Bracket:</label>
+                            <select id="phi-age-bracket" name="phi-age-bracket">
+                                <option value="under65">Under 65</option>
+                                <option value="65to69">65-69</option>
+                                <option value="70plus">70+</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="phi-premiums-paid" class="block text-sm font-medium text-gray-700">Premiums Paid ($):</label>
+                            <input type="number" id="phi-premiums-paid" name="phi-premiums-paid" step="0.01" placeholder="What you paid">
+                        </div>
+                        <div>
+                            <label for="phi-rebate-received" class="block text-sm font-medium text-gray-700">Rebate Received ($):</label>
+                            <input type="number" id="phi-rebate-received" name="phi-rebate-received" step="0.01" placeholder="From your statement">
+                        </div>
+                    </div>
+                     <p class="tooltip-text mt-2">Enter details from your private health insurance statement to calculate your tax offset.</p>
+                </fieldset>
+
+
+                <button type="submit" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors">Save Details</button>
             </form>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -326,6 +352,9 @@
                                 <option value="education">Self-Education</option>
                                 <option value="travel">Work-Related Travel</option>
                                 <option value="uniform">Uniform/Protective Clothing</option>
+                                <option value="income_protection">Income Protection Insurance</option>
+                                <option value="tax_affairs">Cost of Managing Tax Affairs</option>
+                                <option value="donations">Gifts & Donations</option>
                                 <option value="other">Other</option>
                             </select>
                         </div>
@@ -338,7 +367,7 @@
                             <label for="expense-is-depreciable" class="text-sm font-medium text-gray-700">Is this a depreciable asset (cost > $300 and lasts > 1 year)?</label>
                         </div>
                     </div>
-                    <div id="depreciation-fields" class="hidden mt-4">
+                    <div id="depreciation-fields" class="hidden mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label for="expense-effective-life" class="block text-sm font-medium text-gray-700">Effective Life (Years):</label>
                             <input type="number" id="expense-effective-life" name="expense-effective-life" step="1">
@@ -510,8 +539,20 @@
                     <strong id="summary-mls">$0.00</strong>
                 </div>
                 <div class="summary-item flex justify-between py-2 border-b">
-                    <span>Tax Offsets (LITO, Franking Credits):</span>
+                    <span>Total Tax Offsets:</span>
                     <strong id="summary-tax-offsets" class="text-green-500">$0.00</strong>
+                </div>
+                <div class="summary-item sub-item flex justify-between py-1 pl-6 text-base text-gray-600">
+                    <span>- LITO:</span>
+                    <span id="summary-lito-offset" class="text-green-500">$0.00</span>
+                </div>
+                 <div class="summary-item sub-item flex justify-between py-1 pl-6 text-base text-gray-600">
+                    <span>- Franking Credits:</span>
+                    <span id="summary-franking-credits-offset" class="text-green-500">$0.00</span>
+                </div>
+                 <div class="summary-item sub-item flex justify-between py-1 pl-6 text-base text-gray-600 border-b pb-2">
+                    <span>- Private Health Insurance:</span>
+                    <span id="summary-phi-offset" class="text-green-500">$0.00</span>
                 </div>
                 <div class="summary-item flex justify-between py-2 border-b font-semibold">
                     <span>Net Tax Payable:</span>

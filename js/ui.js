@@ -64,6 +64,9 @@ const UIManager = (() => {
         form['filing-status'].value = details.filingStatus || 'single';
         form['spouse-income'].value = details.spouseIncome || '';
         form['dependent-children'].value = details.dependentChildren || '';
+        form['phi-age-bracket'].value = details.phiAgeBracket || 'under65';
+        form['phi-premiums-paid'].value = details.phiPremiumsPaid || '';
+        form['phi-rebate-received'].value = details.phiRebateReceived || '';
         toggleFamilyFields(details.filingStatus === 'family');
     };
 
@@ -98,11 +101,11 @@ const UIManager = (() => {
             row.innerHTML = `<td class="p-2 border-b border-gray-200">${item.sourceName}</td><td class="p-2 border-b border-gray-200">${formatCurrency(item.grossSalary)}</td><td class="p-2 border-b border-gray-200">${formatCurrency(item.taxWithheld)}</td><td class="p-2 border-b border-gray-200"><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removePaygIncome('${item.id}')">Remove</button></td>`;
         });
         const otherIncomeTotal = (otherIncome.bankInterest || 0) + (otherIncome.dividendsUnfranked || 0) + (otherIncome.dividendsFranked || 0) + (otherIncome.netCapitalGains || 0);
-        if(otherIncomeTotal > 0){
+        if(otherIncomeTotal > 0 || (otherIncome.frankingCredits || 0) > 0){
             hasIncome = true;
             const row = listEl.insertRow();
             row.className = 'bg-gray-50';
-            row.innerHTML = `<td class="p-2 border-b border-gray-200 italic">Other Income (Interest, Dividends)</td><td class="p-2 border-b border-gray-200 italic">${formatCurrency(otherIncomeTotal)}</td><td class="p-2 border-b border-gray-200 italic">${formatCurrency(otherIncome.frankingCredits)} (Credits)</td><td class="p-2 border-b border-gray-200"></td>`;
+            row.innerHTML = `<td class="p-2 border-b border-gray-200 italic">Other Income (Interest, Dividends, etc.)</td><td class="p-2 border-b border-gray-200 italic">${formatCurrency(otherIncomeTotal)}</td><td class="p-2 border-b border-gray-200 italic">${formatCurrency(otherIncome.frankingCredits)} (Credits)</td><td class="p-2 border-b border-gray-200"></td>`;
         }
         if (!hasIncome) listEl.innerHTML = '<tr><td colspan="4" class="text-center text-gray-500 py-4">No income added yet.</td></tr>';
     };
@@ -116,33 +119,40 @@ const UIManager = (() => {
         }
         expenses.forEach(exp => {
             const deduction = exp.isDepreciable
-                ? TaxCalculations.calculateDepreciation(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
+                ? TaxCalculations.calculateDepreciationForFinancialYear(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
                 : (exp.cost * (exp.workPercentage / 100));
             
             let claimScheduleHtml = '';
             if (exp.isDepreciable && exp.effectiveLife > 0) {
-                const annualDepreciation = (exp.cost / exp.effectiveLife) * (exp.workPercentage / 100);
                 let schedule = [];
+                let openingValue = exp.cost;
                 for (let i = 1; i <= exp.effectiveLife; i++) {
-                    schedule.push(`Y${i}: ${formatCurrency(annualDepreciation)}`);
+                    let yearDepreciation;
+                     if(exp.depreciationMethod === 'diminishing_value') {
+                        yearDepreciation = openingValue * (2 / exp.effectiveLife) * (exp.workPercentage / 100);
+                        openingValue -= yearDepreciation / (exp.workPercentage / 100);
+                     } else {
+                        yearDepreciation = (exp.cost / exp.effectiveLife) * (exp.workPercentage / 100);
+                     }
+                    schedule.push(`Y${i}: ${formatCurrency(yearDepreciation)}`);
                 }
                 claimScheduleHtml = schedule.join('<br>');
             } else {
-                claimScheduleHtml = formatCurrency(deduction);
+                claimScheduleHtml = 'Immediate';
             }
 
-            const methodDisplay = exp.depreciationMethod === 'prime_cost' ? 'Prime Cost' : 'Diminishing';
+            const methodDisplay = exp.isDepreciable ? (exp.depreciationMethod === 'prime_cost' ? 'Prime Cost' : 'Diminishing') : 'N/A';
 
             const row = listEl.insertRow();
             row.innerHTML = `
-                <td class="p-2 border-b border-gray-200">${exp.description}</td>
-                <td class="p-2 border-b border-gray-200">${exp.date}</td>
-                <td class="p-2 border-b border-gray-200">${formatCurrency(exp.cost)}</td>
-                <td class="p-2 border-b border-gray-200">${exp.workPercentage}%</td>
-                <td class="p-2 border-b border-gray-200 text-sm">${exp.isDepreciable ? methodDisplay : 'N/A'}</td>
-                <td class="p-2 border-b border-gray-200 font-semibold">${formatCurrency(deduction)}</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${exp.description}</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${exp.date}</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${formatCurrency(exp.cost)}</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${exp.workPercentage}%</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${methodDisplay}</td>
+                <td class="p-2 border-b border-gray-200 text-sm font-semibold">${formatCurrency(deduction)}</td>
                 <td class="p-2 border-b border-gray-200 text-xs">${claimScheduleHtml}</td>
-                <td class="p-2 border-b border-gray-200"><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeGeneralExpense('${exp.id}')">Remove</button></td>
+                <td class="p-2 border-b border-gray-200 text-sm"><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeGeneralExpense('${exp.id}')">Remove</button></td>
             `;
         });
     };
@@ -201,16 +211,17 @@ const UIManager = (() => {
         const taxableIncome = TaxCalculations.calculateTaxableIncome(appData);
         
         const grossTax = TaxCalculations.calculateGrossTax(taxableIncome);
-        const lito = TaxCalculations.calculateLITO(taxableIncome);
         const medicareLevy = TaxCalculations.calculateMedicareLevy(taxableIncome, appData.taxpayerDetails);
         const mls = TaxCalculations.calculateMLS(taxableIncome, appData.taxpayerDetails);
         
-        const frankingCredits = parseFloat(appData.income.other.frankingCredits) || 0;
-        const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, mls, { lito, frankingCredits });
+        const offsets = TaxCalculations.calculateTotalOffsets(taxableIncome, appData);
+        
+        const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, mls, offsets.total);
         const finalOutcome = TaxCalculations.calculateFinalOutcome(totalTaxWithheld, netTaxPayable);
         
         const outcomeText = finalOutcome >= 0 ? `${formatCurrency(finalOutcome)} Refund` : `${formatCurrency(Math.abs(finalOutcome))} Payable`;
         
+        // --- Update UI Elements ---
         document.getElementById('dashboard-taxable-income').textContent = formatCurrency(taxableIncome);
         document.getElementById('dashboard-total-deductions').textContent = formatCurrency(overallTotalDeductions);
         document.getElementById('dashboard-tax-outcome').textContent = outcomeText;
@@ -218,6 +229,8 @@ const UIManager = (() => {
         document.getElementById('total-tax-withheld-summary').textContent = formatCurrency(totalTaxWithheld);
         document.getElementById('total-general-deductions').textContent = formatCurrency(totalGeneralDeductions);
         document.getElementById('total-wfh-deduction').textContent = formatCurrency(totalWfhDeductions);
+        
+        // --- Summary Page ---
         document.getElementById('summary-assessable-income').textContent = formatCurrency(totalAssessableIncome);
         document.getElementById('summary-total-deductions').textContent = formatCurrency(overallTotalDeductions);
         document.getElementById('summary-general-deductions').textContent = formatCurrency(totalGeneralDeductions);
@@ -227,7 +240,10 @@ const UIManager = (() => {
         document.getElementById('summary-gross-tax').textContent = formatCurrency(grossTax);
         document.getElementById('summary-medicare-levy').textContent = formatCurrency(medicareLevy);
         document.getElementById('summary-mls').textContent = formatCurrency(mls);
-        document.getElementById('summary-tax-offsets').textContent = formatCurrency(lito + frankingCredits);
+        document.getElementById('summary-tax-offsets').textContent = formatCurrency(offsets.total);
+        document.getElementById('summary-lito-offset').textContent = formatCurrency(offsets.lito);
+        document.getElementById('summary-franking-credits-offset').textContent = formatCurrency(offsets.frankingCredits);
+        document.getElementById('summary-phi-offset').textContent = formatCurrency(offsets.phiOffset);
         document.getElementById('summary-net-tax').textContent = formatCurrency(netTaxPayable < 0 ? 0 : netTaxPayable);
         document.getElementById('summary-tax-withheld').textContent = formatCurrency(totalTaxWithheld);
         document.getElementById('summary-final-outcome').textContent = outcomeText;

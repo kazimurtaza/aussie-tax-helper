@@ -217,6 +217,12 @@ aussie-tax-helper/\
 
 ### Changelog
 All notable changes to this project will be documented here. This project aims to provide a comprehensive tax management tool for Australian individuals.
+* ***Version 1.3.0***
+    * ***Added***
+        * ***Private Health Insurance Rebate:*** The app now fully calculates the Private Health Insurance (PHI) tax offset. Users can enter their premium and rebate details to get a more accurate tax outcome.
+        * ***Expanded Expense Categories:*** Added "Gifts & Donations," "Cost of Managing Tax Affairs," and "Income Protection Insurance" to the general expenses section.
+    * ***Fixed***
+        * ***Depreciation Calculation Accuracy:*** Corrected the "Diminishing Value" depreciation method to use the asset's written-down value, ensuring the calculation is compliant with ATO rules.
 
 * ***Version 1.2.0***
     * ***Added***
@@ -224,6 +230,7 @@ All notable changes to this project will be documented here. This project aims t
         * ***Personal Super Deductions:*** A dedicated input field for "Deductible Personal Super Contributions" has been added to the "Taxpayer Details" section to be included in the total deductions.
         * ***Net Capital Gains:*** Added a field for "Net Capital Gains" in the "Other Income" section to allow for more accurate income calculations for users with investments.
         * ***Summary Breakdown:*** Superannuation deductions are now listed as a separate line item in the Tax Estimation Summary for better clarity.
+
 * ***Version 1.1.0***
     * ***Added***
         * ***Family & Single MLS Calculations:*** The app now accurately calculates the Medicare Levy Surcharge (MLS) for both "Single" and "Family" filing statuses.
@@ -233,6 +240,7 @@ All notable changes to this project will be documented here. This project aims t
         * ***Mobile Navigation:*** The main navigation bar is now horizontally scrollable on mobile devices, fixing a key UI issue on smaller screens.
         * ***Fixed***
             * ***JavaScript Stability:*** Resolved a TypeError by ensuring all JavaScript modules are loaded completely and function calls have the correct parameters.
+            
 * ***Version 1.0.0***
     * ***Added***
         * ***Initial Release:*** First version of the Aussie Tax Helper application launched.
