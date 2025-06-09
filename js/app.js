@@ -106,10 +106,13 @@ const App = (() => {
             isMedicareExempt: form['medicare-exempt'].checked,
             hasPrivateHospitalCover: form['private-cover'].checked,
             reportableFringeBenefits: parseFloat(form['rfb-amount'].value) || 0,
-            personalSuperContribution: parseFloat(form['personal-super-contribution'].value) || 0, // ADD THIS LINE
+            personalSuperContribution: parseFloat(form['personal-super-contribution'].value) || 0,
             filingStatus: form['filing-status'].value,
             spouseIncome: parseFloat(form['spouse-income'].value) || 0,
             dependentChildren: parseInt(form['dependent-children'].value) || 0,
+            phiAgeBracket: form['phi-age-bracket'].value,
+            phiPremiumsPaid: parseFloat(form['phi-premiums-paid'].value) || 0,
+            phiRebateReceived: parseFloat(form['phi-rebate-received'].value) || 0,
         };
         saveAndRefresh();
         UIManager.showNotification("Taxpayer details updated.");
