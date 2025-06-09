@@ -1,5 +1,3 @@
-// js/ui.js
-
 const UIManager = (() => {
     // --- Modal Logic ---
     const modal = document.getElementById('app-modal');
@@ -122,24 +120,39 @@ const UIManager = (() => {
                 ? TaxCalculations.calculateDepreciationForFinancialYear(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
                 : (exp.cost * (exp.workPercentage / 100));
             
+            // --- CORRECTED CLAIM SCHEDULE LOGIC ---
             let claimScheduleHtml = '';
             if (exp.isDepreciable && exp.effectiveLife > 0) {
                 let schedule = [];
-                let openingValue = exp.cost;
-                for (let i = 1; i <= exp.effectiveLife; i++) {
-                    let yearDepreciation;
-                     if(exp.depreciationMethod === 'diminishing_value') {
-                        yearDepreciation = openingValue * (2 / exp.effectiveLife) * (exp.workPercentage / 100);
-                        openingValue -= yearDepreciation / (exp.workPercentage / 100);
-                     } else {
-                        yearDepreciation = (exp.cost / exp.effectiveLife) * (exp.workPercentage / 100);
-                     }
-                    schedule.push(`Y${i}: ${formatCurrency(yearDepreciation)}`);
+                let openingValue = parseFloat(exp.cost);
+                const workPercentFactor = parseFloat(exp.workPercentage) / 100;
+                const effectiveLife = parseInt(exp.effectiveLife);
+
+                for (let i = 1; i <= effectiveLife; i++) {
+                    let fullYearDepreciation;
+                    if (exp.depreciationMethod === 'diminishing_value') {
+                        // Calculate depreciation on the opening value for the year
+                        fullYearDepreciation = openingValue * (2 / effectiveLife);
+                    } else { // Prime Cost (straight-line)
+                        fullYearDepreciation = exp.cost / effectiveLife;
+                    }
+                    
+                    const workRelatedPortion = fullYearDepreciation * workPercentFactor;
+
+                    if (openingValue > 1) { // Stop displaying once value is negligible
+                         schedule.push(`Y${i}: ${formatCurrency(workRelatedPortion)}`);
+                    } else {
+                         schedule.push(`Y${i}: ${formatCurrency(0)}`);
+                    }
+
+                    // Reduce the opening value by the FULL depreciation amount for the next year's calculation
+                    openingValue -= fullYearDepreciation;
                 }
                 claimScheduleHtml = schedule.join('<br>');
             } else {
                 claimScheduleHtml = 'Immediate';
             }
+            // --- END OF FIX ---
 
             const methodDisplay = exp.isDepreciable ? (exp.depreciationMethod === 'prime_cost' ? 'Prime Cost' : 'Diminishing') : 'N/A';
 
