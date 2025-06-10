@@ -1,5 +1,4 @@
 // js/storage.js
-
 const StorageManager = (() => {
     // Unique key for storing data in localStorage, specific to the financial year.
     const APP_STORAGE_KEY = 'aussieTaxHelperData-2025';
@@ -35,7 +34,7 @@ const StorageManager = (() => {
         wfh: {
             method: 'fixed_rate',
             hoursLog: [],
-            totalHours: 0,
+            totalMinutes: 0,
             actualCostDetails: {
                 officeArea: 0, totalHomeArea: 0, electricityCost: 0, gasCost: 0,
                 internetCost: 0, internetWorkPercent: 0, phoneCost: 0,
@@ -71,6 +70,20 @@ const StorageManager = (() => {
                     actualCostDetails: { ...defaultData.wfh.actualCostDetails, ...(parsedData.wfh?.actualCostDetails || {}) }
                 },
             };
+
+            // Backwards compatibility: if old totalHours exists, convert it to totalMinutes
+            if (mergedData.wfh.totalHours) {
+                mergedData.wfh.totalMinutes = Math.round(mergedData.wfh.totalHours * 60);
+                delete mergedData.wfh.totalHours;
+            }
+            if (mergedData.wfh.hoursLog.length > 0 && mergedData.wfh.hoursLog[0].hours) {
+                 mergedData.wfh.hoursLog.forEach(log => {
+                    log.minutes = Math.round(log.hours * 60);
+                    delete log.hours;
+                 });
+            }
+
+
             return mergedData;
         } catch (e) {
             console.error("Error loading data from local storage:", e);
@@ -118,7 +131,7 @@ const StorageManager = (() => {
                 csvContent += `"PAYG Income"\n${arrayToCsv(data.income.payg, ['Source Name', 'Gross Salary', 'Tax Withheld'], ['sourceName', 'grossSalary', 'taxWithheld'])}\n\n`;
                 csvContent += `"Other Income"\n${arrayToCsv([data.income.other], ['Bank Interest', 'Unfranked Dividends', 'Franked Dividends', 'Franking Credits'], ['bankInterest', 'dividendsUnfranked', 'dividendsFranked', 'frankingCredits'])}\n\n`;
                 csvContent += `"General Expenses"\n${arrayToCsv(data.generalExpenses, ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'], ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod'])}\n\n`;
-                csvContent += `"WFH Hours Log"\n${arrayToCsv(data.wfh.hoursLog, ['Date', 'Hours'], ['date', 'hours'])}\n\n`;
+                csvContent += `"WFH Hours Log"\n${arrayToCsv(data.wfh.hoursLog, ['Date', 'Minutes'], ['date', 'minutes'])}\n\n`;
                 dataStr = csvContent;
                 blobType = 'text/csv;charset=utf-8;';
                 fileExtension = 'csv';
@@ -173,5 +186,90 @@ const StorageManager = (() => {
         reader.readAsText(file);
     };
 
-    return { loadData, saveData, clearAllData, exportData, importData, getDefaultData };
+    const importWfhHoursFromCSV = (file, callback) => {
+        if (!file) return;
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            UIManager.showNotification("Please select a valid CSV file.");
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            try {
+                const csvContent = e.target.result;
+                const lines = csvContent.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                
+                const headerLine = lines[0] ? lines[0].toLowerCase() : '';
+                if (headerLine.includes('day') && headerLine.includes('time') && headerLine.includes('description')) {
+                    lines.shift();
+                }
+
+                const dailyMinutes = {};
+
+                lines.forEach((line, index) => {
+                    const columns = line.split(',');
+                    if (columns.length < 2) {
+                        console.warn(`Skipping malformed line ${index + 1}: Not enough columns.`);
+                        return;
+                    }
+
+                    let dateStr = columns[0].replace(/^"|"$/g, '').trim();
+                    const timeStr = columns[1].replace(/^"|"$/g, '').trim();
+                    let totalMinutesForLine = 0;
+
+                    if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+                        const timeParts = timeStr.split(':');
+                        const hours = parseInt(timeParts[0], 10);
+                        const minutes = parseInt(timeParts[1], 10);
+                        if (!isNaN(hours) && !isNaN(minutes)) {
+                            totalMinutesForLine = (hours * 60) + minutes;
+                        }
+                    }
+
+                    if (totalMinutesForLine <= 0) {
+                        console.warn(`Skipping line ${index + 1} due to invalid or zero duration: ${line}`);
+                        return;
+                    }
+
+                    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+                        const parts = dateStr.split('/');
+                        dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    } else if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
+                        const parts = dateStr.split('-');
+                        dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    }
+
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                        dailyMinutes[dateStr] = (dailyMinutes[dateStr] || 0) + totalMinutesForLine;
+                    } else {
+                        console.warn(`Skipping line ${index + 1} due to unrecognized date format: ${line}`);
+                    }
+                });
+
+                const importedLogs = Object.keys(dailyMinutes).map(date => ({
+                    date: date,
+                    minutes: dailyMinutes[date]
+                }));
+
+                if (importedLogs.length > 0) {
+                    callback(importedLogs);
+                } else {
+                    UIManager.showNotification("Could not find any valid hour entries in the file. Please check the file format.");
+                }
+
+            } catch (error) {
+                console.error("Failed to import WFH hours from CSV:", error);
+                UIManager.showNotification("An error occurred while parsing the CSV file.");
+            }
+        };
+
+        reader.onerror = () => {
+             UIManager.showNotification("Error reading the selected file.");
+        };
+
+        reader.readAsText(file);
+    };
+
+    return { loadData, saveData, clearAllData, exportData, importData, getDefaultData, importWfhHoursFromCSV };
 })();

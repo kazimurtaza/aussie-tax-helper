@@ -7,14 +7,26 @@ const trackEvent = (eventName, eventParams = {}) => {
     }
 };
 
-window.onerror = function(message, source, lineno, colno, error) {
-  if (typeof gtag === 'function') {
-    gtag('event', 'exception', {
-      'description': `${message} at ${source}:${lineno}`,
-      'fatal': false // set to true if the error is critical
-    });
-  }
-  return true; // Prevents the error from showing in the user's browser console
+// window.onerror = function(message, source, lineno, colno, error) {
+//   // Log errors to the console for debugging
+//   console.error('An error occurred:', { message, source, lineno, colno, error });
+//   if (typeof gtag === 'function') {
+//     gtag('event', 'exception', {
+//       'description': `${message} at ${source}:${lineno}`,
+//       'fatal': false // set to true if the error is critical
+//     });
+//   }
+//   return true; // Prevents the error from showing in the user's browser console
+// };
+
+// --- TIME HELPER FUNCTIONS ---
+const minutesToTimeString = (totalMinutes) => {
+    if (isNaN(totalMinutes) || totalMinutes < 0) return '00:00';
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = Math.round(totalMinutes % 60);
+    const paddedHours = String(hours).padStart(2, '0');
+    const paddedMinutes = String(minutes).padStart(2, '0');
+    return `${paddedHours}:${paddedMinutes}`;
 };
 
 const App = (() => {
@@ -31,7 +43,7 @@ const App = (() => {
         UIManager.displayIncomeList(appData.income.payg, appData.income.other);
         UIManager.populateTaxpayerDetailsForm(appData.taxpayerDetails);
         UIManager.displayGeneralExpensesList(appData.generalExpenses);
-        UIManager.displayWfhHoursList(appData.wfh.hoursLog);
+        UIManager.displayWfhHoursList(appData.wfh);
         UIManager.displayWfhAssetsList(appData.wfh.actualCostDetails.assets);
         UIManager.updateWfhMethodDisplay(appData.wfh.method);
         UIManager.populateOtherIncomeForm(appData.income.other);
@@ -62,6 +74,14 @@ const App = (() => {
             document.getElementById('depreciation-fields').classList.toggle('hidden', !e.target.checked);
         });
 
+        document.getElementById('edit-expense-is-depreciable').addEventListener('change', (e) => {
+            document.getElementById('edit-depreciation-fields').classList.toggle('hidden', !e.target.checked);
+        });
+
+        document.getElementById('wfh-asset-is-depreciable').addEventListener('change', (e) => {
+            document.getElementById('wfh-asset-depreciation-fields').classList.toggle('hidden', !e.target.checked);
+        });
+
         document.getElementById('exportDataBtn').addEventListener('click', () => {
             StorageManager.exportData(appData, 'json');
 
@@ -78,6 +98,8 @@ const App = (() => {
             });
             e.target.value = null;
         });
+        
+        document.getElementById('wfh-hours-csv-import').addEventListener('change', handleImportWfhHours);
 
         document.getElementById('taxpayer-details-form').addEventListener('submit', handleUpdateTaxpayerDetails);
         const filingStatusDropdown = document.getElementById('filing-status');
@@ -86,14 +108,39 @@ const App = (() => {
         });
 
         document.getElementById('income-form').addEventListener('submit', handleAddPaygIncome);
+        document.getElementById('edit-payg-form').addEventListener('submit', handleSavePaygIncome);
+        document.getElementById('edit-payg-cancel-btn').addEventListener('click', UIManager.hideEditPaygModal);
+
         document.getElementById('other-income-form').addEventListener('submit', handleUpdateOtherIncome);
         document.getElementById('general-expense-form').addEventListener('submit', handleAddGeneralExpense);
+        document.getElementById('edit-expense-form').addEventListener('submit', handleSaveGeneralExpense);
+        document.getElementById('edit-expense-cancel-btn').addEventListener('click', UIManager.hideEditExpenseModal);
+
         document.getElementById('wfh-hours-form').addEventListener('submit', handleAddWfhHour);
         document.getElementById('wfh-actual-cost-form').addEventListener('submit', handleUpdateWfhActualCosts);
+        
+        const runningCostInputs = ['wfh-office-area', 'wfh-total-home-area', 'wfh-electricity-cost', 'wfh-gas-cost', 'wfh-internet-cost', 'wfh-internet-work-percent', 'wfh-phone-cost', 'wfh-stationery-cost'];
+        runningCostInputs.forEach(id => {
+            document.getElementById(id).addEventListener('input', () => {
+                const details = {
+                    officeArea: document.getElementById('wfh-office-area').value,
+                    totalHomeArea: document.getElementById('wfh-total-home-area').value,
+                    electricityCost: document.getElementById('wfh-electricity-cost').value,
+                    gasCost: document.getElementById('wfh-gas-cost').value,
+                    internetCost: document.getElementById('wfh-internet-cost').value,
+                    internetWorkPercent: document.getElementById('wfh-internet-work-percent').value,
+                    phoneCost: document.getElementById('wfh-phone-cost').value,
+                    stationeryCost: document.getElementById('wfh-stationery-cost').value,
+                };
+                UIManager.updateRunningExpensesSubtotal(details);
+                UIManager.updateFloorAreaPercentageDisplay();
+            });
+        });
+
         document.getElementById('wfh-asset-form').addEventListener('submit', handleSaveWfhAsset);
         document.getElementById('wfh-use-fixed-rate-btn').addEventListener('click', () => setWfhMethod('fixed_rate'));
         document.getElementById('wfh-use-actual-cost-btn').addEventListener('click', () => setWfhMethod('actual_cost'));
-        document.getElementById('add-wfh-asset-btn').addEventListener('click', UIManager.showWfhAssetModal);
+        document.getElementById('add-wfh-asset-btn').addEventListener('click', () => UIManager.showWfhAssetModal());
         document.getElementById('wfh-asset-cancel-btn').addEventListener('click', UIManager.hideWfhAssetModal);
         document.getElementById('generate-summary-report-btn').addEventListener('click', generatePrintableSummary);
     };
@@ -138,12 +185,37 @@ const App = (() => {
             grossSalary: parseFloat(form['gross-salary'].value) || 0,
             taxWithheld: parseFloat(form['tax-withheld'].value) || 0,
         };
-        if (newPayg.grossSalary > 0 && newPayg.sourceName) {
+        if (newPayg.grossSalary >= 0 && newPayg.sourceName) {
             appData.income.payg.push(newPayg);
             saveAndRefresh();
             form.reset();
             UIManager.showNotification("PAYG income added.");
         } else { UIManager.showNotification("Please enter a valid source name and gross salary."); }
+    }
+
+    const editPaygIncome = (id) => {
+        const incomeItem = appData.income.payg.find(item => item.id === id);
+        if (incomeItem) {
+            UIManager.showEditPaygModal(incomeItem);
+        }
+    };
+    
+    function handleSavePaygIncome(e) {
+        e.preventDefault();
+        const form = e.target;
+        const id = form['edit-payg-id'].value;
+        const incomeIndex = appData.income.payg.findIndex(item => item.id === id);
+        if (incomeIndex !== -1) {
+            appData.income.payg[incomeIndex] = {
+                id: id,
+                sourceName: form['edit-income-source-name'].value.trim(),
+                grossSalary: parseFloat(form['edit-gross-salary'].value) || 0,
+                taxWithheld: parseFloat(form['edit-tax-withheld'].value) || 0,
+            };
+            saveAndRefresh();
+            UIManager.hideEditPaygModal();
+            UIManager.showNotification("PAYG income updated.");
+        }
     }
 
     const removePaygIncome = (id) => {
@@ -186,7 +258,7 @@ const App = (() => {
             effectiveLife: isDepreciable ? (parseInt(form['expense-effective-life'].value) || 0) : 0,
             depreciationMethod: isDepreciable ? form['depreciation-method'].value : 'prime_cost',
         };
-        if (newExpense.description && newExpense.date && newExpense.cost > 0) {
+        if (newExpense.description && newExpense.date && newExpense.cost >= 0) {
             appData.generalExpenses.push(newExpense);
             saveAndRefresh();
             form.reset();
@@ -196,6 +268,37 @@ const App = (() => {
 
             trackEvent('add_general_expense', { category: newExpense.category, is_depreciable: newExpense.isDepreciable });
         } else { UIManager.showNotification("Please fill in description, date, and cost."); }
+    }
+
+    const editGeneralExpense = (id) => {
+        const expenseItem = appData.generalExpenses.find(exp => exp.id === id);
+        if (expenseItem) {
+            UIManager.showEditExpenseModal(expenseItem);
+        }
+    };
+
+    function handleSaveGeneralExpense(e) {
+        e.preventDefault();
+        const form = e.target;
+        const id = form['edit-expense-id'].value;
+        const expenseIndex = appData.generalExpenses.findIndex(exp => exp.id === id);
+        if (expenseIndex !== -1) {
+            const isDepreciable = form['edit-expense-is-depreciable'].checked;
+            appData.generalExpenses[expenseIndex] = {
+                id: id,
+                description: form['edit-expense-description'].value.trim(),
+                date: form['edit-expense-date'].value,
+                cost: parseFloat(form['edit-expense-cost'].value) || 0,
+                category: form['edit-expense-category'].value,
+                workPercentage: parseInt(form['edit-expense-work-percentage'].value) || 100,
+                isDepreciable: isDepreciable,
+                effectiveLife: isDepreciable ? (parseInt(form['edit-expense-effective-life'].value) || 0) : 0,
+                depreciationMethod: isDepreciable ? form['edit-depreciation-method'].value : 'prime_cost',
+            };
+            saveAndRefresh();
+            UIManager.hideEditExpenseModal();
+            UIManager.showNotification("Expense updated successfully.");
+        }
     }
 
     const removeGeneralExpense = (id) => {
@@ -208,23 +311,44 @@ const App = (() => {
     function handleAddWfhHour(e) {
         e.preventDefault();
         const form = e.target;
+        const decimalHours = parseFloat(form['wfh-hours'].value) || 0;
         const newLog = {
             id: generateId('wfh'),
             date: form['wfh-date'].value,
-            hours: parseFloat(form['wfh-hours'].value) || 0,
+            minutes: Math.round(decimalHours * 60),
         };
-        if (newLog.date && newLog.hours > 0) {
+        if (newLog.date && newLog.minutes > 0) {
             appData.wfh.hoursLog.push(newLog);
-            appData.wfh.totalHours = appData.wfh.hoursLog.reduce((sum, log) => sum + log.hours, 0);
+            appData.wfh.totalMinutes = appData.wfh.hoursLog.reduce((sum, log) => sum + log.minutes, 0);
             saveAndRefresh();
             form.reset();
         } else { UIManager.showNotification("Please enter a valid date and hours."); }
     }
+    
+    function handleImportWfhHours(e) {
+        StorageManager.importWfhHoursFromCSV(e.target.files[0], (importedLogs) => {
+            const newLogsWithIds = importedLogs.map(log => ({
+                ...log,
+                id: generateId('wfh_csv')
+            }));
+
+            const existingDates = new Set(appData.wfh.hoursLog.map(log => log.date));
+            const uniqueNewLogs = newLogsWithIds.filter(log => !existingDates.has(log.date));
+
+            appData.wfh.hoursLog.push(...uniqueNewLogs);
+            appData.wfh.totalMinutes = appData.wfh.hoursLog.reduce((sum, log) => sum + log.minutes, 0);
+            saveAndRefresh();
+            UIManager.showNotification(`${uniqueNewLogs.length} new daily hour entries imported successfully.`);
+        });
+        e.target.value = null; // Reset file input
+    }
 
     const removeWfhHour = (id) => {
-        appData.wfh.hoursLog = appData.wfh.hoursLog.filter(log => log.id !== id);
-        appData.wfh.totalHours = appData.wfh.hoursLog.reduce((sum, log) => sum + log.hours, 0);
-        saveAndRefresh();
+        UIManager.showConfirmation("Are you sure you want to remove this hour entry?", () => {
+            appData.wfh.hoursLog = appData.wfh.hoursLog.filter(log => log.id !== id);
+            appData.wfh.totalMinutes = appData.wfh.hoursLog.reduce((sum, log) => sum + log.minutes, 0);
+            saveAndRefresh();
+        });
     };
 
     const setWfhMethod = (method) => {
@@ -252,24 +376,56 @@ const App = (() => {
     function handleSaveWfhAsset(e) {
         e.preventDefault();
         const form = e.target;
-        const newAsset = {
-            id: generateId('wfh_asset'),
+        const assetId = form['wfh-asset-id'].value;
+        const isDepreciable = form['wfh-asset-is-depreciable'].checked;
+
+        const assetData = {
+            id: assetId || generateId('wfh_asset'),
             description: form['wfh-asset-description'].value.trim(),
             date: form['wfh-asset-date'].value,
             cost: parseFloat(form['wfh-asset-cost'].value) || 0,
-            effectiveLife: parseInt(form['wfh-asset-effective-life'].value) || 0,
+            workPercentage: parseInt(form['wfh-asset-work-percentage'].value) || 100,
+            isDepreciable: isDepreciable,
+            effectiveLife: isDepreciable ? (parseInt(form['wfh-asset-effective-life'].value) || 0) : 0,
+            depreciationMethod: isDepreciable ? form['wfh-asset-depreciation-method'].value : 'prime_cost',
         };
-        if (newAsset.description && newAsset.date && newAsset.cost > 0 && newAsset.effectiveLife > 0) {
-            appData.wfh.actualCostDetails.assets.push(newAsset);
-            saveAndRefresh();
-            UIManager.hideWfhAssetModal();
-            form.reset();
-        } else { UIManager.showNotification("Please fill in all asset details with valid values."); }
+
+        if (!assetData.description || !assetData.date || assetData.cost <= 0) {
+            UIManager.showNotification("Please fill in description, date, and cost.");
+            return;
+        }
+        if (isDepreciable && assetData.effectiveLife <= 0) {
+            UIManager.showNotification("Please enter an effective life for depreciable assets.");
+            return;
+        }
+
+        const assetIndex = appData.wfh.actualCostDetails.assets.findIndex(a => a.id === assetId);
+        if (assetIndex !== -1) {
+            appData.wfh.actualCostDetails.assets[assetIndex] = assetData;
+        } else {
+            appData.wfh.actualCostDetails.assets.push(assetData);
+        }
+        
+        saveAndRefresh();
+        UIManager.hideWfhAssetModal();
+        form.reset();
     }
+    
+    const editWfhAsset = (id) => {
+        const asset = appData.wfh.actualCostDetails.assets.find(a => a.id === id);
+        if (asset) {
+            UIManager.showWfhAssetModal(asset);
+        }
+    };
 
     const removeWfhAsset = (id) => {
-        appData.wfh.actualCostDetails.assets = appData.wfh.actualCostDetails.assets.filter(asset => asset.id !== id);
-        saveAndRefresh();
+        console.log(`[DEBUG] removeWfhAsset called with id: ${id}`);
+        UIManager.showConfirmation("Are you sure you want to remove this WFH asset?", () => {
+            console.log(`[DEBUG] Confirmation received. Filtering asset with id: ${id}`);
+            appData.wfh.actualCostDetails.assets = appData.wfh.actualCostDetails.assets.filter(asset => asset.id !== id);
+            console.log(`[DEBUG] Assets remaining: ${appData.wfh.actualCostDetails.assets.length}`);
+            saveAndRefresh();
+        });
     }
 
     const generatePrintableSummary = () => {
@@ -283,7 +439,12 @@ const App = (() => {
         printWindow.print();
     };
 
-    return { init, removePaygIncome, removeGeneralExpense, removeWfhHour, removeWfhAsset };
+    return { 
+        init, 
+        removePaygIncome, editPaygIncome, 
+        removeGeneralExpense, editGeneralExpense, 
+        removeWfhHour, removeWfhAsset, editWfhAsset
+    };
 })();
 
 window.App = App;

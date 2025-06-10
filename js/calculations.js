@@ -28,9 +28,13 @@ const TaxCalculations = (() => {
         const numEffectiveLife = parseInt(effectiveLifeYears || 0);
         const numWorkPercentage = parseInt(workPercentage || 0);
 
-        // No depreciation if cost or life is zero, or for items under $300 (claimed in full).
-        if (numCost <= 0 || numEffectiveLife <= 0) return 0;
-        if (numCost <= 300) return numCost * (numWorkPercentage / 100);
+        // No depreciation if cost is zero. An item under $300 is depreciable if it has an effective life.
+        if (numCost <= 0) return 0;
+        
+        // If it's not marked as depreciable (i.e., immediate claim)
+        if (!effectiveLifeYears || effectiveLifeYears <= 0) {
+             return numCost * (numWorkPercentage / 100);
+        }
 
         const purchaseDate = new Date(purchaseDateString);
         const yearStart = parseInt(window.FINANCIAL_YEAR.split('-')[0]);
@@ -53,13 +57,21 @@ const TaxCalculations = (() => {
 
             for (let i = 0; i < yearsOwnedBeforeThisFY; i++) {
                 // Base depreciation on the opening value for each year owned prior
-                openingValue -= openingValue * (2 / numEffectiveLife);
+                if (numEffectiveLife <= 1) {
+                    openingValue -= openingValue;
+                } else {
+                    openingValue -= openingValue * (2 / numEffectiveLife);
+                }
             }
         }
         
         let annualDepreciation;
         if (method === 'diminishing_value') {
-            annualDepreciation = openingValue * (2 / numEffectiveLife);
+            if (numEffectiveLife <= 1) { // Handle 1-year effective life edge case
+                annualDepreciation = openingValue;
+            } else {
+                annualDepreciation = openingValue * (2 / numEffectiveLife);
+            }
         } else { // Prime Cost
             annualDepreciation = numCost / numEffectiveLife;
         }
@@ -78,49 +90,52 @@ const TaxCalculations = (() => {
     };
 
     const calculateTotalGeneralDeductions = (generalExpenses) => {
-        return generalExpenses.reduce((total, exp) => {
-            const cost = parseFloat(exp.cost || 0);
-            const workPercentage = parseFloat(exp.workPercentage || 0);
-            const deduction = exp.isDepreciable 
-                ? calculateDepreciationForFinancialYear(cost, workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
-                : (cost * (workPercentage / 100));
-            return total + deduction;
-        }, 0);
-    };
-    
-    const calculateFloorAreaPercentage = (details) => {
-        const officeArea = parseFloat(details?.officeArea || 0);
-        const totalHomeArea = parseFloat(details?.totalHomeArea || 0);
-        if (officeArea > 0 && totalHomeArea > 0) {
-            return ((officeArea / totalHomeArea) * 100).toFixed(2) + '%';
-        }
-        return '0.00%';
+        const financialYearEnd = new Date(parseInt(FINANCIAL_YEAR.split('-')[1]), 5, 30);
+        return generalExpenses
+            .filter(exp => new Date(exp.date) <= financialYearEnd) // Filter out future-dated expenses
+            .reduce((total, exp) => {
+                const deduction = exp.isDepreciable 
+                    ? calculateDepreciationForFinancialYear(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
+                    : (parseFloat(exp.cost || 0) * (parseFloat(exp.workPercentage || 0) / 100));
+                return total + deduction;
+            }, 0);
     };
 
-    const calculateWfhActualCostDeduction = (details) => {
+    const calculateWfhRunningExpensesDeduction = (details) => {
         if (!details) return 0;
         let totalDeduction = 0;
         const officeArea = parseFloat(details.officeArea || 0);
         const totalHomeArea = parseFloat(details.totalHomeArea || 0);
         const floorAreaPercent = (officeArea > 0 && totalHomeArea > 0) ? officeArea / totalHomeArea : 0;
 
-        totalDeduction += parseFloat(details.electricityCost || 0) * floorAreaPercent;
-        totalDeduction += parseFloat(details.gasCost || 0) * floorAreaPercent;
+        totalDeduction += (parseFloat(details.electricityCost || 0) + parseFloat(details.gasCost || 0)) * floorAreaPercent;
         totalDeduction += parseFloat(details.internetCost || 0) * (parseFloat(details.internetWorkPercent || 0) / 100);
         totalDeduction += parseFloat(details.phoneCost || 0);
         totalDeduction += parseFloat(details.stationeryCost || 0);
-
-        if (details.assets && details.assets.length > 0) {
-            details.assets.forEach(asset => {
-                totalDeduction += calculateDepreciationForFinancialYear(asset.cost, 100, asset.effectiveLife, asset.date, 'prime_cost'); // WFH assets typically prime cost
-            });
-        }
         return totalDeduction;
+    };
+
+    const calculateWfhAssetsDeduction = (assets) => {
+        if (!assets || assets.length === 0) return 0;
+        return assets.reduce((total, asset) => {
+            const deduction = asset.isDepreciable
+                ? calculateDepreciationForFinancialYear(asset.cost, asset.workPercentage, asset.effectiveLife, asset.date, asset.depreciationMethod)
+                : (parseFloat(asset.cost || 0) * (parseFloat(asset.workPercentage || 100) / 100));
+            return total + deduction;
+        }, 0);
+    };
+
+    const calculateWfhActualCostDeduction = (details) => {
+        if (!details) return 0;
+        const runningExpenses = calculateWfhRunningExpensesDeduction(details);
+        const assetExpenses = calculateWfhAssetsDeduction(details.assets);
+        return runningExpenses + assetExpenses;
     };
 
     const calculateTotalWfhDeductions = (wfhData) => {
         if (wfhData.method === 'fixed_rate') {
-            return parseFloat(wfhData.totalHours || 0) * window.WFH_FIXED_RATE_PER_HOUR;
+            const decimalHours = (wfhData.totalMinutes || 0) / 60;
+            return decimalHours * window.WFH_FIXED_RATE_PER_HOUR;
         } else if (wfhData.method === 'actual_cost') {
             return calculateWfhActualCostDeduction(wfhData.actualCostDetails);
         }
@@ -149,6 +164,7 @@ const TaxCalculations = (() => {
     };
 
     const calculateLITO = (taxableIncome) => {
+        if (taxableIncome <= 18200) return 0;
         if (taxableIncome <= window.LITO_THRESHOLD_1) return window.LITO_MAX_OFFSET;
         if (taxableIncome > window.LITO_THRESHOLD_3) return 0;
         let offset;
@@ -173,9 +189,8 @@ const TaxCalculations = (() => {
         return taxableIncome * window.MEDICARE_LEVY_RATE;
     };
 
-    // **FIXED**: Moved this helper function before it is called.
     const getIncomeForMls = (taxableIncome, taxpayerDetails) => {
-         return taxableIncome + (parseFloat(taxpayerDetails.reportableFringeBenefits) || 0);
+         return taxableIncome + (parseFloat(taxpayerDetails.reportableFringeBenefits) || 0) + (parseFloat(taxpayerDetails.personalSuperContribution) || 0);
     }
 
     const calculateMLS = (taxableIncome, taxpayerDetails) => {
@@ -261,6 +276,7 @@ const TaxCalculations = (() => {
         calculateFinalOutcome,
         calculateDepreciationForFinancialYear,
         calculateWfhActualCostDeduction,
-        calculateFloorAreaPercentage
+        calculateWfhRunningExpensesDeduction,
+        calculateWfhAssetsDeduction
     };
 })();

@@ -7,8 +7,10 @@ const TAX_RATES_2025 = [
     { min: 0,      max: 18200,   rate: 0,     base: 0 },
     { min: 18201,  max: 45000,   rate: 0.16,   base: 0 },
     { min: 45001,  max: 135000,  rate: 0.30,   base: 4288 },
-    { min: 135001, max: 190000,  rate: 0.37,   base: 51638 }, 
-    { min: 190001, max: Infinity,rate: 0.45,   base: 71938 }   
+    // CORRECTED: The base tax for income up to $135,000 is $31,288.
+    { min: 135001, max: 190000,  rate: 0.37,   base: 31288 }, 
+    // CORRECTED: The base tax for income up to $190,000 is $51,638.
+    { min: 190001, max: Infinity,rate: 0.45,   base: 51638 }   
 ];
 
 
@@ -56,7 +58,7 @@ const PHI_REBATE_RATES = {
 // --- Work From Home Fixed Rate for 2024-2025 ---
 // The 67 cents per hour rate is confirmed for the 2024-25 financial year.
 // Source: https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/working-from-home-deductions/fixed-rate-method-work-from-home-expenses
-const WFH_FIXED_RATE_PER_HOUR = 0.70;
+const WFH_FIXED_RATE_PER_HOUR = 0.70; // Updated to correct value
 
 const FINANCIAL_YEAR = "2024-2025";
 
