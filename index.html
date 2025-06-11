@@ -494,8 +494,10 @@
                                 <table class="w-full">
                                     <thead>
                                         <tr class="bg-gray-100">
+                                            <th class="p-2 text-left text-xs font-semibold text-gray-600">#</th>
                                             <th class="p-2 text-left text-xs font-semibold text-gray-600">Description</th>
                                             <th class="p-2 text-left text-xs font-semibold text-gray-600">Date</th>
+                                            <th class="p-2 text-left text-xs font-semibold text-gray-600">Cost</th>
                                             <th class="p-2 text-left text-xs font-semibold text-gray-600">Work %</th>
                                             <th class="p-2 text-left text-xs font-semibold text-gray-600">Method</th>
                                             <th class="p-2 text-left text-xs font-semibold text-gray-600">Deductible (This FY)</th>
@@ -504,7 +506,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="wfh-assets-list-body">
-                                        <tr><td colspan="7" class="text-center text-gray-400 py-2">No assets added yet.</td></tr>
+                                         <tr><td colspan="9" class="text-center text-gray-400 py-2">No assets added yet.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -612,12 +614,12 @@
                     <div>
                         <h4 class="font-semibold">Version 1.4.0</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
-                            <li><strong class="font-medium text-green-600">A special thanks to Anachronism59 for your detailed feedback and persistence in identifying the bugs. Your keen eye was crucial in making this version more robust and accurate.</strong></li>
                             <li><strong class="font-medium text-green-600">Added:</strong> Edit functionality for PAYG and general expense entries.</li>
                             <li><strong class="font-medium text-green-600">Added:</strong> WFH Hours CSV Import.</li>
                             <li><strong class="font-medium text-green-600">Improved:</strong> WFH hours now calculated with higher accuracy and displayed in HH:MM format.</li>
                             <li><strong class="font-medium text-red-600">Fixed:</strong> MLS calculation now correctly includes personal super contributions.</li>
                             <li><strong class="font-medium text-red-600">Fixed:</strong> Critical bug in Diminishing Value depreciation for 1-year assets.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> CSV Export: Fixed a critical bug where the CSV export was incomplete. The export now correctly includes all data sections, including detailed WFH running costs and the full list of WFH assets.</li>
                         </ul>
                     </div>
                     <div>

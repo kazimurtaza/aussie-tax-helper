@@ -119,6 +119,8 @@ const StorageManager = (() => {
                 fileExtension = 'json';
             } else { 
                 let csvContent = `Tax Calculator Data - Financial Year: ${data.userSettings.financialYear}\n\n`;
+                
+                // Helper function to convert an array of objects to a CSV string
                 const arrayToCsv = (arr, headers, keys) => {
                     if (!arr || arr.length === 0) return `No data for this category.\n`;
                     const headerRow = headers.map(h => `"${h}"`).join(',');
@@ -127,11 +129,53 @@ const StorageManager = (() => {
                     );
                     return [headerRow, ...dataRows].join('\n');
                 };
-                csvContent += `"Taxpayer Details"\n${arrayToCsv([data.taxpayerDetails], ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'PHI Age Bracket', 'PHI Premiums Paid', 'PHI Rebate Received'], ['filingStatus', 'spouseIncome', 'dependentChildren', 'isMedicareExempt', 'hasPrivateHospitalCover', 'reportableFringeBenefits', 'phiAgeBracket', 'phiPremiumsPaid', 'phiRebateReceived'])}\n\n`;
+
+                // --- Build CSV Content Section by Section ---
+
+                // Taxpayer Details
+                csvContent += `"Taxpayer Details"\n${arrayToCsv(
+                    [data.taxpayerDetails],
+                    ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid', 'PHI Rebate Received'],
+                    ['filingStatus', 'spouseIncome', 'dependentChildren', 'isMedicareExempt', 'hasPrivateHospitalCover', 'reportableFringeBenefits', 'personalSuperContribution', 'phiAgeBracket', 'phiPremiumsPaid', 'phiRebateReceived']
+                )}\n\n`;
+                
+                // PAYG Income
                 csvContent += `"PAYG Income"\n${arrayToCsv(data.income.payg, ['Source Name', 'Gross Salary', 'Tax Withheld'], ['sourceName', 'grossSalary', 'taxWithheld'])}\n\n`;
-                csvContent += `"Other Income"\n${arrayToCsv([data.income.other], ['Bank Interest', 'Unfranked Dividends', 'Franked Dividends', 'Franking Credits'], ['bankInterest', 'dividendsUnfranked', 'dividendsFranked', 'frankingCredits'])}\n\n`;
-                csvContent += `"General Expenses"\n${arrayToCsv(data.generalExpenses, ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'], ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod'])}\n\n`;
+                
+                // Other Income (Now includes Net Capital Gains)
+                csvContent += `"Other Income"\n${arrayToCsv(
+                    [data.income.other],
+                    ['Bank Interest', 'Unfranked Dividends', 'Franked Dividends', 'Franking Credits', 'Net Capital Gains'],
+                    ['bankInterest', 'dividendsUnfranked', 'dividendsFranked', 'frankingCredits', 'netCapitalGains']
+                )}\n\n`;
+
+                // General Expenses
+                csvContent += `"General Expenses"\n${arrayToCsv(
+                    data.generalExpenses,
+                    ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'],
+                    ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod']
+                )}\n\n`;
+
+                // WFH Method
+                csvContent += `"Work-From-Home Details"\n"Method:","${data.wfh.method}"\n\n`;
+                
+                // WFH Hours Log
                 csvContent += `"WFH Hours Log"\n${arrayToCsv(data.wfh.hoursLog, ['Date', 'Minutes'], ['date', 'minutes'])}\n\n`;
+                
+                // WFH Actual Cost - Running Costs
+                csvContent += `"WFH Actual Cost - Running Costs"\n${arrayToCsv(
+                    [data.wfh.actualCostDetails],
+                    ['Office Area (m²)', 'Total Home Area (m²)', 'Electricity Cost ($)', 'Gas Cost ($)', 'Internet Cost ($)', 'Internet Work %', 'Phone Cost ($)', 'Stationery Cost ($)'],
+                    ['officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
+                )}\n\n`;
+                
+                // WFH Actual Cost - Assets
+                csvContent += `"WFH Actual Cost - Assets"\n${arrayToCsv(
+                    data.wfh.actualCostDetails.assets,
+                    ['Description', 'Date', 'Cost', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'],
+                    ['description', 'date', 'cost', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod']
+                )}\n\n`;
+                
                 dataStr = csvContent;
                 blobType = 'text/csv;charset=utf-8;';
                 fileExtension = 'csv';

@@ -230,6 +230,7 @@ All notable changes to this project will be documented here. This project aims t
         * ***Corrected the "Claim Schedule":*** display logic to ensure the Year 1 (Y1) value accurately reflects the pro-rata deduction for assets purchased part-way through the financial year.
         * ***User Interface (UI):*** Resolved a persistent bug where the "Remove" button for WFH Depreciable Assets was not working due to incorrect form handling by the browser. Buttons now have an explicit type="button" to prevent unintended form submissions.
         * ***Estimated Deduction (Fixed Rate)" field:*** Fixed a display issue where the "Estimated Deduction (Fixed Rate)" field was not updating correctly.
+        ***CSV Export:*** Fixed a critical bug where the CSV export was incomplete. The export now correctly includes all data sections, including detailed WFH running costs and the full list of WFH assets.
     * ***Improved***
         * ***Input Validation:*** All numerical input fields now prevent negative values from being entered.
         * ***UI Clarity:*** The Low Income Tax Offset (LITO) line item is now hidden in the final summary if the calculated offset is zero, resulting in a cleaner report.

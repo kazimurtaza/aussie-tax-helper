@@ -287,11 +287,11 @@ const UIManager = (() => {
         const listEl = document.getElementById('wfh-assets-list-body');
         listEl.innerHTML = '';
         if (!assets || assets.length === 0) {
-            listEl.innerHTML = '<tr><td colspan="7" class="text-center text-gray-400 py-2">No assets added yet.</td></tr>';
+            listEl.innerHTML = '<tr><td colspan="9" class="text-center text-gray-400 py-2">No assets added yet.</td></tr>';
             return;
         }
 
-        [...assets].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(asset => {
+        [...assets].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach((asset, index) => {
             const row = listEl.insertRow();
             
             const createCell = (content, classes = []) => {
@@ -352,8 +352,10 @@ const UIManager = (() => {
                 methodDisplay = asset.depreciationMethod === 'prime_cost' ? 'Prime Cost' : 'Diminishing';
             }
 
+            row.appendChild(createCell(index + 1, ['font-semibold']));
             row.appendChild(createCell(asset.description));
             row.appendChild(createCell(asset.date));
+            row.appendChild(createCell(formatCurrency(asset.cost)));
             row.appendChild(createCell(`${workPercentage}%`));
             row.appendChild(createCell(methodDisplay));
             row.appendChild(createCell(formatCurrency(deduction), ['font-semibold']));
