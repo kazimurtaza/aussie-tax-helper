@@ -24,6 +24,7 @@
 - [Features](#features)
 - [Technology Stack](#technology-stack)
 - [Getting Started](#getting-started)
+- [Tax Rate & Threshold Constants](#tax-rate--threshold-constants)
 - [Data Storage & Security](#data-storage--security)
 - [Changelog](#changelog)
 - [Disclaimer](#disclaimer)
@@ -47,7 +48,7 @@ This application is designed for Australian individuals, particularly salaried e
     * Log general work-related expenses with categories (e.g., Self-Education, Tools of Trade).
     * Manage depreciable assets with **Prime Cost** and **Diminishing Value** depreciation methods.
 * **Work-From-Home (WFH) Calculations:**
-    * Compare deduction outcomes between the **ATO Fixed Rate Method** (67 cents per hour) and the **Actual Cost Method**.
+    * Compare deduction outcomes between the **ATO Fixed Rate Method** (70 cents per hour) and the **Actual Cost Method**.
     * Log WFH hours manually or import them via a CSV file.
 * **Tax Estimation Engine:**
     * Calculates taxable income based on ATO tax rates for 2024-2025.
@@ -76,6 +77,47 @@ To get a local copy up and running, follow these simple steps.
     ```
 3.  **Open `index.html` in your browser.**
     You can simply open the file directly, or use a live server extension if you have one installed in your code editor.
+
+## Tax Rate & Threshold Constants
+
+All core tax calculation parameters are stored in `js/constants.js`. This centralizes the key ATO rates and thresholds, making them easy to review and update annually. Below are the key constants for the 2024-2025 financial year.
+
+### Income Tax Rates (2024-2025)
+These are the legislated "Stage 3" tax rates, effective from 1 July 2024.
+*Source: [ATO - Changes to individual income tax rates](https://www.ato.gov.au/about-ato/new-legislation/in-detail/personal-tax/changes-to-individual-income-tax-rates)*
+
+| Taxable Income | Tax on this Income |
+| :--- | :--- |
+| $0 – $18,200 | Nil |
+| $18,201 – $45,000 | 16c for each $1 over $18,200 |
+| $45,001 – $135,000 | $4,288 + 30c for each $1 over $45,000 |
+| $135,001 – $190,000 | $31,288 + 37c for each $1 over $135,000 |
+| $190,001 and over | $51,638 + 45c for each $1 over $190,000 |
+
+### Low Income Tax Offset (LITO)
+* **Maximum Offset:** `$700`
+* **Threshold 1 (Full Offset):** Up to `$37,500`
+* **Threshold 2 (Phase-out starts):** Above `$37,500` (reduces by 5c for every $1)
+* **Threshold 3 (Phase-out increases):** Above `$45,000` (reduces by 1.5c for every $1)
+* **Ineligible:** Above `$66,667`
+
+### Medicare Levy
+* **Standard Rate:** `2%` of taxable income.
+* **Low-income threshold (Singles):** No levy if income is below `$24,276`.
+* **Low-income phase-in (Singles):** A reduced rate is paid for income between `$24,276` and `$30,345`.
+
+### Medicare Levy Surcharge (MLS)
+An additional levy for higher-income earners without private hospital cover.
+* **Base Income Threshold (Singles):** `$97,000`
+* **Base Income Threshold (Families):** `$194,000` (increases by $1,500 for each dependent child after the first)
+* **Surcharge Rates:** `1%`, `1.25%`, or `1.5%` depending on the income tier.
+
+### Private Health Insurance (PHI) Rebate
+A government contribution to help cover the cost of private health insurance. The rebate amount is income-tested and age-based.
+
+### Work-From-Home (WFH) Fixed Rate
+* **Rate for 2024-2025:** `70 cents per hour`. This rate covers electricity, gas, internet, phone, stationery, and computer consumables.
+*Source: [ATO - Fixed rate method](https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/working-from-home-deductions/fixed-rate-method-work-from-home-expenses)*
 
 ## Data Storage & Security
 
