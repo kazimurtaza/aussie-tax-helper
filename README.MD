@@ -1,7 +1,9 @@
 # Aussie Tax Deductions Helper
 
 <p align="center">
-  <img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&slug=kazimurtaza&button_colour=FFDD00&font_colour=000000&font_family=Poppins&outline_colour=000000&coffee_colour=ffffff" alt="Buy Me A Coffee">
+  <a href="https://www.buymeacoffee.com/kazimurtaza" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&slug=kazimurtaza&button_colour=FFDD00&font_colour=000000&font_family=Poppins&outline_colour=000000&coffee_colour=ffffff" alt="Buy Me A Coffee">
+  </a>
 </p>
 
 <p align="center">
