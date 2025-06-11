@@ -128,51 +128,51 @@ A government contribution to help cover the cost of private health insurance. Th
 ## Changelog
 
 ### Version 1.4.0
-    * ***🚀 Added***
-        * ***Edit Functionality:*** Users can now edit existing PAYG income and general expense entries via a modal, improving data management flexibility.
-        * ***WFH Hours CSV Import:*** Users can now bulk-import their Work-From-Home hours using a CSV file. The tool is flexible and supports multiple date and time formats.
-        * ***Time Calculation and Display:*** WFH hours are now calculated based on total minutes for higher accuracy. The UI has been updated to display time totals in a more user-friendly HH:MM format, alongside the decimal equivalent used for tax calculations.
-        * ***Table Sorting:*** The "General Expenses" and "WFH Depreciable Assets" tables are now automatically sorted by purchase date (oldest first) to improve organization and readability.
-    * ***Fixed***
-        * ***MLS Calculation Accuracy:*** The Medicare Levy Surcharge calculation now correctly includes personal superannuation contributions in the income test, as per ATO guidelines.
-        * ***Future-Dated Expense Logic:*** Expenses with a purchase date in a future financial year are now properly excluded from the current year's deduction calculations.
-        * ***Depreciation Calculation:*** Fixed a critical bug in the Diminishing Value method where assets with a 1-year effective life were incorrectly depreciated at 200% of their value. The calculation is now correctly capped at 100%.
-        * ***Corrected the "Claim Schedule":*** display logic to ensure the Year 1 (Y1) value accurately reflects the pro-rata deduction for assets purchased part-way through the financial year.
-        * ***User Interface (UI):*** Resolved a persistent bug where the "Remove" button for WFH Depreciable Assets was not working due to incorrect form handling by the browser. Buttons now have an explicit type="button" to prevent unintended form submissions.
-        * ***Estimated Deduction (Fixed Rate)" field:*** Fixed a display issue where the "Estimated Deduction (Fixed Rate)" field was not updating correctly.
-        ***CSV Export:*** Fixed a critical bug where the CSV export was incomplete. The export now correctly includes all data sections, including detailed WFH running costs and the full list of WFH assets.
+* ***🚀 Added***
+    * ***Edit Functionality:*** Users can now edit existing PAYG income and general expense entries via a modal, improving data management flexibility.
+    * ***WFH Hours CSV Import:*** Users can now bulk-import their Work-From-Home hours using a CSV file. The tool is flexible and supports multiple date and time formats.
+    * ***Time Calculation and Display:*** WFH hours are now calculated based on total minutes for higher accuracy. The UI has been updated to display time totals in a more user-friendly HH:MM format, alongside the decimal equivalent used for tax calculations.
+    * ***Table Sorting:*** The "General Expenses" and "WFH Depreciable Assets" tables are now automatically sorted by purchase date (oldest first) to improve organization and readability.
+* ***Fixed***
+    * ***MLS Calculation Accuracy:*** The Medicare Levy Surcharge calculation now correctly includes personal superannuation contributions in the income test, as per ATO guidelines.
+    * ***Future-Dated Expense Logic:*** Expenses with a purchase date in a future financial year are now properly excluded from the current year's deduction calculations.
+    * ***Depreciation Calculation:*** Fixed a critical bug in the Diminishing Value method where assets with a 1-year effective life were incorrectly depreciated at 200% of their value. The calculation is now correctly capped at 100%.
+    * ***Corrected the "Claim Schedule":*** display logic to ensure the Year 1 (Y1) value accurately reflects the pro-rata deduction for assets purchased part-way through the financial year.
+    * ***User Interface (UI):*** Resolved a persistent bug where the "Remove" button for WFH Depreciable Assets was not working due to incorrect form handling by the browser. Buttons now have an explicit type="button" to prevent unintended form submissions.
+    * ***Estimated Deduction (Fixed Rate)" field:*** Fixed a display issue where the "Estimated Deduction (Fixed Rate)" field was not updating correctly.
+    ***CSV Export:*** Fixed a critical bug where the CSV export was incomplete. The export now correctly includes all data sections, including detailed WFH running costs and the full list of WFH assets.
+* ***Improved***
+    * ***Input Validation:*** All numerical input fields now prevent negative values from being entered.
+    * ***UI Clarity:*** The Low Income Tax Offset (LITO) line item is now hidden in the final summary if the calculated offset is zero, resulting in a cleaner report.
+    * ***Added "Date" and "Method" columns:*** to the WFH Depreciable Assets table for better visibility.
+    * ***JSON import:*** Improved the JSON import validation logic to prevent errors.
+    * ***Legacy Storage:*** Added backwards compatibility to the data loading function to correctly handle and convert older data structures.
+* 🙏 Acknowledgements
+    * ***A special thanks to Anachronism59 for your detailed feedback and persistence in identifying the bugs. Your keen eye was crucial in making this version more robust and accurate.***
+
+### Version 1.3.0
+* ***Added***
+    * ***Private Health Insurance Rebate:*** The app now fully calculates the Private Health Insurance (PHI) tax offset. Users can enter their premium and rebate details to get a more accurate tax outcome.
+    * ***Expanded Expense Categories:*** Added "Gifts & Donations," "Cost of Managing Tax Affairs," and "Income Protection Insurance" to the general expenses section.
+* ***Fixed***
+    * ***Depreciation Calculation Accuracy:*** Corrected the "Diminishing Value" depreciation method to use the asset's written-down value, ensuring the calculation is compliant with ATO rules.
+
+### Version 1.2.0
+* ***Added***
+    * ***Depreciation Method Choice:*** Users can now select between "Prime Cost (Straight Line)" and "Diminishing Value" methods when adding a depreciable asset, allowing for more accurate and preferable deduction calculations.
+    * ***Personal Super Deductions:*** A dedicated input field for "Deductible Personal Super Contributions" has been added to the "Taxpayer Details" section to be included in the total deductions.
+    * ***Net Capital Gains:*** Added a field for "Net Capital Gains" in the "Other Income" section to allow for more accurate income calculations for users with investments.
+    * ***Summary Breakdown:*** Superannuation deductions are now listed as a separate line item in the Tax Estimation Summary for better clarity.
+
+### Version 1.1.0
+* ***Added***
+    * ***Family & Single MLS Calculations:*** The app now accurately calculates the Medicare Levy Surcharge (MLS) for both "Single" and "Family" filing statuses.
+    * ***Advanced Taxpayer Details:*** Added new inputs for "Filing Status", "Spouse's Income", "Number of Dependent Children", "Reportable Fringe Benefits", and checkboxes for "Medicare Levy Exemption" and "Private Hospital Cover" to support more complex tax scenarios.
+    * ***Event Tracking:*** Implemented custom event tracking for Google Analytics to monitor feature usage and JavaScript errors.
     * ***Improved***
-        * ***Input Validation:*** All numerical input fields now prevent negative values from being entered.
-        * ***UI Clarity:*** The Low Income Tax Offset (LITO) line item is now hidden in the final summary if the calculated offset is zero, resulting in a cleaner report.
-        * ***Added "Date" and "Method" columns:*** to the WFH Depreciable Assets table for better visibility.
-        * ***JSON import:*** Improved the JSON import validation logic to prevent errors.
-        * ***Legacy Storage:*** Added backwards compatibility to the data loading function to correctly handle and convert older data structures.
-    * 🙏 Acknowledgements
-        * ***A special thanks to Anachronism59 for your detailed feedback and persistence in identifying the bugs. Your keen eye was crucial in making this version more robust and accurate.***
-
-###Version 1.3.0
-    * ***Added***
-        * ***Private Health Insurance Rebate:*** The app now fully calculates the Private Health Insurance (PHI) tax offset. Users can enter their premium and rebate details to get a more accurate tax outcome.
-        * ***Expanded Expense Categories:*** Added "Gifts & Donations," "Cost of Managing Tax Affairs," and "Income Protection Insurance" to the general expenses section.
+    * ***Mobile Navigation:*** The main navigation bar is now horizontally scrollable on mobile devices, fixing a key UI issue on smaller screens.
     * ***Fixed***
-        * ***Depreciation Calculation Accuracy:*** Corrected the "Diminishing Value" depreciation method to use the asset's written-down value, ensuring the calculation is compliant with ATO rules.
-
-###Version 1.2.0
-    * ***Added***
-        * ***Depreciation Method Choice:*** Users can now select between "Prime Cost (Straight Line)" and "Diminishing Value" methods when adding a depreciable asset, allowing for more accurate and preferable deduction calculations.
-        * ***Personal Super Deductions:*** A dedicated input field for "Deductible Personal Super Contributions" has been added to the "Taxpayer Details" section to be included in the total deductions.
-        * ***Net Capital Gains:*** Added a field for "Net Capital Gains" in the "Other Income" section to allow for more accurate income calculations for users with investments.
-        * ***Summary Breakdown:*** Superannuation deductions are now listed as a separate line item in the Tax Estimation Summary for better clarity.
-
-###Version 1.1.0
-    * ***Added***
-        * ***Family & Single MLS Calculations:*** The app now accurately calculates the Medicare Levy Surcharge (MLS) for both "Single" and "Family" filing statuses.
-        * ***Advanced Taxpayer Details:*** Added new inputs for "Filing Status", "Spouse's Income", "Number of Dependent Children", "Reportable Fringe Benefits", and checkboxes for "Medicare Levy Exemption" and "Private Hospital Cover" to support more complex tax scenarios.
-        * ***Event Tracking:*** Implemented custom event tracking for Google Analytics to monitor feature usage and JavaScript errors.
-        * ***Improved***
-        * ***Mobile Navigation:*** The main navigation bar is now horizontally scrollable on mobile devices, fixing a key UI issue on smaller screens.
-        * ***Fixed***
-            * ***JavaScript Stability:*** Resolved a TypeError by ensuring all JavaScript modules are loaded completely and function calls have the correct parameters.
+        * ***JavaScript Stability:*** Resolved a TypeError by ensuring all JavaScript modules are loaded completely and function calls have the correct parameters.
 
 ## Disclaimer
 
