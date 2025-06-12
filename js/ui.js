@@ -1,3 +1,4 @@
+// js/ui.js
 const UIManager = (() => {
     // --- Modal Logic ---
     const modal = document.getElementById('app-modal');
@@ -110,9 +111,14 @@ const UIManager = (() => {
         document.getElementById('family-fields').classList.toggle('hidden', !isFamily);
     };
 
+    const toggleMedicareDaysField = (isExempt) => {
+        document.getElementById('medicare-exempt-days-container').classList.toggle('hidden', !isExempt);
+    };
+
     const populateTaxpayerDetailsForm = (details) => {
         const form = document.getElementById('taxpayer-details-form');
         form['medicare-exempt'].checked = details.isMedicareExempt;
+        form['medicare-exempt-days'].value = details.medicareExemptDays || 0;
         form['private-cover'].checked = details.hasPrivateHospitalCover;
         form['rfb-amount'].value = details.reportableFringeBenefits || '';
         form['personal-super-contribution'].value = details.personalSuperContribution || '';
@@ -123,6 +129,7 @@ const UIManager = (() => {
         form['phi-premiums-paid'].value = details.phiPremiumsPaid || '';
         form['phi-rebate-received'].value = details.phiRebateReceived || '';
         toggleFamilyFields(details.filingStatus === 'family');
+        toggleMedicareDaysField(details.isMedicareExempt);
     };
 
     const populateOtherIncomeForm = (otherIncome) => {
@@ -463,6 +470,7 @@ const UIManager = (() => {
         updateRunningExpensesSubtotal,
         flashHighlight,
         toggleFamilyFields,
+        toggleMedicareDaysField,
         populateTaxpayerDetailsForm
     };
 })();

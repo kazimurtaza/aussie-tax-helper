@@ -213,12 +213,19 @@
                                     <input type="number" id="dependent-children" name="dependent-children" step="1" min="0">
                                 </div>
                             </div>
-
+                            
                             <div class="md:col-span-2 space-y-3 pt-2">
                                 <div class="flex items-center space-x-2">
                                     <input type="checkbox" id="medicare-exempt" name="medicare-exempt" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                                    <label for="medicare-exempt" class="text-sm font-medium text-gray-700">I am exempt from the Medicare Levy.</label>
+                                    <label for="medicare-exempt" class="text-sm font-medium text-gray-700">I am exempt from the Medicare Levy for some or all of the year.</label>
                                 </div>
+                                
+                                <div id="medicare-exempt-days-container" class="hidden pl-6">
+                                    <label for="medicare-exempt-days" class="block text-sm font-medium text-gray-700">Number of exempt days:</label>
+                                    <input type="number" id="medicare-exempt-days" name="medicare-exempt-days" min="0" max="365" step="1">
+                                    <p class="tooltip-text mt-1">Enter the number of days you were NOT eligible for Medicare. A full exemption is 365 days.</p>
+                                </div>
+
                                 <div class="flex items-center space-x-2">
                                     <input type="checkbox" id="private-cover" name="private-cover" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                                     <label for="private-cover" class="text-sm font-medium text-gray-700">I have appropriate private patient hospital cover for the full year.</label>
@@ -614,12 +621,13 @@
                     <div>
                         <h4 class="font-semibold">Version 1.4.0</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-green-600">A special thanks to Anachronism59 for your detailed feedback and persistence in identifying the bugs. Your keen eye was crucial in making this version more robust and accurate.</strong></li>
                             <li><strong class="font-medium text-green-600">Added:</strong> Edit functionality for PAYG and general expense entries.</li>
                             <li><strong class="font-medium text-green-600">Added:</strong> WFH Hours CSV Import.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> now support partial medicare exempt days</li>
                             <li><strong class="font-medium text-green-600">Improved:</strong> WFH hours now calculated with higher accuracy and displayed in HH:MM format.</li>
                             <li><strong class="font-medium text-red-600">Fixed:</strong> MLS calculation now correctly includes personal super contributions.</li>
                             <li><strong class="font-medium text-red-600">Fixed:</strong> Critical bug in Diminishing Value depreciation for 1-year assets.</li>
-                            <li><strong class="font-medium text-red-600">Fixed:</strong> CSV Export: Fixed a critical bug where the CSV export was incomplete. The export now correctly includes all data sections, including detailed WFH running costs and the full list of WFH assets.</li>
                         </ul>
                     </div>
                     <div>

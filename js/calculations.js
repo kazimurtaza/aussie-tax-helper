@@ -178,15 +178,32 @@ const TaxCalculations = (() => {
     };
     
     const calculateMedicareLevy = (taxableIncome, taxpayerDetails) => {
-        if (!taxpayerDetails || taxpayerDetails.isMedicareExempt) {
+        if (!taxpayerDetails) {
             return 0;
         }
-        // Basic logic for single threshold. A complete implementation would handle family thresholds.
-        if (taxableIncome <= window.MEDICARE_LEVY_THRESHOLD_SINGLE) return 0;
-        if (taxableIncome <= window.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE) {
-            return (taxableIncome - window.MEDICARE_LEVY_THRESHOLD_SINGLE) * 0.10; // 10% phase-in rate
+
+        // Calculate the full-year levy first
+        let fullYearLevy = 0;
+        if (taxableIncome <= window.MEDICARE_LEVY_THRESHOLD_SINGLE) {
+            fullYearLevy = 0;
+        } else if (taxableIncome <= window.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE) {
+            fullYearLevy = (taxableIncome - window.MEDICARE_LEVY_THRESHOLD_SINGLE) * 0.10; // 10% phase-in rate
+        } else {
+            fullYearLevy = taxableIncome * window.MEDICARE_LEVY_RATE;
         }
-        return taxableIncome * window.MEDICARE_LEVY_RATE;
+
+        // If exempt, check for partial exemption
+        if (taxpayerDetails.isMedicareExempt) {
+            const exemptDays = taxpayerDetails.medicareExemptDays || 0;
+            if (exemptDays >= 365) {
+                return 0; // Fully exempt for the whole year
+            }
+            const liableDays = 365 - exemptDays;
+            return (fullYearLevy / 365) * liableDays;
+        }
+
+        // Not exempt at all
+        return fullYearLevy;
     };
 
     const getIncomeForMls = (taxableIncome, taxpayerDetails) => {

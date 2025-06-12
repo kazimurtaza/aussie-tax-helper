@@ -7,17 +7,17 @@ const trackEvent = (eventName, eventParams = {}) => {
     }
 };
 
-// window.onerror = function(message, source, lineno, colno, error) {
-//   // Log errors to the console for debugging
-//   console.error('An error occurred:', { message, source, lineno, colno, error });
-//   if (typeof gtag === 'function') {
-//     gtag('event', 'exception', {
-//       'description': `${message} at ${source}:${lineno}`,
-//       'fatal': false // set to true if the error is critical
-//     });
-//   }
-//   return true; // Prevents the error from showing in the user's browser console
-// };
+window.onerror = function(message, source, lineno, colno, error) {
+  // Log errors to the console for debugging
+  console.error('An error occurred:', { message, source, lineno, colno, error });
+  if (typeof gtag === 'function') {
+    gtag('event', 'exception', {
+      'description': `${message} at ${source}:${lineno}`,
+      'fatal': false // set to true if the error is critical
+    });
+  }
+  return true; // Prevents the error from showing in the user's browser console
+};
 
 // --- TIME HELPER FUNCTIONS ---
 const minutesToTimeString = (totalMinutes) => {
@@ -106,6 +106,11 @@ const App = (() => {
         filingStatusDropdown.addEventListener('change', () => {
             UIManager.toggleFamilyFields(filingStatusDropdown.value === 'family');
         });
+        // ADDED EVENT LISTENER
+        document.getElementById('medicare-exempt').addEventListener('change', (e) => {
+            UIManager.toggleMedicareDaysField(e.target.checked)
+        });
+
 
         document.getElementById('income-form').addEventListener('submit', handleAddPaygIncome);
         document.getElementById('edit-payg-form').addEventListener('submit', handleSavePaygIncome);
@@ -151,6 +156,7 @@ const App = (() => {
         const form = e.target;
         appData.taxpayerDetails = {
             isMedicareExempt: form['medicare-exempt'].checked,
+            medicareExemptDays: parseInt(form['medicare-exempt-days'].value) || 0,
             hasPrivateHospitalCover: form['private-cover'].checked,
             reportableFringeBenefits: parseFloat(form['rfb-amount'].value) || 0,
             personalSuperContribution: parseFloat(form['personal-super-contribution'].value) || 0,
@@ -449,3 +455,4 @@ const App = (() => {
 
 window.App = App;
 document.addEventListener('DOMContentLoaded', App.init);
+    

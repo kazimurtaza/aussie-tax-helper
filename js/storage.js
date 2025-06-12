@@ -1,4 +1,3 @@
-// js/storage.js
 const StorageManager = (() => {
     // Unique key for storing data in localStorage, specific to the financial year.
     const APP_STORAGE_KEY = 'aussieTaxHelperData-2025';
@@ -10,6 +9,7 @@ const StorageManager = (() => {
         },
         taxpayerDetails: {
             isMedicareExempt: false,
+            medicareExemptDays: 0,
             hasPrivateHospitalCover: false,
             reportableFringeBenefits: 0,
             personalSuperContribution: 0,
@@ -135,8 +135,8 @@ const StorageManager = (() => {
                 // Taxpayer Details
                 csvContent += `"Taxpayer Details"\n${arrayToCsv(
                     [data.taxpayerDetails],
-                    ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid', 'PHI Rebate Received'],
-                    ['filingStatus', 'spouseIncome', 'dependentChildren', 'isMedicareExempt', 'hasPrivateHospitalCover', 'reportableFringeBenefits', 'personalSuperContribution', 'phiAgeBracket', 'phiPremiumsPaid', 'phiRebateReceived']
+                    ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid', 'PHI Rebate Received'],
+                    ['filingStatus', 'spouseIncome', 'dependentChildren', 'isMedicareExempt', 'medicareExemptDays', 'hasPrivateHospitalCover', 'reportableFringeBenefits', 'personalSuperContribution', 'phiAgeBracket', 'phiPremiumsPaid', 'phiRebateReceived']
                 )}\n\n`;
                 
                 // PAYG Income
