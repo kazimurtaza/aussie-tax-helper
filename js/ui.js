@@ -403,6 +403,9 @@ const UIManager = (() => {
     };
 
     const updateAllSummaries = (appData) => {
+
+        document.getElementById('wfh-fixed-rate-value').textContent = formatCurrency(window.WFH_FIXED_RATE_PER_HOUR);
+        
         const totalAssessableIncome = TaxCalculations.calculateTotalAssessableIncome(appData.income);
         const totalTaxWithheld = appData.income.payg.reduce((sum, item) => sum + item.taxWithheld, 0);
         
@@ -472,6 +475,7 @@ const UIManager = (() => {
         flashHighlight,
         toggleFamilyFields,
         toggleMedicareDaysField,
-        populateTaxpayerDetailsForm
+        populateTaxpayerDetailsForm,
+        formatCurrency
     };
 })();

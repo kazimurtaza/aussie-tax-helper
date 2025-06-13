@@ -182,14 +182,24 @@ const TaxCalculations = (() => {
             return 0;
         }
 
+        let threshold = window.MEDICARE_LEVY_THRESHOLD_SINGLE;
+        let upperThreshold = window.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE;
+
+        // Adjust thresholds for families
+        if (taxpayerDetails.filingStatus === 'family') {
+            const childAdjustment = (taxpayerDetails.dependentChildren || 0) * window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT;
+            threshold = window.MEDICARE_LEVY_THRESHOLD_FAMILY + childAdjustment;
+            upperThreshold = window.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY + childAdjustment;
+        }
+
         // Calculate the full-year levy first
         let fullYearLevy = 0;
-        if (taxableIncome <= window.MEDICARE_LEVY_THRESHOLD_SINGLE) {
-            fullYearLevy = 0;
-        } else if (taxableIncome <= window.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE) {
-            fullYearLevy = (taxableIncome - window.MEDICARE_LEVY_THRESHOLD_SINGLE) * 0.10; // 10% phase-in rate
-        } else {
-            fullYearLevy = taxableIncome * window.MEDICARE_LEVY_RATE;
+        if (taxableIncome > threshold) {
+            if (taxableIncome <= upperThreshold) {
+                fullYearLevy = (taxableIncome - threshold) * 0.10; // 10% phase-in rate
+            } else {
+                fullYearLevy = taxableIncome * window.MEDICARE_LEVY_RATE;
+            }
         }
 
         // If exempt, check for partial exemption
