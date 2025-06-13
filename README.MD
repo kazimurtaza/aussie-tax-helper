@@ -127,6 +127,15 @@ A government contribution to help cover the cost of private health insurance. Th
 
 ## Changelog
 
+### Version 1.4.1
+* ***Fixed***
+    * ***Updated*** `js/constants.js` with a new `PHI_REBATE_RATES_PERIODS` object to hold the dual rates.
+    * ***Modified*** `js/storage.js` to split the PHI premium data into two fields: `phiPremiumsPaid_period1` and `phiPremiumsPaid_period2`.
+    * ***Updated*** `index.html` to include two separate input fields for the different premium periods.
+    * ***Updated*** Rewrote the `calculatePhiOffset` function in `js/calculations.js` to handle the dual-rate logic.
+    * ***Added*** backward compatibility in `js/storage.js` to automatically migrate data for users upgrading from older versions.
+    * ***Fixed*** a bug in the CSV export function to include the new dual-period premium data.
+
 ### Version 1.4.0
 * ***🚀 Added***
     * ***Edit Functionality:*** Users can now edit existing PAYG income and general expense entries via a modal, improving data management flexibility.

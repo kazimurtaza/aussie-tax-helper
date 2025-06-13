@@ -164,7 +164,8 @@ const App = (() => {
             spouseIncome: parseFloat(form['spouse-income'].value) || 0,
             dependentChildren: parseInt(form['dependent-children'].value) || 0,
             phiAgeBracket: form['phi-age-bracket'].value,
-            phiPremiumsPaid: parseFloat(form['phi-premiums-paid'].value) || 0,
+            phiPremiumsPaid_period1: parseFloat(form['phi-premiums-paid-period1'].value) || 0,
+            phiPremiumsPaid_period2: parseFloat(form['phi-premiums-paid-period2'].value) || 0,
             phiRebateReceived: parseFloat(form['phi-rebate-received'].value) || 0,
         };
         saveAndRefresh();

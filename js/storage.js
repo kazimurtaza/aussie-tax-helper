@@ -17,7 +17,8 @@ const StorageManager = (() => {
             spouseIncome: 0,
             dependentChildren: 0,
             phiAgeBracket: 'under65',
-            phiPremiumsPaid: 0,
+            phiPremiumsPaid_period1: 0, // For premiums from 1 July 2024 to 31 March 2025
+            phiPremiumsPaid_period2: 0, // For premiums from 1 April 2025 to 30 June 2025
             phiRebateReceived: 0,
         },
         income: {
@@ -52,6 +53,14 @@ const StorageManager = (() => {
             }
             
             const parsedData = JSON.parse(storedData);
+            // --- BACKWARD COMPATIBILITY ---
+            // If the old phiPremiumsPaid field exists, migrate its value to the new
+            // phiPremiumsPaid_period1 field and delete the old one.
+            if (parsedData.taxpayerDetails && parsedData.taxpayerDetails.phiPremiumsPaid) {
+                parsedData.taxpayerDetails.phiPremiumsPaid_period1 = parsedData.taxpayerDetails.phiPremiumsPaid;
+                delete parsedData.taxpayerDetails.phiPremiumsPaid;
+            }
+            // --- END BACKWARD COMPATIBILITY ---
             
             // Deep merge with default data to ensure new properties from updates are included.
             const mergedData = {
@@ -135,8 +144,8 @@ const StorageManager = (() => {
                 // Taxpayer Details
                 csvContent += `"Taxpayer Details"\n${arrayToCsv(
                     [data.taxpayerDetails],
-                    ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid', 'PHI Rebate Received'],
-                    ['filingStatus', 'spouseIncome', 'dependentChildren', 'isMedicareExempt', 'medicareExemptDays', 'hasPrivateHospitalCover', 'reportableFringeBenefits', 'personalSuperContribution', 'phiAgeBracket', 'phiPremiumsPaid', 'phiRebateReceived']
+                    ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid (Jul-Mar)', 'PHI Premiums Paid (Apr-Jun)', 'PHI Rebate Received'],
+                    ['filingStatus', 'spouseIncome', 'dependentChildren', 'isMedicareExempt', 'medicareExemptDays', 'hasPrivateHospitalCover', 'reportableFringeBenefits', 'personalSuperContribution', 'phiAgeBracket', 'phiPremiumsPaid_period1', 'phiPremiumsPaid_period2', 'phiRebateReceived']
                 )}\n\n`;
                 
                 // PAYG Income
@@ -214,6 +223,24 @@ const StorageManager = (() => {
         reader.onload = (e) => {
             try {
                 const importedData = JSON.parse(e.target.result);
+                // --- BACKWARD COMPATIBILITY MIGRATION ---
+                // If old phiPremiumsPaid exists, migrate it to the new period1 field.
+                if (importedData.taxpayerDetails && importedData.taxpayerDetails.phiPremiumsPaid) {
+                    importedData.taxpayerDetails.phiPremiumsPaid_period1 = importedData.taxpayerDetails.phiPremiumsPaid;
+                    delete importedData.taxpayerDetails.phiPremiumsPaid; // Remove the old field
+                }
+                // Backwards compatibility for WFH hours
+                if (importedData.wfh && importedData.wfh.totalHours) {
+                    importedData.wfh.totalMinutes = Math.round(importedData.wfh.totalHours * 60);
+                    delete importedData.wfh.totalHours;
+                }
+                if (importedData.wfh && importedData.wfh.hoursLog.length > 0 && importedData.wfh.hoursLog[0].hours) {
+                    importedData.wfh.hoursLog.forEach(log => {
+                        log.minutes = Math.round(log.hours * 60);
+                        delete log.hours;
+                    });
+                }
+                // --- END BACKWARD COMPATIBILITY MIGRATION ---
                 if (validateImportedData(importedData)) {
                     callback(importedData);
                 } else {

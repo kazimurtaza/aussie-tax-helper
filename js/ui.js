@@ -126,7 +126,8 @@ const UIManager = (() => {
         form['spouse-income'].value = details.spouseIncome || '';
         form['dependent-children'].value = details.dependentChildren || '';
         form['phi-age-bracket'].value = details.phiAgeBracket || 'under65';
-        form['phi-premiums-paid'].value = details.phiPremiumsPaid || '';
+        form['phi-premiums-paid-period1'].value = details.phiPremiumsPaid_period1 || '';
+        form['phi-premiums-paid-period2'].value = details.phiPremiumsPaid_period2 || '';
         form['phi-rebate-received'].value = details.phiRebateReceived || '';
         toggleFamilyFields(details.filingStatus === 'family');
         toggleMedicareDaysField(details.isMedicareExempt);

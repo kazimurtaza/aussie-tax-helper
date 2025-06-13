@@ -241,24 +241,33 @@ const TaxCalculations = (() => {
     };
     
     const calculatePhiOffset = (taxableIncome, taxpayerDetails) => {
-        const { phiAgeBracket, phiPremiumsPaid, phiRebateReceived, filingStatus, spouseIncome } = taxpayerDetails;
-        if (!phiPremiumsPaid || phiPremiumsPaid <= 0) return 0;
+        const { phiAgeBracket, phiPremiumsPaid_period1, phiPremiumsPaid_period2, phiRebateReceived, filingStatus, spouseIncome } = taxpayerDetails;
+        if ((phiPremiumsPaid_period1 || 0) <= 0 && (phiPremiumsPaid_period2 || 0) <= 0) {
+            return 0;
+        }
 
         const incomeForPhi = getIncomeForMls(taxableIncome, taxpayerDetails);
-        let incomeTier = 'base';
-        
-        // Determine income tier
-        const thresholds = filingStatus === 'family' ? window.MLS_THRESHOLDS_FAMILY : window.MLS_THRESHOLDS_SINGLE;
         const totalIncome = filingStatus === 'family' ? incomeForPhi + (parseFloat(spouseIncome) || 0) : incomeForPhi;
 
-        if (totalIncome >= thresholds[1].min && totalIncome <= thresholds[1].max) incomeTier = 'tier1';
-        else if (totalIncome >= thresholds[2].min && totalIncome <= thresholds[2].max) incomeTier = 'tier2';
-        else if (totalIncome >= thresholds[3].min) incomeTier = 'tier3';
+        const thresholds = filingStatus === 'family' ? window.MLS_THRESHOLDS_FAMILY : window.MLS_THRESHOLDS_SINGLE;
+        let incomeTier = 'base';
+        if (totalIncome >= thresholds[1].min && totalIncome <= thresholds[1].max) {
+            incomeTier = 'tier1';
+        } else if (totalIncome >= thresholds[2].min && totalIncome <= thresholds[2].max) {
+            incomeTier = 'tier2';
+        } else if (totalIncome >= thresholds[3].min) {
+            incomeTier = 'tier3';
+        }
 
-        const rebateRate = window.PHI_REBATE_RATES[phiAgeBracket][incomeTier];
-        const correctRebate = (parseFloat(phiPremiumsPaid) || 0) * rebateRate;
-        const offset = correctRebate - (parseFloat(phiRebateReceived) || 0);
-        
+        const rebateRatePeriod1 = window.PHI_REBATE_RATES_PERIODS['2024-07-01_2025-03-31'][phiAgeBracket][incomeTier];
+        const rebateRatePeriod2 = window.PHI_REBATE_RATES_PERIODS['2025-04-01_2025-06-30'][phiAgeBracket][incomeTier];
+
+        const correctRebate1 = (parseFloat(phiPremiumsPaid_period1) || 0) * rebateRatePeriod1;
+        const correctRebate2 = (parseFloat(phiPremiumsPaid_period2) || 0) * rebateRatePeriod2;
+
+        const totalCorrectRebate = correctRebate1 + correctRebate2;
+        const offset = totalCorrectRebate - (parseFloat(phiRebateReceived) || 0);
+
         return Math.max(0, offset); // Cannot be negative
     };
 
