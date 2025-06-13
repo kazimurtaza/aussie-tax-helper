@@ -203,7 +203,7 @@ const UIManager = (() => {
             listEl.innerHTML = '<tr><td colspan="8" class="text-center text-gray-500 py-4">No general expenses added yet.</td></tr>';
             return;
         }
-        [...expenses].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(exp => {
+        [...expenses].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(exp => {
             const deduction = exp.isDepreciable
                 ? TaxCalculations.calculateDepreciationForFinancialYear(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
                 : (exp.cost * (exp.workPercentage / 100));
@@ -257,7 +257,7 @@ const UIManager = (() => {
             return;
         }
 
-        [...assets].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach((asset, index) => {
+        [...assets].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach((asset, index) => {
             const row = listEl.insertRow();
             
             const createCell = (content, classes = []) => {
