@@ -135,7 +135,9 @@ A government contribution to help cover the cost of private health insurance. Th
     * ***Updated*** Rewrote the `calculatePhiOffset` function in `js/calculations.js` to handle the dual-rate logic.
     * ***Added*** backward compatibility in `js/storage.js` to automatically migrate data for users upgrading from older versions.
     * ***Fixed*** a bug in the CSV export function to include the new dual-period premium data.
-
+    * ***Refactored:*** Centralized the depreciation schedule generation logic into a single reusable function to eliminate code duplication and improve maintainability.
+    * ***Fixed:*** Corrected a critical bug where the Medicare Levy for families was being calculated using the incorrect singles threshold. The calculation now accurately reflects family and dependent children adjustments.
+    * ***Improved:*** The Work-From-Home (WFH) fixed rate displayed in the UI is now dynamically populated from the central constants file, ensuring consistency and easier maintenance.
 ### Version 1.4.0
 * ***🚀 Added***
     * ***Edit Functionality:*** Users can now edit existing PAYG income and general expense entries via a modal, improving data management flexibility.

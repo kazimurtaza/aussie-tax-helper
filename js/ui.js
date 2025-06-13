@@ -208,49 +208,7 @@ const UIManager = (() => {
                 ? TaxCalculations.calculateDepreciationForFinancialYear(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
                 : (exp.cost * (exp.workPercentage / 100));
             
-            let claimScheduleHtml = 'Immediate';
-            if (exp.isDepreciable && exp.effectiveLife > 0) {
-                let schedule = [];
-                let openingValue = parseFloat(exp.cost);
-                const workPercentFactor = parseFloat(exp.workPercentage) / 100;
-                const effectiveLife = parseInt(exp.effectiveLife);
-
-                for (let i = 0; i < effectiveLife; i++) {
-                    const tempDate = new Date(exp.date);
-                    const yearStartDate = new Date(tempDate.getFullYear() + i, 6, 1);
-                    const tempPurchaseDateInLoop = i === 0 ? tempDate : yearStartDate;
-                    
-                    let annualDepreciation;
-                    if (exp.depreciationMethod === 'diminishing_value') {
-                        if (effectiveLife <= 1) {
-                            annualDepreciation = openingValue;
-                        } else {
-                            annualDepreciation = openingValue * (2 / effectiveLife);
-                        }
-                    } else { 
-                        annualDepreciation = exp.cost / effectiveLife;
-                    }
-
-                    const workRelatedPortion = annualDepreciation * workPercentFactor;
-                    
-                    const financialYearEnd = new Date(tempPurchaseDateInLoop.getFullYear() + (tempPurchaseDateInLoop.getMonth() >= 6 ? 1 : 0), 5, 30);
-                    const daysOwned = Math.floor((financialYearEnd - tempPurchaseDateInLoop) / (1000 * 60 * 60 * 24)) + 1;
-                    const proRataFactor = (i === 0 && daysOwned < 365) ? (daysOwned / 365) : 1;
-                    const finalYearlyDeduction = workRelatedPortion * proRataFactor;
-
-                    if (openingValue > 1) {
-                         schedule.push(`Y${i+1}: ${formatCurrency(finalYearlyDeduction)}`);
-                    } else {
-                         schedule.push(`Y${i+1}: ${formatCurrency(0)}`);
-                    }
-                    
-                    // The opening value for the next year is reduced by the cost portion of the deduction
-                    const costReduction = finalYearlyDeduction / workPercentFactor;
-                    openingValue -= costReduction;
-                }
-                claimScheduleHtml = schedule.join('<br>');
-            }
-
+            const claimScheduleHtml = TaxCalculations.generateDepreciationSchedule(exp);
             const methodDisplay = exp.isDepreciable ? (exp.depreciationMethod === 'prime_cost' ? 'Prime Cost' : 'Diminishing') : 'N/A';
 
             const row = listEl.insertRow();
@@ -313,47 +271,7 @@ const UIManager = (() => {
             const workPercentage = asset.workPercentage || 100;
             const deduction = TaxCalculations.calculateDepreciationForFinancialYear(asset.cost, workPercentage, asset.effectiveLife, asset.date, asset.depreciationMethod);
             
-            let claimScheduleHtml = 'Immediate';
-            if (asset.isDepreciable && asset.effectiveLife > 0) {
-                let schedule = [];
-                let openingValue = parseFloat(asset.cost);
-                const workPercentFactor = parseFloat(workPercentage) / 100;
-                const effectiveLife = parseInt(asset.effectiveLife);
-
-                for (let i = 0; i < effectiveLife; i++) {
-                    const tempDate = new Date(asset.date);
-                    const yearStartDate = new Date(tempDate.getFullYear() + i, 6, 1);
-                    const tempPurchaseDateInLoop = i === 0 ? tempDate : yearStartDate;
-
-                    let annualDepreciation;
-                    if (asset.depreciationMethod === 'diminishing_value') {
-                        if (effectiveLife <= 1) {
-                            annualDepreciation = openingValue;
-                        } else {
-                            annualDepreciation = openingValue * (2 / effectiveLife);
-                        }
-                    } else { 
-                        annualDepreciation = asset.cost / effectiveLife;
-                    }
-                    
-                    const workRelatedPortion = annualDepreciation * workPercentFactor;
-
-                    const financialYearEnd = new Date(tempPurchaseDateInLoop.getFullYear() + (tempPurchaseDateInLoop.getMonth() >= 6 ? 1 : 0), 5, 30);
-                    const daysOwned = Math.floor((financialYearEnd - tempPurchaseDateInLoop) / (1000 * 60 * 60 * 24)) + 1;
-                    const proRataFactor = (i === 0 && daysOwned < 365) ? (daysOwned / 365) : 1;
-                    const finalYearlyDeduction = workRelatedPortion * proRataFactor;
-
-                    if (openingValue > 1) {
-                         schedule.push(`Y${i+1}: ${formatCurrency(finalYearlyDeduction)}`);
-                    } else {
-                         schedule.push(`Y${i+1}: ${formatCurrency(0)}`);
-                    }
-                    
-                    const costReduction = finalYearlyDeduction / workPercentFactor;
-                    openingValue -= costReduction;
-                }
-                claimScheduleHtml = schedule.join('<br>');
-            }
+            const claimScheduleHtml = TaxCalculations.generateDepreciationSchedule(asset);
             
             let methodDisplay = 'Immediate';
             if (asset.isDepreciable) {
@@ -475,7 +393,6 @@ const UIManager = (() => {
         flashHighlight,
         toggleFamilyFields,
         toggleMedicareDaysField,
-        populateTaxpayerDetailsForm,
-        formatCurrency
+        populateTaxpayerDetailsForm
     };
 })();

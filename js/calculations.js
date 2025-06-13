@@ -13,50 +13,35 @@ const TaxCalculations = (() => {
         return paygIncome + otherIncome;
     };
     
-    /**
-     * Calculates the depreciation deduction for a single asset for the current financial year.
-     * Implements both Prime Cost (Straight Line) and Diminishing Value methods correctly.
-     * @param {number} cost - The original cost of the asset.
-     * @param {number} workPercentage - The percentage of work-related use.
-     * @param {number} effectiveLifeYears - The effective life of the asset in years.
-     * @param {string} purchaseDateString - The date the asset was purchased (YYYY-MM-DD).
-     * @param {string} method - The depreciation method ('prime_cost' or 'diminishing_value').
-     * @returns {number} The depreciation deduction for the current financial year.
-     */
     const calculateDepreciationForFinancialYear = (cost, workPercentage, effectiveLifeYears, purchaseDateString, method = 'prime_cost') => {
         const numCost = parseFloat(cost || 0);
         const numEffectiveLife = parseInt(effectiveLifeYears || 0);
         const numWorkPercentage = parseInt(workPercentage || 0);
 
-        // No depreciation if cost is zero. An item under $300 is depreciable if it has an effective life.
         if (numCost <= 0) return 0;
         
-        // If it's not marked as depreciable (i.e., immediate claim)
         if (!effectiveLifeYears || effectiveLifeYears <= 0) {
              return numCost * (numWorkPercentage / 100);
         }
 
         const purchaseDate = new Date(purchaseDateString);
         const yearStart = parseInt(window.FINANCIAL_YEAR.split('-')[0]);
-        const financialYearStart = new Date(yearStart, 6, 1); // 1 July
-        const financialYearEnd = new Date(yearStart + 1, 5, 30); // 30 June
+        const financialYearStart = new Date(yearStart, 6, 1);
+        const financialYearEnd = new Date(yearStart + 1, 5, 30);
         
-        // Return 0 if the purchase date is invalid or in a future financial year.
         if (isNaN(purchaseDate.getTime()) || purchaseDate > financialYearEnd) return 0;
 
         let openingValue = numCost;
         
-        // For Diminishing Value, calculate the written-down value at the start of THIS financial year.
         if (method === 'diminishing_value' && purchaseDate < financialYearStart) {
             const purchaseYear = purchaseDate.getFullYear();
             const purchaseMonth = purchaseDate.getMonth();
             let yearsOwnedBeforeThisFY = yearStart - purchaseYear;
-            if (purchaseMonth > 5) { // after 30 June, so it's in the next FY's start
+            if (purchaseMonth > 5) {
                 yearsOwnedBeforeThisFY -= 1;
             }
 
             for (let i = 0; i < yearsOwnedBeforeThisFY; i++) {
-                // Base depreciation on the opening value for each year owned prior
                 if (numEffectiveLife <= 1) {
                     openingValue -= openingValue;
                 } else {
@@ -67,18 +52,13 @@ const TaxCalculations = (() => {
         
         let annualDepreciation;
         if (method === 'diminishing_value') {
-            if (numEffectiveLife <= 1) { // Handle 1-year effective life edge case
-                annualDepreciation = openingValue;
-            } else {
-                annualDepreciation = openingValue * (2 / numEffectiveLife);
-            }
-        } else { // Prime Cost
+            annualDepreciation = (numEffectiveLife <= 1) ? openingValue : openingValue * (2 / numEffectiveLife);
+        } else {
             annualDepreciation = numCost / numEffectiveLife;
         }
 
         const workRelatedDepreciation = annualDepreciation * (numWorkPercentage / 100);
 
-        // Pro-rata calculation if purchased within the current financial year.
         if (purchaseDate >= financialYearStart && purchaseDate <= financialYearEnd) {
             const daysInYear = 365;
             const daysOwned = Math.floor((financialYearEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
@@ -92,7 +72,7 @@ const TaxCalculations = (() => {
     const calculateTotalGeneralDeductions = (generalExpenses) => {
         const financialYearEnd = new Date(parseInt(FINANCIAL_YEAR.split('-')[1]), 5, 30);
         return generalExpenses
-            .filter(exp => new Date(exp.date) <= financialYearEnd) // Filter out future-dated expenses
+            .filter(exp => new Date(exp.date) <= financialYearEnd)
             .reduce((total, exp) => {
                 const deduction = exp.isDepreciable 
                     ? calculateDepreciationForFinancialYear(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
@@ -185,34 +165,28 @@ const TaxCalculations = (() => {
         let threshold = window.MEDICARE_LEVY_THRESHOLD_SINGLE;
         let upperThreshold = window.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE;
 
-        // Adjust thresholds for families
         if (taxpayerDetails.filingStatus === 'family') {
             const childAdjustment = (taxpayerDetails.dependentChildren || 0) * window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT;
             threshold = window.MEDICARE_LEVY_THRESHOLD_FAMILY + childAdjustment;
             upperThreshold = window.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY + childAdjustment;
         }
 
-        // Calculate the full-year levy first
         let fullYearLevy = 0;
         if (taxableIncome > threshold) {
             if (taxableIncome <= upperThreshold) {
-                fullYearLevy = (taxableIncome - threshold) * 0.10; // 10% phase-in rate
+                fullYearLevy = (taxableIncome - threshold) * 0.10;
             } else {
                 fullYearLevy = taxableIncome * window.MEDICARE_LEVY_RATE;
             }
         }
 
-        // If exempt, check for partial exemption
         if (taxpayerDetails.isMedicareExempt) {
             const exemptDays = taxpayerDetails.medicareExemptDays || 0;
-            if (exemptDays >= 365) {
-                return 0; // Fully exempt for the whole year
-            }
+            if (exemptDays >= 365) return 0;
             const liableDays = 365 - exemptDays;
             return (fullYearLevy / 365) * liableDays;
         }
 
-        // Not exempt at all
         return fullYearLevy;
     };
 
@@ -242,7 +216,7 @@ const TaxCalculations = (() => {
             
             const bracket = familyThresholds.slice().reverse().find(b => familyIncomeForMls >= b.min);
             if (bracket) surchargeRate = bracket.rate;
-        } else { // Single
+        } else {
             const bracket = window.MLS_THRESHOLDS_SINGLE.slice().reverse().find(b => incomeForMls >= b.min);
             if (bracket) surchargeRate = bracket.rate;
         }
@@ -278,7 +252,7 @@ const TaxCalculations = (() => {
         const totalCorrectRebate = correctRebate1 + correctRebate2;
         const offset = totalCorrectRebate - (parseFloat(phiRebateReceived) || 0);
 
-        return Math.max(0, offset); // Cannot be negative
+        return Math.max(0, offset);
     };
 
     const calculateTotalOffsets = (taxableIncome, appData) => {
@@ -294,6 +268,50 @@ const TaxCalculations = (() => {
 
     const calculateFinalOutcome = (totalTaxWithheld, netTaxPayable) => {
         return totalTaxWithheld - netTaxPayable;
+    };
+
+    const generateDepreciationSchedule = (asset) => {
+        if (!asset.isDepreciable || !asset.effectiveLife || asset.effectiveLife <= 0) {
+            return 'Immediate';
+        }
+
+        let schedule = [];
+        let openingValue = parseFloat(asset.cost);
+        const workPercentFactor = (parseFloat(asset.workPercentage) || 100) / 100;
+        const effectiveLife = parseInt(asset.effectiveLife);
+        const formatCurrency = (amount) => (amount || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+
+        for (let i = 0; i < effectiveLife; i++) {
+            const tempDate = new Date(asset.date);
+            const calculationFinancialYearStart = new Date(tempDate.getFullYear() + i, 6, 1);
+            const purchaseDateForLoop = i === 0 ? tempDate : calculationFinancialYearStart;
+
+            let annualDepreciation;
+            if (asset.depreciationMethod === 'diminishing_value') {
+                annualDepreciation = openingValue * (2 / effectiveLife);
+            } else { 
+                annualDepreciation = asset.cost / effectiveLife;
+            }
+            
+            const workRelatedPortion = annualDepreciation * workPercentFactor;
+            
+            const daysInYear = 365;
+            const financialYearEndForLoop = new Date(purchaseDateForLoop.getFullYear() + (purchaseDateForLoop.getMonth() >= 6 ? 1 : 0), 5, 30);
+            const daysOwned = Math.floor((financialYearEndForLoop - purchaseDateForLoop) / (1000 * 60 * 60 * 24)) + 1;
+            const proRataFactor = (i === 0 && daysOwned < daysInYear) ? (daysOwned / daysInYear) : 1;
+            
+            const finalYearlyDeduction = workRelatedPortion * proRataFactor;
+
+            if (openingValue > 1) {
+                schedule.push(`Y${i + 1}: ${formatCurrency(finalYearlyDeduction)}`);
+            } else {
+                schedule.push(`Y${i + 1}: ${formatCurrency(0)}`);
+            }
+            
+            const costPortionOfDepreciation = finalYearlyDeduction / workPercentFactor;
+            openingValue -= costPortionOfDepreciation;
+        }
+        return schedule.join('<br>');
     };
 
     return {
@@ -313,6 +331,7 @@ const TaxCalculations = (() => {
         calculateDepreciationForFinancialYear,
         calculateWfhActualCostDeduction,
         calculateWfhRunningExpensesDeduction,
-        calculateWfhAssetsDeduction
+        calculateWfhAssetsDeduction,
+        generateDepreciationSchedule
     };
 })();
