@@ -70,7 +70,7 @@ const TaxCalculations = (() => {
     };
 
     const calculateTotalGeneralDeductions = (generalExpenses) => {
-        const financialYearEnd = new Date(parseInt(FINANCIAL_YEAR.split('-')[1]), 5, 30);
+        const financialYearEnd = new Date(parseInt(window.FINANCIAL_YEAR.split('-')[1]), 5, 30);
         return generalExpenses
             .filter(exp => new Date(exp.date) <= financialYearEnd)
             .reduce((total, exp) => {

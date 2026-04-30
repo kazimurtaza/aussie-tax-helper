@@ -19,25 +19,34 @@ const trackEvent = (eventName, eventParams = {}) => {
 //   return true; // Prevents the error from showing in the user's browser console
 // };
 
-// --- TIME HELPER FUNCTIONS ---
-const minutesToTimeString = (totalMinutes) => {
-    if (isNaN(totalMinutes) || totalMinutes < 0) return '00:00';
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = Math.round(totalMinutes % 60);
-    const paddedHours = String(hours).padStart(2, '0');
-    const paddedMinutes = String(minutes).padStart(2, '0');
-    return `${paddedHours}:${paddedMinutes}`;
-};
-
 const App = (() => {
     // The single source of truth for the application's state.
-    let appData = StorageManager.loadData();
+    // Changed to null - data loading now happens in init()
+    let appData = null;
 
     const init = () => {
+        // 1. Detect which year to load (saved preference, most recent with data, or latest)
+        const activeYear = StorageManager.detectDefaultYear();
+
+        // 2. Load constants for that year
+        window.loadConstantsForYear(activeYear);
+
+        // 3. Load data for that year
+        appData = StorageManager.loadData(activeYear);
+
+        // 4. Populate year selector dropdown
+        UIManager.populateYearSelector(activeYear);
+
+        // 5. Set up event listeners
         setupEventListeners();
+
+        // 6. Show the current section
+        UIManager.showSection(appData.userSettings.currentSection || 'dashboard-section');
+
+        // 7. Refresh the UI with loaded data
         refreshUI();
     };
-    
+
     const refreshUI = () => {
         UIManager.updateAllSummaries(appData);
         UIManager.displayIncomeList(appData.income.payg, appData.income.other);
@@ -56,7 +65,7 @@ const App = (() => {
         refreshUI();
     };
 
-    const generateId = (prefix) => `${prefix}_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`;
+    const generateId = (prefix) => `${prefix}_${new Date().getTime()}_${Math.random().toString(36).substring(2, 11)}`;
 
     const setupEventListeners = () => {
         document.getElementById('main-nav').addEventListener('click', (e) => {
@@ -69,7 +78,17 @@ const App = (() => {
                 trackEvent('navigation_click', { section: sectionId });
             }
         });
-        
+
+        // Year selector listener
+        document.getElementById('financial-year-selector').addEventListener('change', (e) => {
+            const newYear = e.target.value;
+            window.loadConstantsForYear(newYear);
+            StorageManager.saveActiveYearPreference(newYear);
+            appData = StorageManager.loadData(newYear);
+            UIManager.populateYearSelector(newYear);
+            refreshUI();
+        });
+
         document.getElementById('expense-is-depreciable').addEventListener('change', (e) => {
             document.getElementById('depreciation-fields').classList.toggle('hidden', !e.target.checked);
         });
@@ -94,11 +113,12 @@ const App = (() => {
             StorageManager.importData(e.target.files[0], (importedData) => {
                 appData = importedData;
                 saveAndRefresh();
+                UIManager.populateYearSelector(window.FINANCIAL_YEAR); // Update selector in case import switched years
                 UIManager.showNotification("Data imported successfully!");
             });
             e.target.value = null;
         });
-        
+
         document.getElementById('wfh-hours-csv-import').addEventListener('change', handleImportWfhHours);
 
         document.getElementById('taxpayer-details-form').addEventListener('submit', handleUpdateTaxpayerDetails);
@@ -123,7 +143,7 @@ const App = (() => {
 
         document.getElementById('wfh-hours-form').addEventListener('submit', handleAddWfhHour);
         document.getElementById('wfh-actual-cost-form').addEventListener('submit', handleUpdateWfhActualCosts);
-        
+
         const runningCostInputs = ['wfh-office-area', 'wfh-total-home-area', 'wfh-electricity-cost', 'wfh-gas-cost', 'wfh-internet-cost', 'wfh-internet-work-percent', 'wfh-phone-cost', 'wfh-stationery-cost'];
         runningCostInputs.forEach(id => {
             document.getElementById(id).addEventListener('input', () => {
@@ -149,7 +169,7 @@ const App = (() => {
         document.getElementById('wfh-asset-cancel-btn').addEventListener('click', UIManager.hideWfhAssetModal);
         document.getElementById('generate-summary-report-btn').addEventListener('click', generatePrintableSummary);
     };
-    
+
     // --- Event Handlers ---
     function handleUpdateTaxpayerDetails(e) {
         e.preventDefault();
@@ -173,7 +193,7 @@ const App = (() => {
     }
 
     function handleClearAllData() {
-        UIManager.showConfirmation("Are you sure you want to delete ALL data from this browser? This action cannot be undone.", () => {
+        UIManager.showConfirmation(`Are you sure you want to delete ALL data for FY ${window.FINANCIAL_YEAR}? This action cannot be undone.`, () => {
             StorageManager.clearAllData();
             appData = StorageManager.getDefaultData();
             saveAndRefresh();
@@ -206,7 +226,7 @@ const App = (() => {
             UIManager.showEditPaygModal(incomeItem);
         }
     };
-    
+
     function handleSavePaygIncome(e) {
         e.preventDefault();
         const form = e.target;
@@ -331,7 +351,7 @@ const App = (() => {
             form.reset();
         } else { UIManager.showNotification("Please enter a valid date and hours."); }
     }
-    
+
     function handleImportWfhHours(e) {
         StorageManager.importWfhHoursFromCSV(e.target.files[0], (importedLogs) => {
             const newLogsWithIds = importedLogs.map(log => ({
@@ -412,12 +432,12 @@ const App = (() => {
         } else {
             appData.wfh.actualCostDetails.assets.push(assetData);
         }
-        
+
         saveAndRefresh();
         UIManager.hideWfhAssetModal();
         form.reset();
     }
-    
+
     const editWfhAsset = (id) => {
         const asset = appData.wfh.actualCostDetails.assets.find(a => a.id === id);
         if (asset) {
@@ -441,19 +461,18 @@ const App = (() => {
         if (buttonToRemove) buttonToRemove.remove();
         const summaryHTML = summaryNode.innerHTML;
         const printWindow = window.open('', '_blank');
-        printWindow.document.write(`<html><head><title>Tax Summary ${FINANCIAL_YEAR}</title><script src="https://cdn.tailwindcss.com"><\/script><style>body{padding:2rem;font-family:sans-serif;}.summary-item.final-outcome{border-width:2px!important;}</style></head><body>${summaryHTML}</body></html>`);
+        printWindow.document.write(`<html><head><title>Tax Summary ${window.FINANCIAL_YEAR}</title><script src="https://cdn.tailwindcss.com"><\/script><style>body{padding:2rem;font-family:sans-serif;}.summary-item.final-outcome{border-width:2px!important;}</style></head><body>${summaryHTML}</body></html>`);
         printWindow.document.close();
         printWindow.print();
     };
 
-    return { 
-        init, 
-        removePaygIncome, editPaygIncome, 
-        removeGeneralExpense, editGeneralExpense, 
+    return {
+        init,
+        removePaygIncome, editPaygIncome,
+        removeGeneralExpense, editGeneralExpense,
         removeWfhHour, removeWfhAsset, editWfhAsset
     };
 })();
 
 window.App = App;
 document.addEventListener('DOMContentLoaded', App.init);
-    

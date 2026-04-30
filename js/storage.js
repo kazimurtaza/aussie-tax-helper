@@ -1,11 +1,12 @@
 const StorageManager = (() => {
-    // Unique key for storing data in localStorage, specific to the financial year.
-    const APP_STORAGE_KEY = 'aussieTaxHelperData-2025';
+    // Dynamic storage key based on financial year (backward compatible)
+    // 2024-2025 resolves to aussieTaxHelperData-2025
+    const getStorageKey = (year) => `aussieTaxHelperData-${year.split('-')[1]}`;
 
     const getDefaultData = () => ({
         userSettings: {
             currentSection: 'dashboard-section',
-            financialYear: FINANCIAL_YEAR,
+            financialYear: window.FINANCIAL_YEAR,
         },
         taxpayerDetails: {
             isMedicareExempt: false,
@@ -23,12 +24,12 @@ const StorageManager = (() => {
         },
         income: {
             payg: [],
-            other: { 
+            other: {
                 bankInterest: 0,
                 dividendsUnfranked: 0,
                 dividendsFranked: 0,
                 frankingCredits: 0,
-                netCapitalGains: 0 
+                netCapitalGains: 0
             }
         },
         generalExpenses: [],
@@ -44,14 +45,45 @@ const StorageManager = (() => {
         }
     });
 
-    const loadData = () => {
+    const getYearsWithData = () => {
+        return window.AVAILABLE_YEARS.filter(year => {
+            const key = getStorageKey(year);
+            const data = localStorage.getItem(key);
+            return data !== null;
+        });
+    };
+
+    const detectDefaultYear = () => {
+        // 1. Check saved preference
+        const savedPreference = localStorage.getItem('aussieTaxHelper-activeYear');
+        if (savedPreference && window.AVAILABLE_YEARS.includes(savedPreference)) {
+            return savedPreference;
+        }
+
+        // 2. Most recent year with data
+        const yearsWithData = getYearsWithData();
+        if (yearsWithData.length > 0) {
+            return yearsWithData[yearsWithData.length - 1];
+        }
+
+        // 3. Default to LATEST_YEAR
+        return window.LATEST_YEAR;
+    };
+
+    const saveActiveYearPreference = (year) => {
+        localStorage.setItem('aussieTaxHelper-activeYear', year);
+    };
+
+    const loadData = (year) => {
+        const targetYear = year || window.FINANCIAL_YEAR;
         try {
-            const storedData = localStorage.getItem(APP_STORAGE_KEY);
+            const key = getStorageKey(targetYear);
+            const storedData = localStorage.getItem(key);
             const defaultData = getDefaultData();
             if (!storedData) {
                 return defaultData;
             }
-            
+
             const parsedData = JSON.parse(storedData);
             // --- BACKWARD COMPATIBILITY ---
             // If the old phiPremiumsPaid field exists, migrate its value to the new
@@ -61,20 +93,20 @@ const StorageManager = (() => {
                 delete parsedData.taxpayerDetails.phiPremiumsPaid;
             }
             // --- END BACKWARD COMPATIBILITY ---
-            
+
             // Deep merge with default data to ensure new properties from updates are included.
             const mergedData = {
                 ...defaultData,
                 ...parsedData,
                 userSettings: { ...defaultData.userSettings, ...(parsedData.userSettings || {}) },
                 taxpayerDetails: { ...defaultData.taxpayerDetails, ...(parsedData.taxpayerDetails || {}) },
-                income: { 
-                    ...defaultData.income, 
+                income: {
+                    ...defaultData.income,
                     ...(parsedData.income || {}),
                     other: { ...defaultData.income.other, ...(parsedData.income?.other || {}) }
                 },
-                wfh: { 
-                    ...defaultData.wfh, 
+                wfh: {
+                    ...defaultData.wfh,
                     ...(parsedData.wfh || {}),
                     actualCostDetails: { ...defaultData.wfh.actualCostDetails, ...(parsedData.wfh?.actualCostDetails || {}) }
                 },
@@ -103,7 +135,8 @@ const StorageManager = (() => {
 
     const saveData = (data) => {
         try {
-            localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(data));
+            const key = getStorageKey(window.FINANCIAL_YEAR);
+            localStorage.setItem(key, JSON.stringify(data));
         } catch (e) {
             console.error("Error saving data to local storage:", e);
             UIManager.showNotification("Failed to save data. Your browser's local storage might be full or disabled.");
@@ -112,7 +145,8 @@ const StorageManager = (() => {
 
     const clearAllData = () => {
         try {
-            localStorage.removeItem(APP_STORAGE_KEY);
+            const key = getStorageKey(window.FINANCIAL_YEAR);
+            localStorage.removeItem(key);
         } catch (e) {
             console.error("Error clearing data:", e);
             UIManager.showNotification("Failed to clear data.");
@@ -126,9 +160,9 @@ const StorageManager = (() => {
                 dataStr = JSON.stringify(data, null, 2);
                 blobType = 'application/json';
                 fileExtension = 'json';
-            } else { 
+            } else {
                 let csvContent = `Tax Calculator Data - Financial Year: ${data.userSettings.financialYear}\n\n`;
-                
+
                 // Helper function to convert an array of objects to a CSV string
                 const arrayToCsv = (arr, headers, keys) => {
                     if (!arr || arr.length === 0) return `No data for this category.\n`;
@@ -147,10 +181,10 @@ const StorageManager = (() => {
                     ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid (Jul-Mar)', 'PHI Premiums Paid (Apr-Jun)', 'PHI Rebate Received'],
                     ['filingStatus', 'spouseIncome', 'dependentChildren', 'isMedicareExempt', 'medicareExemptDays', 'hasPrivateHospitalCover', 'reportableFringeBenefits', 'personalSuperContribution', 'phiAgeBracket', 'phiPremiumsPaid_period1', 'phiPremiumsPaid_period2', 'phiRebateReceived']
                 )}\n\n`;
-                
+
                 // PAYG Income
                 csvContent += `"PAYG Income"\n${arrayToCsv(data.income.payg, ['Source Name', 'Gross Salary', 'Tax Withheld'], ['sourceName', 'grossSalary', 'taxWithheld'])}\n\n`;
-                
+
                 // Other Income (Now includes Net Capital Gains)
                 csvContent += `"Other Income"\n${arrayToCsv(
                     [data.income.other],
@@ -167,24 +201,24 @@ const StorageManager = (() => {
 
                 // WFH Method
                 csvContent += `"Work-From-Home Details"\n"Method:","${data.wfh.method}"\n\n`;
-                
+
                 // WFH Hours Log
                 csvContent += `"WFH Hours Log"\n${arrayToCsv(data.wfh.hoursLog, ['Date', 'Minutes'], ['date', 'minutes'])}\n\n`;
-                
+
                 // WFH Actual Cost - Running Costs
                 csvContent += `"WFH Actual Cost - Running Costs"\n${arrayToCsv(
                     [data.wfh.actualCostDetails],
                     ['Office Area (m²)', 'Total Home Area (m²)', 'Electricity Cost ($)', 'Gas Cost ($)', 'Internet Cost ($)', 'Internet Work %', 'Phone Cost ($)', 'Stationery Cost ($)'],
                     ['officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
                 )}\n\n`;
-                
+
                 // WFH Actual Cost - Assets
                 csvContent += `"WFH Actual Cost - Assets"\n${arrayToCsv(
                     data.wfh.actualCostDetails.assets,
                     ['Description', 'Date', 'Cost', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'],
                     ['description', 'date', 'cost', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod']
                 )}\n\n`;
-                
+
                 dataStr = csvContent;
                 blobType = 'text/csv;charset=utf-8;';
                 fileExtension = 'csv';
@@ -194,7 +228,7 @@ const StorageManager = (() => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `tax_data_${FINANCIAL_YEAR}_${new Date().toISOString().slice(0, 10)}.${fileExtension}`;
+            a.download = `tax_data_${window.FINANCIAL_YEAR}_${new Date().toISOString().slice(0, 10)}.${fileExtension}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -204,7 +238,7 @@ const StorageManager = (() => {
             UIManager.showNotification("Failed to export data.");
         }
     };
-    
+
     const validateImportedData = (data) => {
         if (!data || typeof data !== 'object') return false;
         const hasTopLevelKeys = 'userSettings' in data && 'income' in data && 'generalExpenses' in data && 'wfh' in data && 'taxpayerDetails' in data;
@@ -242,6 +276,12 @@ const StorageManager = (() => {
                 }
                 // --- END BACKWARD COMPATIBILITY MIGRATION ---
                 if (validateImportedData(importedData)) {
+                    // Read financialYear from imported data and switch to that year if valid
+                    const importedYear = importedData.userSettings?.financialYear;
+                    if (importedYear && window.AVAILABLE_YEARS.includes(importedYear)) {
+                        window.loadConstantsForYear(importedYear);
+                        saveActiveYearPreference(importedYear);
+                    }
                     callback(importedData);
                 } else {
                     UIManager.showNotification("Invalid or corrupted data format in JSON file.");
@@ -270,7 +310,7 @@ const StorageManager = (() => {
             try {
                 const csvContent = e.target.result;
                 const lines = csvContent.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                
+
                 const headerLine = lines[0] ? lines[0].toLowerCase() : '';
                 if (headerLine.includes('day') && headerLine.includes('time') && headerLine.includes('description')) {
                     lines.shift();
@@ -342,5 +382,16 @@ const StorageManager = (() => {
         reader.readAsText(file);
     };
 
-    return { loadData, saveData, clearAllData, exportData, importData, getDefaultData, importWfhHoursFromCSV };
+    return {
+        loadData,
+        saveData,
+        clearAllData,
+        exportData,
+        importData,
+        getDefaultData,
+        importWfhHoursFromCSV,
+        getYearsWithData,
+        detectDefaultYear,
+        saveActiveYearPreference
+    };
 })();

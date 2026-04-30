@@ -36,8 +36,9 @@ This application is designed for Australian individuals, particularly salaried e
 * **Calculate & Claim Deductions:** Accurately calculate and claim all relevant work-related deductions, with a focus on WFH expenses using both the **ATO Fixed Rate** and **Actual Cost** methods.
 * **Estimate Tax Outcome:** Assist users in estimating their potential tax refund or payable amount from the Australian Taxation Office (ATO).
 * **Record-Keeping:** Provide a robust system for keeping records of income, expenses, and supporting documentation, all stored locally in the user's browser.
+* **Multi-Year Support:** Seamlessly manage tax data across multiple financial years, with automatic year detection and independent data storage for each year.
 
-**Target Tax Jurisdiction:** Australia (ATO guidelines for the 2024-2025 Financial Year).
+**Target Tax Jurisdiction:** Australia (ATO guidelines for the 2024-2025 and 2025-2026 Financial Years).
 
 ## Features
 
@@ -51,8 +52,9 @@ This application is designed for Australian individuals, particularly salaried e
     * Compare deduction outcomes between the **ATO Fixed Rate Method** (70 cents per hour) and the **Actual Cost Method**.
     * Log WFH hours manually or import them via a CSV file.
 * **Tax Estimation Engine:**
-    * Calculates taxable income based on ATO tax rates for 2024-2025.
+    * Calculates taxable income based on ATO tax rates for the selected financial year.
     * Applies common tax offsets like the Low Income Tax Offset (LITO) and the Private Health Insurance offset.
+    * **Year Selector:** Switch between financial years (2024-2025, 2025-2026) with independent data storage for each year.
 * **Data Management:**
     * **Local Storage:** All data is stored exclusively in your browser. No data is sent to a server.
     * **Import/Export:** Securely back up your data by exporting it to a JSON or CSV file, and restore it at any time.
@@ -80,7 +82,9 @@ To get a local copy up and running, follow these simple steps.
 
 ## Tax Rate & Threshold Constants
 
-All core tax calculation parameters are stored in `js/constants.js`. This centralizes the key ATO rates and thresholds, making them easy to review and update annually. Below are the key constants for the 2024-2025 financial year.
+All core tax calculation parameters are stored in `js/constants.js` using a year-keyed configuration structure. This centralizes the key ATO rates and thresholds, making them easy to review and update annually. The application supports multiple financial years (2024-2025, 2025-2026) with automatic rate switching based on the selected year.
+
+Below are the key constants for the **2024-2025** and **2025-2026** financial years.
 
 ### Income Tax Rates (2024-2025)
 These are the legislated "Stage 3" tax rates, effective from 1 July 2024.
@@ -117,15 +121,50 @@ A government contribution to help cover the cost of private health insurance. Th
 
 ### Work-From-Home (WFH) Fixed Rate
 * **Rate for 2024-2025:** `70 cents per hour`. This rate covers electricity, gas, internet, phone, stationery, and computer consumables.
+* **Rate for 2025-2026:** `70 cents per hour` (subject to ATO confirmation - placeholder using 2024-25 rate).
 *Source: [ATO - Fixed rate method](https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/working-from-home-deductions/fixed-rate-method-work-from-home-expenses)*
+
+### 2025-2026 Updates
+
+The following ATO rates have been updated for the 2025-2026 financial year:
+
+#### Medicare Levy Surcharge (MLS) - 2025-2026
+* **Base Income Threshold (Singles):** `$101,000` (increased from $97,000)
+* **Base Income Threshold (Families):** `$202,000` (increased from $194,000)
+* **Child Adjustment:** `$1,500` for each dependent child after the first (unchanged)
+* **Surcharge Rates:** `1%`, `1.25%`, or `1.5%` depending on the income tier (unchanged)
+
+*Note: Other tax rates (income tax brackets, LITO, Medicare levy, PHI rebate) for 2025-2026 use 2024-25 values as placeholder rates pending official ATO release.*
 
 ## Data Storage & Security
 
-* **Storage Method:** All data is stored exclusively in the **user's browser local storage**. The application does not have a backend and does not store any user data on external servers.
+* **Storage Method:** All data is stored exclusively in the **user's browser local storage** with separate storage keys for each financial year (`aussieTaxHelperData-2025`, `aussieTaxHelperData-2026`, etc.). The application does not have a backend and does not store any user data on external servers.
+* **Multi-Year Isolation:** Each financial year maintains completely independent data. Switching years preserves all data for each year, and data operations (save, clear, export) only affect the active year.
 * **Security:** Users are informed that clearing their browser data will permanently delete their stored information. Regular data export is recommended for backup purposes.
 * **Privacy:** The app does not handle or store Tax File Numbers (TFNs).
 
 ## Changelog
+
+### Version 1.5.0
+* ***🚀 Added***
+    * ***Multi-Year Support:*** The application now supports multiple financial years with a year selector dropdown in the header. Users can switch between 2024-2025 and 2025-2026 (and future years) with independent data storage for each year.
+    * ***Automatic Year Detection:*** The app automatically detects and loads the most appropriate year on startup: saved preference → most recent year with data → latest available year.
+    * ***2025-2026 Tax Rates:*** Added complete tax configuration for the 2025-2026 financial year, including updated MLS thresholds ($101,000 for singles, $202,000 for families).
+    * ***Dynamic PHI Period Labels:*** Private Health Insurance period labels now update automatically based on the selected financial year.
+* ***Refactored***
+    * ***constants.js:*** Completely restructured with a year-keyed `TAX_CONFIG` object for easier maintenance and future year additions. Added `loadConstantsForYear()` function for dynamic constant loading.
+    * ***storage.js:*** Implemented dynamic storage key generation (`aussieTaxHelperData-{year}`) and year detection functions (`getYearsWithData()`, `detectDefaultYear()`, `saveActiveYearPreference()`).
+    * ***app.js:*** Deferred data loading to `init()` phase to support year detection before loading. Added year change event listener.
+    * ***ui.js:*** Added `populateYearSelector()`, `updateFinancialYearDisplays()`, and `minutesToTimeString()` functions.
+    * ***index.html:*** Replaced static year displays with dynamic dropdown selector and year display spans.
+* ***Improved***
+    * ***Data Isolation:*** Each financial year maintains completely independent data. Switching years preserves all data for each year.
+    * ***Import/Export:*** JSON imports now automatically switch to the year specified in the imported file. Export filenames include the current financial year.
+    * ***Clear Data:*** The clear data operation now only affects the active financial year, preserving data in other years.
+* ***Backward Compatible***
+    * ***Storage Keys:*** Existing storage key format is preserved (`aussieTaxHelperData-2025` for 2024-2025).
+    * ***Data Migrations:*** All existing data migrations (PHI premiums, WFH hours) continue to work.
+    * ***Alias Maintained:*** `window.TAX_RATES_2025` alias preserved for calculations compatibility.
 
 ### Version 1.4.1
 * ***Fixed***
@@ -185,6 +224,25 @@ A government contribution to help cover the cost of private health insurance. Th
     * ***Mobile Navigation:*** The main navigation bar is now horizontally scrollable on mobile devices, fixing a key UI issue on smaller screens.
     * ***Fixed***
         * ***JavaScript Stability:*** Resolved a TypeError by ensuring all JavaScript modules are loaded completely and function calls have the correct parameters.
+
+## Developer Notes
+
+### Adding a New Financial Year
+
+To add support for a new financial year (e.g., 2026-2027):
+
+1. **Update `js/constants.js`:** Add a new entry to the `TAX_CONFIG` object with the year as the key:
+   ```javascript
+   "2026-2027": {
+       TAX_RATES: [...],
+       LITO_MAX_OFFSET: ...,
+       // ... other constants
+   }
+   ```
+
+2. **No other changes needed:** The `AVAILABLE_YEARS` array is auto-generated from `TAX_CONFIG` keys, and all UI components automatically adapt to the new year.
+
+3. **PHI Period Labels:** Ensure the `PHI_REBATE_RATES_PERIODS` keys use the format `YYYY-MM-DD_YYYY-MM-DD` for correct label display.
 
 ## Disclaimer
 

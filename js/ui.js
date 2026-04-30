@@ -28,13 +28,13 @@ const UIManager = (() => {
     cancelBtn.addEventListener('click', hideModal);
     const showNotification = (message, onConfirm = null) => showModal('Notification', message, false, onConfirm);
     const showConfirmation = (message, onConfirm) => showModal('Confirmation', message, true, onConfirm);
-    
+
     const showWfhAssetModal = (asset = null) => {
         const form = document.getElementById('wfh-asset-form');
         const modalTitle = document.getElementById('wfh-asset-modal-title');
         form.reset();
         document.getElementById('wfh-asset-depreciation-fields').classList.add('hidden');
-        
+
         if (asset) {
             modalTitle.textContent = 'Edit WFH Asset';
             form['wfh-asset-id'].value = asset.id;
@@ -43,7 +43,7 @@ const UIManager = (() => {
             form['wfh-asset-cost'].value = asset.cost;
             form['wfh-asset-work-percentage'].value = asset.workPercentage || 100;
             form['wfh-asset-is-depreciable'].checked = asset.isDepreciable;
-            
+
             if (asset.isDepreciable) {
                 document.getElementById('wfh-asset-depreciation-fields').classList.remove('hidden');
                 form['wfh-asset-effective-life'].value = asset.effectiveLife;
@@ -57,7 +57,7 @@ const UIManager = (() => {
         wfhAssetModal.classList.add('visible');
     };
     const hideWfhAssetModal = () => wfhAssetModal.classList.remove('visible');
-    
+
     const showEditPaygModal = (incomeItem) => {
         const form = document.getElementById('edit-payg-form');
         form['edit-payg-id'].value = incomeItem.id;
@@ -115,6 +115,59 @@ const UIManager = (() => {
         document.getElementById('medicare-exempt-days-container').classList.toggle('hidden', !isExempt);
     };
 
+    const minutesToTimeString = (totalMinutes) => {
+        if (isNaN(totalMinutes) || totalMinutes < 0) return '00:00';
+        const hours = Math.floor(totalMinutes / 60);
+        const mins = Math.round(totalMinutes % 60);
+        return `${hours}:${String(mins).padStart(2, '0')}`;
+    };
+
+    const populateYearSelector = (activeYear) => {
+        const selector = document.getElementById('financial-year-selector');
+        if (!selector) return;
+
+        selector.innerHTML = '';
+        window.AVAILABLE_YEARS.forEach(year => {
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            if (year === activeYear) {
+                option.selected = true;
+            }
+            selector.appendChild(option);
+        });
+
+        updateFinancialYearDisplays(activeYear);
+    };
+
+    const updateFinancialYearDisplays = (year) => {
+        // Update all .financialYearDisplay elements
+        document.querySelectorAll('.financialYearDisplay').forEach(el => {
+            el.textContent = year;
+        });
+
+        // Optionally update PHI period labels
+        const phiPeriods = Object.keys(window.PHI_REBATE_RATES_PERIODS || {});
+        const period1Label = document.getElementById('phi-period1-label');
+        const period2Label = document.getElementById('phi-period2-label');
+
+        if (phiPeriods.length >= 2 && period1Label && period2Label) {
+            // Parse the period keys to get readable dates
+            const formatPeriod = (key) => {
+                const [start, end] = key.split('_');
+                const formatDate = (dateStr) => {
+                    const [y, m, d] = dateStr.split('-');
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    return `${months[parseInt(m) - 1]} ${y.substring(2)}`;
+                };
+                return `${formatDate(start)} - ${formatDate(end)}`;
+            };
+
+            period1Label.textContent = `Premiums Paid (${formatPeriod(phiPeriods[0])}):`;
+            period2Label.textContent = `Premiums Paid (${formatPeriod(phiPeriods[1])}):`;
+        }
+    };
+
     const populateTaxpayerDetailsForm = (details) => {
         const form = document.getElementById('taxpayer-details-form');
         form['medicare-exempt'].checked = details.isMedicareExempt;
@@ -146,7 +199,7 @@ const UIManager = (() => {
         const officeArea = document.getElementById('wfh-office-area').value;
         const totalHomeArea = document.getElementById('wfh-total-home-area').value;
         const percentageEl = document.getElementById('wfh-floor-area-percentage');
-        
+
         const numOfficeArea = parseFloat(officeArea) || 0;
         const numTotalHomeArea = parseFloat(totalHomeArea) || 0;
 
@@ -157,7 +210,7 @@ const UIManager = (() => {
             percentageEl.textContent = '0.00%';
         }
     };
-    
+
     const updateRunningExpensesSubtotal = (details) => {
         const subtotal = TaxCalculations.calculateWfhRunningExpensesDeduction(details);
         document.getElementById('wfh-running-expenses-subtotal').textContent = formatCurrency(subtotal);
@@ -207,7 +260,7 @@ const UIManager = (() => {
             const deduction = exp.isDepreciable
                 ? TaxCalculations.calculateDepreciationForFinancialYear(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
                 : (exp.cost * (exp.workPercentage / 100));
-            
+
             const claimScheduleHtml = TaxCalculations.generateDepreciationSchedule(exp);
             const methodDisplay = exp.isDepreciable ? (exp.depreciationMethod === 'prime_cost' ? 'Prime Cost' : 'Diminishing') : 'N/A';
 
@@ -229,10 +282,10 @@ const UIManager = (() => {
         const totalMinutes = wfhData.totalMinutes || 0;
         const timeString = minutesToTimeString(totalMinutes);
         const decimalHours = (totalMinutes / 60).toFixed(2);
-        
+
         const combinedDisplay = `${timeString} hours Decimal ${decimalHours} hours`;
         document.getElementById('wfh-total-hours').textContent = combinedDisplay;
-        
+
         const listEl = document.getElementById('wfh-hours-list');
         listEl.innerHTML = '';
         const hoursLog = wfhData.hoursLog;
@@ -248,7 +301,7 @@ const UIManager = (() => {
             listEl.appendChild(li);
         });
     };
-    
+
     const displayWfhAssetsList = (assets) => {
         const listEl = document.getElementById('wfh-assets-list-body');
         listEl.innerHTML = '';
@@ -259,7 +312,7 @@ const UIManager = (() => {
 
         [...assets].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach((asset, index) => {
             const row = listEl.insertRow();
-            
+
             const createCell = (content, classes = []) => {
                 const cell = document.createElement('td');
                 cell.className = 'p-2 border-b border-gray-200 text-sm';
@@ -270,9 +323,9 @@ const UIManager = (() => {
 
             const workPercentage = asset.workPercentage || 100;
             const deduction = TaxCalculations.calculateDepreciationForFinancialYear(asset.cost, workPercentage, asset.effectiveLife, asset.date, asset.depreciationMethod);
-            
+
             const claimScheduleHtml = TaxCalculations.generateDepreciationSchedule(asset);
-            
+
             let methodDisplay = 'Immediate';
             if (asset.isDepreciable) {
                 methodDisplay = asset.depreciationMethod === 'prime_cost' ? 'Prime Cost' : 'Diminishing';
@@ -286,7 +339,7 @@ const UIManager = (() => {
             row.appendChild(createCell(methodDisplay));
             row.appendChild(createCell(formatCurrency(deduction), ['font-semibold']));
             row.appendChild(createCell(claimScheduleHtml, ['text-xs']));
-            
+
             const actionsCell = document.createElement('td');
             actionsCell.className = 'p-2 border-b border-gray-200 text-sm';
 
@@ -295,7 +348,7 @@ const UIManager = (() => {
             editButton.className = 'text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2';
             editButton.textContent = 'Edit';
             editButton.addEventListener('click', () => App.editWfhAsset(asset.id));
-            
+
             const removeButton = document.createElement('button');
             removeButton.type = 'button';
             removeButton.className = 'text-red-500 hover:text-red-700 text-xs font-semibold';
@@ -323,28 +376,28 @@ const UIManager = (() => {
     const updateAllSummaries = (appData) => {
 
         document.getElementById('wfh-fixed-rate-value').textContent = formatCurrency(window.WFH_FIXED_RATE_PER_HOUR);
-        
+
         const totalAssessableIncome = TaxCalculations.calculateTotalAssessableIncome(appData.income);
         const totalTaxWithheld = appData.income.payg.reduce((sum, item) => sum + item.taxWithheld, 0);
-        
+
         const totalGeneralDeductions = TaxCalculations.calculateTotalGeneralDeductions(appData.generalExpenses);
         const totalWfhDeductions = TaxCalculations.calculateTotalWfhDeductions(appData.wfh);
         const totalSuperDeductions = parseFloat(appData.taxpayerDetails.personalSuperContribution) || 0;
-        
+
         const overallTotalDeductions = totalGeneralDeductions + totalWfhDeductions + totalSuperDeductions;
         const taxableIncome = TaxCalculations.calculateTaxableIncome(appData);
-        
+
         const grossTax = TaxCalculations.calculateGrossTax(taxableIncome);
         const medicareLevy = TaxCalculations.calculateMedicareLevy(taxableIncome, appData.taxpayerDetails);
         const mls = TaxCalculations.calculateMLS(taxableIncome, appData.taxpayerDetails);
-        
+
         const offsets = TaxCalculations.calculateTotalOffsets(taxableIncome, appData);
-        
+
         const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, mls, offsets.total);
         const finalOutcome = TaxCalculations.calculateFinalOutcome(totalTaxWithheld, netTaxPayable);
-        
+
         const outcomeText = finalOutcome >= 0 ? `${formatCurrency(finalOutcome)} Refund` : `${formatCurrency(Math.abs(finalOutcome))} Payable`;
-        
+
         // --- Update UI Elements ---
         document.getElementById('dashboard-taxable-income').textContent = formatCurrency(taxableIncome);
         document.getElementById('dashboard-total-deductions').textContent = formatCurrency(overallTotalDeductions);
@@ -353,7 +406,7 @@ const UIManager = (() => {
         document.getElementById('total-tax-withheld-summary').textContent = formatCurrency(totalTaxWithheld);
         document.getElementById('total-general-deductions').textContent = formatCurrency(totalGeneralDeductions);
         document.getElementById('total-wfh-deduction').textContent = formatCurrency(totalWfhDeductions);
-        
+
         // Update WFH Method-Specific Details
         const fixedRateDeductionValue = (appData.wfh.method === 'fixed_rate') ? totalWfhDeductions : 0;
         document.getElementById('wfh-fixed-rate-deduction').textContent = formatCurrency(fixedRateDeductionValue);
@@ -383,7 +436,7 @@ const UIManager = (() => {
 
     return {
         showNotification, showConfirmation, showSection, populateOtherIncomeForm,
-        displayIncomeList, displayGeneralExpensesList, displayWfhHoursList, 
+        displayIncomeList, displayGeneralExpensesList, displayWfhHoursList,
         updateWfhMethodDisplay, updateAllSummaries, populateWfhActualCostForm,
         showWfhAssetModal, hideWfhAssetModal, displayWfhAssetsList,
         showEditPaygModal, hideEditPaygModal,
@@ -393,6 +446,9 @@ const UIManager = (() => {
         flashHighlight,
         toggleFamilyFields,
         toggleMedicareDaysField,
-        populateTaxpayerDetailsForm
+        populateTaxpayerDetailsForm,
+        populateYearSelector,
+        updateFinancialYearDisplays,
+        minutesToTimeString
     };
 })();
