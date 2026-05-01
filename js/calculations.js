@@ -279,42 +279,52 @@ const TaxCalculations = (() => {
             return 'Immediate';
         }
 
-        let schedule = [];
+        const schedule = [];
         let openingValue = parseFloat(asset.cost);
-        const workPercentFactor = (parseFloat(asset.workPercentage) || 100) / 100;
-        const effectiveLife = parseInt(asset.effectiveLife);
-        const formatCurrency = (amount) => (amount || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+        const workPct = (parseFloat(asset.workPercentage) || 100) / 100;
+        const life = parseInt(asset.effectiveLife);
+        const isDV = asset.depreciationMethod === 'diminishing_value';
+        const purchaseDate = new Date(asset.date);
+        const purchaseMonth = purchaseDate.getMonth();
+        const fmt = (v) => (v || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
 
-        for (let i = 0; i < effectiveLife; i++) {
-            const tempDate = new Date(asset.date);
-            const calculationFinancialYearStart = new Date(tempDate.getFullYear() + i, 6, 1);
-            const purchaseDateForLoop = i === 0 ? tempDate : calculationFinancialYearStart;
+        // Acquisition FY: Jul-Dec purchases fall in the same calendar year's FY start.
+        const acqFYStartYear = purchaseMonth >= 6 ? purchaseDate.getFullYear() : purchaseDate.getFullYear() - 1;
+        const currentFYStartYear = parseInt(window.FINANCIAL_YEAR.split('-')[0]);
 
-            let annualDepreciation;
-            if (asset.depreciationMethod === 'diminishing_value') {
-                annualDepreciation = (effectiveLife <= 1) ? openingValue : openingValue * (2 / effectiveLife);
-            } else {
-                annualDepreciation = asset.cost / effectiveLife;
+        // DV (life > 1) always has a residual after effective life — cap at life iterations (ATO practice).
+        // PC and DV life=1 can have a partial-year residual, so allow one extra iteration.
+        const maxIter = (!isDV || life <= 1) ? life + 1 : life;
+
+        for (let i = 0; i < maxIter && openingValue > 0.005; i++) {
+            const fyStartYear = acqFYStartYear + i;
+            const fyLabel = `${fyStartYear}-${String(fyStartYear + 1).slice(-2)}`;
+            const isCurrent = fyStartYear === currentFYStartYear;
+
+            const annualDepr = isDV
+                ? (life <= 1 ? openingValue : openingValue * (2 / life))
+                : parseFloat(asset.cost) / life;
+
+            let proRataFactor = 1;
+            let proRataNote = '';
+
+            if (i === 0) {
+                const acqFYEnd = new Date(acqFYStartYear + 1, 5, 30);
+                const daysOwned = Math.floor((acqFYEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
+                if (daysOwned < 365) {
+                    proRataFactor = daysOwned / 365;
+                    const dvRate = isDV ? ` · ${life <= 1 ? 100 : Math.round(200 / life)}% DV/yr` : ` · ${Math.round(100 / life)}% PC/yr`;
+                    proRataNote = ` <span style="opacity:0.55;font-size:0.8em">(${daysOwned}/365 days${dvRate})</span>`;
+                }
             }
-            
-            const workRelatedPortion = annualDepreciation * workPercentFactor;
-            
-            const daysInYear = 365;
-            const financialYearEndForLoop = new Date(purchaseDateForLoop.getFullYear() + (purchaseDateForLoop.getMonth() >= 6 ? 1 : 0), 5, 30);
-            const daysOwned = Math.floor((financialYearEndForLoop - purchaseDateForLoop) / (1000 * 60 * 60 * 24)) + 1;
-            const proRataFactor = (i === 0 && daysOwned < daysInYear) ? (daysOwned / daysInYear) : 1;
-            
-            const finalYearlyDeduction = workRelatedPortion * proRataFactor;
 
-            if (openingValue > 1) {
-                schedule.push(`Y${i + 1}: ${formatCurrency(finalYearlyDeduction)}`);
-            } else {
-                schedule.push(`Y${i + 1}: ${formatCurrency(0)}`);
-            }
-            
-            const costPortionOfDepreciation = finalYearlyDeduction / workPercentFactor;
-            openingValue -= costPortionOfDepreciation;
+            const deduction = Math.min(annualDepr * workPct * proRataFactor, openingValue * workPct);
+            openingValue = Math.max(0, openingValue - annualDepr * proRataFactor);
+
+            const amountStr = `${fyLabel}: ${fmt(deduction)}${proRataNote}`;
+            schedule.push(isCurrent ? `<strong>${amountStr}</strong>` : amountStr);
         }
+
         return schedule.join('<br>');
     };
 

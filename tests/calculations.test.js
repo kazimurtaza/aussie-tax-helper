@@ -1369,26 +1369,27 @@ describe('generateDepreciationSchedule', () => {
         expect(years).toHaveLength(3);
     });
 
-    test('prime cost: Y1 label is present', () => {
+    test('prime cost: FY label is present', () => {
+        // date=2024-07-01 → acqFYStartYear=2024 → label "2024-25"
         const result = TaxCalculations.generateDepreciationSchedule(asset());
-        expect(result).toMatch(/Y1:/);
+        expect(result).toMatch(/2024-25:/);
     });
 
     test('prime cost: full year purchase — Y1 deduction = cost/life', () => {
         // cost=1200, life=3, purchased 2024-07-01 (FY start) → 1200/3 = 400/yr
-        // Use regex to match the numeric value without assuming ICU currency prefix ($ vs A$)
         const result = TaxCalculations.generateDepreciationSchedule(asset());
-        expect(result).toContain('Y1:');
-        expect(result).toMatch(/Y1:.*400\.00/);
+        expect(result).toMatch(/2024-25:/);
+        expect(result).toMatch(/2024-25:.*400\.00/);
     });
 
-    test('prime cost: partial year purchase reduces Y1', () => {
-        // Purchased 2025-01-01 → 181 days pro-rata
+    test('prime cost: partial year purchase reduces Y1 and shows pro-rata note', () => {
+        // date=2025-01-01 → acqFYStartYear=2024 (month=0 < 6) → label "2024-25"
         // annual = 1200/3 = 400; Y1 = 400 * (181/365) = 198.356...
+        // Pro-rata note: "(181/365 days · 33% PC/yr)"
         const result = TaxCalculations.generateDepreciationSchedule(asset({ date: '2025-01-01' }));
-        expect(result).toMatch(/Y1:/);
-        expect(result).toMatch(/Y1:.*198\.\d+/);
-        expect(result).toContain('Y2:');
+        expect(result).toMatch(/2024-25:.*198\.\d+/);
+        expect(result).toMatch(/181\/365 days/);
+        expect(result).toMatch(/2025-26:/);
     });
 
     test('diminishing value: schedule has correct number of years', () => {
@@ -1400,23 +1401,21 @@ describe('generateDepreciationSchedule', () => {
     });
 
     test('diminishing value: Y1 deduction = cost × (2/life)', () => {
-        // cost=1000, life=5, DV: 1000 * (2/5) = 400
+        // cost=1000, life=5, DV, date=2024-07-01 → acqFYStartYear=2024 → label "2024-25"
+        // 1000 * (2/5) = 400
         const result = TaxCalculations.generateDepreciationSchedule(
             asset({ cost: 1000, effectiveLife: 5, depreciationMethod: 'diminishing_value' })
         );
-        expect(result).toContain('Y1:');
-        expect(result).toMatch(/Y1:.*400\.00/);
+        expect(result).toMatch(/2024-25:/);
+        expect(result).toMatch(/2024-25:.*400\.00/);
     });
 
-    test('diminishing value: opening value ≤ 1 shows $0.00 in later years', () => {
-        // effectiveLife=1, DV: year 1 = full write-off (openingValue = 1000)
-        // After year 1, openingValue = 0 → subsequent years should show $0
-        // But effectiveLife=1 means only 1 iteration... use effectiveLife=2 with high DV to exhaust early
+    test('diminishing value: tiny cost — schedule still runs for effective life iterations', () => {
+        // cost=1, life=3, DV: maxIter=3 (DV life>1), loop runs until openingValue<0.005 or 3 iters
+        // openingValue starts at 1: after Y1 (40% of 1 = 0.40 deducted) → 0.60 > 0.005, continues
         const result = TaxCalculations.generateDepreciationSchedule(
             asset({ cost: 1, effectiveLife: 3, depreciationMethod: 'diminishing_value' })
         );
-        // openingValue = 1.0, after Y1 deduction, openingValue may drop to ≤ 1
-        // The schedule should still have 3 entries
         const years = result.split('<br>');
         expect(years).toHaveLength(3);
     });
@@ -1424,20 +1423,44 @@ describe('generateDepreciationSchedule', () => {
     test('diminishing value: effectiveLife=1 — schedule capped at 100% not 200%', () => {
         // REGRESSION: generateDepreciationSchedule previously computed openingValue*(2/1)=200%
         // which for a $435 asset bought Aug 2024 would show ~$785 instead of ~$393.
-        // The cap (effectiveLife<=1 → annualDepreciation=openingValue) must match
-        // the same cap in calculateDepreciationForFinancialYear.
         // cost=1000, life=1, DV, full year purchased 2024-07-01: Y1 = 1000 (100%, not 2000)
+        // acqFYStartYear=2024 → label "2024-25" (which is also the current FY → bolded)
         const result = TaxCalculations.generateDepreciationSchedule(
             asset({ cost: 1000, effectiveLife: 1, depreciationMethod: 'diminishing_value' })
         );
-        expect(result).toMatch(/Y1:.*1,000\.00/);
-        // Must NOT contain 2000 (which would indicate the uncapped 200% bug)
+        expect(result).toMatch(/2024-25:.*1,000\.00/);
         expect(result).not.toMatch(/2,000\.00/);
     });
 
+    test('diminishing value: effectiveLife=1 partial year — residual shown in following FY', () => {
+        // date=2024-08-05, life=1, DV: Y1 pro-rated, Y2 shows residual balance
+        // acqFYStartYear=2024 → Y1 label "2024-25", Y2 label "2025-26"
+        const result = TaxCalculations.generateDepreciationSchedule(
+            asset({ cost: 1000, effectiveLife: 1, date: '2024-08-05', depreciationMethod: 'diminishing_value' })
+        );
+        expect(result).toMatch(/2024-25:.*\d+\.\d+/);
+        expect(result).toMatch(/\/365 days/);
+        expect(result).toMatch(/2025-26:/);
+    });
+
     test('partial work percentage reduces all deductions', () => {
-        // cost=1200, life=3, work=50%, prime cost: annual = 1200/3 = 400; work = 400 * 0.5 = 200/yr
+        // cost=1200, life=3, work=50%, PC: annual = 1200/3 = 400; work = 400 * 0.5 = 200/yr
+        // date=2024-07-01 → label "2024-25"
         const result = TaxCalculations.generateDepreciationSchedule(asset({ workPercentage: 50 }));
-        expect(result).toMatch(/Y1:.*200\.00/);
+        expect(result).toMatch(/2024-25:.*200\.00/);
+    });
+
+    test('current FY row is wrapped in <strong> tags', () => {
+        // FY 2024-2025 is current; asset purchased 2024-07-01 → first entry is "2024-25" = current
+        const result = TaxCalculations.generateDepreciationSchedule(asset());
+        expect(result).toMatch(/<strong>2024-25:.*<\/strong>/);
+    });
+
+    test('non-current FY rows are NOT wrapped in <strong>', () => {
+        // Asset purchased 2023-07-01 → acqFY=2023-24, currentFY=2024-25
+        // First entry "2023-24" is NOT current, second entry "2024-25" is current (bolded)
+        const result = TaxCalculations.generateDepreciationSchedule(asset({ date: '2023-07-01' }));
+        expect(result).not.toMatch(/<strong>2023-24:/);
+        expect(result).toMatch(/<strong>2024-25:/);
     });
 });
