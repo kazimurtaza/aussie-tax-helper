@@ -633,6 +633,16 @@
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
                     <div>
+                        <h4 class="font-semibold">Version 1.5.1</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Critical — Medicare Levy family thresholds corrected to legislated 2024-25/2025-26 values ($45,907 lower / $57,383 upper / $4,216 child adjustment) per Treasury Laws Amendment (More Cost of Living Relief) Act 2025. Families with 2 dependent children on ~$50k income were incorrectly charged ~$154 in levy.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> PHI rebate period keys were hardcoded to 2024-25 strings, returning wrong rates for 2025-26. Keys are now resolved dynamically, making the calculation year-agnostic.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> 2025-26 PHI rebate rates updated to confirmed values per Dept of Health PHI Circulars 21/25 and 12/26.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> 2025-26 MLS tier caps corrected — single Tier 1 ($117k&rarr;$118k), Tier 2 ($155k&rarr;$158k); family Tier 1 ($234k&rarr;$236k), Tier 2 ($310k&rarr;$316k).</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> 183-test Jest unit test suite covering all calculation logic with &gt;99% statement coverage and CI integration via GitHub Actions.</li>
+                        </ul>
+                    </div>
+                    <div>
                         <h4 class="font-semibold">Version 1.5.0</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
                             <li><strong class="font-medium text-green-600">Added:</strong> Multi-year support with a year selector dropdown in the header. Users can switch between 2024-2025 and 2025-2026 (and future years) with independent data storage for each year.</li>
