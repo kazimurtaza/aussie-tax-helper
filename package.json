@@ -1,0 +1,28 @@
+{
+  "name": "aussie-tax-helper",
+  "version": "1.5.0",
+  "description": "Australian tax deductions helper - client-side app",
+  "scripts": {
+    "test": "jest --coverage",
+    "test:watch": "jest --watch"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coverageDirectory": "coverage",
+    "coverageProvider": "v8",
+    "collectCoverageFrom": [
+      "js/calculations.js",
+      "js/constants.js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "lines": 90,
+        "functions": 90,
+        "branches": 80
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+# Runs the unit test suite on every pull request and every non-main branch push.
+# Gives fast feedback during development without triggering a deployment.
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches-ignore: ["main"]
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm test -- --ci --coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
