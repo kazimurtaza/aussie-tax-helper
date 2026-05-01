@@ -289,8 +289,8 @@ const TaxCalculations = (() => {
 
             let annualDepreciation;
             if (asset.depreciationMethod === 'diminishing_value') {
-                annualDepreciation = openingValue * (2 / effectiveLife);
-            } else { 
+                annualDepreciation = (effectiveLife <= 1) ? openingValue : openingValue * (2 / effectiveLife);
+            } else {
                 annualDepreciation = asset.cost / effectiveLife;
             }
             

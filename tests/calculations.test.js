@@ -1376,6 +1376,20 @@ describe('generateDepreciationSchedule', () => {
         expect(years).toHaveLength(3);
     });
 
+    test('diminishing value: effectiveLife=1 — schedule capped at 100% not 200%', () => {
+        // REGRESSION: generateDepreciationSchedule previously computed openingValue*(2/1)=200%
+        // which for a $435 asset bought Aug 2024 would show ~$785 instead of ~$393.
+        // The cap (effectiveLife<=1 → annualDepreciation=openingValue) must match
+        // the same cap in calculateDepreciationForFinancialYear.
+        // cost=1000, life=1, DV, full year purchased 2024-07-01: Y1 = 1000 (100%, not 2000)
+        const result = TaxCalculations.generateDepreciationSchedule(
+            asset({ cost: 1000, effectiveLife: 1, depreciationMethod: 'diminishing_value' })
+        );
+        expect(result).toMatch(/Y1:.*1,000\.00/);
+        // Must NOT contain 2000 (which would indicate the uncapped 200% bug)
+        expect(result).not.toMatch(/2,000\.00/);
+    });
+
     test('partial work percentage reduces all deductions', () => {
         // cost=1200, life=3, work=50%, prime cost: annual = 1200/3 = 400; work = 400 * 0.5 = 200/yr
         const result = TaxCalculations.generateDepreciationSchedule(asset({ workPercentage: 50 }));
