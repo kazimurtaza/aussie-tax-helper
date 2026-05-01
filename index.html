@@ -633,6 +633,14 @@
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
                     <div>
+                        <h4 class="font-semibold">Version 1.5.2</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Critical — Diminishing value depreciation carry-forward (year 2+) was overclaiming significantly for assets purchased mid-year. The prior-year opening value now correctly pro-rates the acquisition year before rolling forward, matching ATO methodology.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Diminishing value for effectiveLife=1 assets was claiming 200% in Y1 (e.g. a $435 GPU showed $784 deduction). Deduction is now correctly capped at 100% of the written-down value.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> 187-test Jest suite with carry-forward regression tests covering real-world asset scenarios.</li>
+                        </ul>
+                    </div>
+                    <div>
                         <h4 class="font-semibold">Version 1.5.1</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
                             <li><strong class="font-medium text-red-600">Fixed:</strong> Critical — Medicare Levy family thresholds corrected to legislated 2024-25/2025-26 values ($45,907 lower / $57,383 upper / $4,216 child adjustment) per Treasury Laws Amendment (More Cost of Living Relief) Act 2025. Families with 2 dependent children on ~$50k income were incorrectly charged ~$154 in levy.</li>

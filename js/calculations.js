@@ -34,19 +34,22 @@ const TaxCalculations = (() => {
         let openingValue = numCost;
         
         if (method === 'diminishing_value' && purchaseDate < financialYearStart) {
-            const purchaseYear = purchaseDate.getFullYear();
+            // Determine which Australian FY the asset was acquired in (FY starts Jul 1).
+            // Month >= 6 means Jul-Dec: acquisition FY starts in the purchase calendar year.
+            // Month < 6 means Jan-Jun: acquisition FY started the previous calendar year.
             const purchaseMonth = purchaseDate.getMonth();
-            let yearsOwnedBeforeThisFY = yearStart - purchaseYear;
-            if (purchaseMonth > 5) {
-                yearsOwnedBeforeThisFY -= 1;
-            }
+            const acqFYStartYear = purchaseMonth >= 6 ? purchaseDate.getFullYear() : purchaseDate.getFullYear() - 1;
+            const acqFYEnd = new Date(acqFYStartYear + 1, 5, 30);
 
-            for (let i = 0; i < yearsOwnedBeforeThisFY; i++) {
-                if (numEffectiveLife <= 1) {
-                    openingValue -= openingValue;
-                } else {
-                    openingValue -= openingValue * (2 / numEffectiveLife);
-                }
+            // Pro-rate the acquisition year deduction, then apply full DV for each subsequent FY.
+            const acqDaysOwned = Math.floor((acqFYEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
+            const acqAnnualDepr = numEffectiveLife <= 1 ? openingValue : openingValue * (2 / numEffectiveLife);
+            openingValue = Math.max(0, openingValue - acqAnnualDepr * (acqDaysOwned / 365));
+
+            const completeFYs = yearStart - (acqFYStartYear + 1);
+            for (let i = 0; i < completeFYs; i++) {
+                const deprAmt = numEffectiveLife <= 1 ? openingValue : openingValue * (2 / numEffectiveLife);
+                openingValue = Math.max(0, openingValue - deprAmt);
             }
         }
         
