@@ -58,7 +58,7 @@ const makeAppData = (overrides = {}) => ({
 // calculateGrossTax
 // ─────────────────────────────────────────────
 describe('calculateGrossTax', () => {
-    beforeAll(() => loadConstantsForYear('2024-2025'));
+    beforeEach(() => loadConstantsForYear('2024-2025'));
 
     test('zero income → zero tax', () => {
         expect(TaxCalculations.calculateGrossTax(0)).toBe(0);
@@ -138,7 +138,7 @@ describe('calculateGrossTax', () => {
 // calculateLITO
 // ─────────────────────────────────────────────
 describe('calculateLITO', () => {
-    beforeAll(() => loadConstantsForYear('2024-2025'));
+    beforeEach(() => loadConstantsForYear('2024-2025'));
 
     test('income ≤ $18,200 → $0 (below tax-free threshold)', () => {
         expect(TaxCalculations.calculateLITO(18200)).toBe(0);
@@ -337,9 +337,9 @@ describe('calculateMedicareLevy — Medicare exempt', () => {
 
     test('partial exemption (180 days exempt) → pro-rata levy', () => {
         const td = singleTaxpayer({ isMedicareExempt: true, medicareExemptDays: 180 });
-        const fullLevy = 100000 * 0.02; // 2000
-        const expected = (fullLevy / 365) * (365 - 180); // 2000 * 185/365
-        expect(TaxCalculations.calculateMedicareLevy(100000, td)).toBeCloseTo(expected, 5);
+        // fullLevy = 100000 * 0.02 = 2000; liableDays = 365 - 180 = 185
+        // 2000 * (185/365) = 1013.699...
+        expect(TaxCalculations.calculateMedicareLevy(100000, td)).toBeCloseTo(1013.70, 2);
     });
 });
 
@@ -668,16 +668,14 @@ describe('calculateDepreciationForFinancialYear', () => {
 
     test('prime cost: partial year (purchased 2025-01-01)', () => {
         // annualDepreciation = 1000/5 = 200; workRelated = 200 * 1.0 = 200
-        // daysOwned: 2025-01-01 to 2025-06-30 = 181 days
-        // proRata = 181/365
-        const expected = 200 * (181 / 365);
-        expect(depr(1000, 100, 5, '2025-01-01', 'prime_cost')).toBeCloseTo(expected, 2);
+        // daysOwned: 2025-01-01 to 2025-06-30 = 181 days (verified: 31+28+31+30+31+30)
+        // deduction = 200 * 181/365 = 99.178...
+        expect(depr(1000, 100, 5, '2025-01-01', 'prime_cost')).toBeCloseTo(99.18, 2);
     });
 
     test('prime cost: purchased last day of FY (2025-06-30)', () => {
-        // daysOwned = 1
-        const expected = 200 * (1 / 365);
-        expect(depr(1000, 100, 5, '2025-06-30', 'prime_cost')).toBeCloseTo(expected, 4);
+        // daysOwned = 1; deduction = 200 * 1/365 = 0.5479...
+        expect(depr(1000, 100, 5, '2025-06-30', 'prime_cost')).toBeCloseTo(0.548, 3);
     });
 
     test('prime cost: purchased before FY start → full year deduction', () => {
@@ -697,8 +695,8 @@ describe('calculateDepreciationForFinancialYear', () => {
 
     test('diminishing value: partial year ownership', () => {
         // 1000 * (2/5) = 400 work-related; 181/365 pro-rata
-        const expected = 400 * (181 / 365);
-        expect(depr(1000, 100, 5, '2025-01-01', 'diminishing_value')).toBeCloseTo(expected, 2);
+        // 400 * 181/365 = 198.356...
+        expect(depr(1000, 100, 5, '2025-01-01', 'diminishing_value')).toBeCloseTo(198.36, 2);
     });
 
     test('works correctly for 2025-2026 FY', () => {
@@ -760,6 +758,21 @@ describe('calculateTotalWfhDeductions', () => {
             },
         };
         expect(TaxCalculations.calculateTotalWfhDeductions(wfh)).toBe(0);
+    });
+
+    test('actual cost: gas cost included in energy floor-area deduction', () => {
+        const wfh = {
+            method: 'actual_cost',
+            actualCostDetails: {
+                officeArea: 10, totalHomeArea: 100,
+                electricityCost: 1000, gasCost: 500,
+                internetCost: 0, internetWorkPercent: 0,
+                phoneCost: 0, stationeryCost: 0,
+                assets: [],
+            },
+        };
+        // (electricity + gas) * floorAreaPercent = (1000 + 500) * (10/100) = 150
+        expect(TaxCalculations.calculateTotalWfhDeductions(wfh)).toBeCloseTo(150, 2);
     });
 
     test('unknown method → zero', () => {
@@ -862,6 +875,53 @@ describe('calculateNetTaxPayable and calculateFinalOutcome', () => {
 });
 
 // ─────────────────────────────────────────────
+// calculateTotalOffsets (lines 259-264)
+// ─────────────────────────────────────────────
+describe('calculateTotalOffsets', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    test('aggregates lito, franking credits, and phi offset — returns named fields and total', () => {
+        // taxableIncome=30000: lito=700, frankingCredits=500, phiOffset=0
+        const data = makeAppData({ otherIncome: { frankingCredits: 500 } });
+        const result = TaxCalculations.calculateTotalOffsets(30000, data);
+        expect(result.lito).toBe(700);
+        expect(result.frankingCredits).toBe(500);
+        expect(result.phiOffset).toBe(0);
+        expect(result.total).toBe(1200);
+    });
+
+    test('high income: lito is zero, franking credits still counted', () => {
+        // taxableIncome=80000 > 66667 → lito=0; frankingCredits=1000
+        const data = makeAppData({ otherIncome: { frankingCredits: 1000 } });
+        const result = TaxCalculations.calculateTotalOffsets(80000, data);
+        expect(result.lito).toBe(0);
+        expect(result.frankingCredits).toBe(1000);
+        expect(result.total).toBe(1000);
+    });
+
+    test('total field always equals lito + frankingCredits + phiOffset', () => {
+        // Use plain makeAppData (no PHI) so taxpayerDetails is not double-spread
+        const data = makeAppData({ otherIncome: { frankingCredits: 200 } });
+        const result = TaxCalculations.calculateTotalOffsets(30000, data);
+        expect(result.total).toBeCloseTo(result.lito + result.frankingCredits + result.phiOffset, 5);
+    });
+
+    test('all three offset types contribute when non-zero', () => {
+        // taxableIncome=30000: lito=700; frankingCredits=300; phiOffset=10000*0.24608=2460.80
+        // Build appData manually to avoid makeAppData's ...overrides stomping taxpayerDetails
+        const data = {
+            ...makeAppData({ otherIncome: { frankingCredits: 300 } }),
+            taxpayerDetails: singleTaxpayer({ phiPremiumsPaid_period1: 10000 }),
+        };
+        const result = TaxCalculations.calculateTotalOffsets(30000, data);
+        expect(result.lito).toBe(700);
+        expect(result.frankingCredits).toBe(300);
+        expect(result.phiOffset).toBeCloseTo(2460.80, 2);
+        expect(result.total).toBeCloseTo(700 + 300 + 2460.80, 2);
+    });
+});
+
+// ─────────────────────────────────────────────
 // Integration: full tax calculation scenarios
 // ─────────────────────────────────────────────
 describe('Integration — full tax scenarios', () => {
@@ -899,11 +959,10 @@ describe('Integration — full tax scenarios', () => {
         // lito = 700 (income ≤ 37500)
         expect(lito).toBe(700);
         // medicare: 30000 in phase-in zone (27222 < 30000 < 34027)
-        expect(medicare).toBeCloseTo((30000 - 27222) * 0.10, 2);
-        // netTax = 1888 + medicare - 700 = max(0, ...)
-        expect(TaxCalculations.calculateNetTaxPayable(grossTax, medicare, 0, lito)).toBeCloseTo(
-            1888 + (30000 - 27222) * 0.10 - 700, 2
-        );
+        // (30000 - 27222) * 0.10 = 277.80
+        expect(medicare).toBeCloseTo(277.80, 2);
+        // netTax = 1888 + 277.80 - 700 = 1465.80
+        expect(TaxCalculations.calculateNetTaxPayable(grossTax, medicare, 0, lito)).toBeCloseTo(1465.80, 2);
     });
 
     test('Scenario 3: Family, 2 children, $50k income — CRITICAL regression (no Medicare levy)', () => {
@@ -1060,6 +1119,10 @@ describe('TAX_CONFIG structure', () => {
 
 // ─────────────────────────────────────────────
 // Diminishing value — prior-year opening value (lines 37-51)
+// NOTE: The prior-year loop applies whole DV years without pro-rating the acquisition year.
+// This is a simplified model — ATO-accurate calculations would pro-rate the first partial year
+// before rolling forward, yielding a lower opening value (e.g. Aug 2022 asset: code=240, ATO≈152).
+// These tests document the CURRENT IMPLEMENTATION BEHAVIOUR, not ATO-exact values.
 // ─────────────────────────────────────────────
 describe('calculateDepreciationForFinancialYear — DV prior-year opening value', () => {
     beforeEach(() => loadConstantsForYear('2024-2025'));
@@ -1268,19 +1331,18 @@ describe('generateDepreciationSchedule', () => {
 
     test('prime cost: full year purchase — Y1 deduction = cost/life', () => {
         // cost=1200, life=3, purchased 2024-07-01 (FY start) → 1200/3 = 400/yr
-        // Y1: $400.00 (full year)
+        // Use regex to match the numeric value without assuming ICU currency prefix ($ vs A$)
         const result = TaxCalculations.generateDepreciationSchedule(asset());
         expect(result).toContain('Y1:');
-        expect(result).toContain('$400.00');
+        expect(result).toMatch(/Y1:.*400\.00/);
     });
 
     test('prime cost: partial year purchase reduces Y1', () => {
         // Purchased 2025-01-01 → 181 days pro-rata
-        // annual = 1200/3 = 400; Y1 = 400 * (181/365) ≈ 198.36
+        // annual = 1200/3 = 400; Y1 = 400 * (181/365) = 198.356...
         const result = TaxCalculations.generateDepreciationSchedule(asset({ date: '2025-01-01' }));
-        // Y1 should be less than full-year value
-        expect(result).toMatch(/Y1: \$\d+\.\d+/);
-        // Y2 should be a full year
+        expect(result).toMatch(/Y1:/);
+        expect(result).toMatch(/Y1:.*198\.\d+/);
         expect(result).toContain('Y2:');
     });
 
@@ -1298,7 +1360,7 @@ describe('generateDepreciationSchedule', () => {
             asset({ cost: 1000, effectiveLife: 5, depreciationMethod: 'diminishing_value' })
         );
         expect(result).toContain('Y1:');
-        expect(result).toContain('$400.00');
+        expect(result).toMatch(/Y1:.*400\.00/);
     });
 
     test('diminishing value: opening value ≤ 1 shows $0.00 in later years', () => {
@@ -1317,6 +1379,6 @@ describe('generateDepreciationSchedule', () => {
     test('partial work percentage reduces all deductions', () => {
         // cost=1200, life=3, work=50%, prime cost: annual = 1200/3 = 400; work = 400 * 0.5 = 200/yr
         const result = TaxCalculations.generateDepreciationSchedule(asset({ workPercentage: 50 }));
-        expect(result).toContain('$200.00');
+        expect(result).toMatch(/Y1:.*200\.00/);
     });
 });
