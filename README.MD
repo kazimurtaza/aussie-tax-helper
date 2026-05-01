@@ -16,6 +16,8 @@
 
 <p align="center">
   <img src="https://github.com/kazimurtaza/aussie-tax-helper/actions/workflows/static.yml/badge.svg" alt="Deploy Static Content to Pages">
+  &nbsp;
+  <img src="https://github.com/kazimurtaza/aussie-tax-helper/actions/workflows/test.yml/badge.svg" alt="Unit Tests">
 </p>
 
 ## Table of Contents
@@ -80,6 +82,18 @@ To get a local copy up and running, follow these simple steps.
 3.  **Open `index.html` in your browser.**
     You can simply open the file directly, or use a live server extension if you have one installed in your code editor.
 
+### Running the Test Suite
+
+The project includes a Jest unit test suite covering all tax calculation logic with >90% code coverage.
+
+```sh
+npm install        # install Jest (dev dependency only)
+npm test           # run tests with coverage report
+npm run test:watch # watch mode for development
+```
+
+Tests are also run automatically by GitHub Actions on every pull request and push (see `.github/workflows/test.yml`).
+
 ## Tax Rate & Threshold Constants
 
 All core tax calculation parameters are stored in `js/constants.js` using a year-keyed configuration structure. This centralizes the key ATO rates and thresholds, making them easy to review and update annually. The application supports multiple financial years (2024-2025, 2025-2026) with automatic rate switching based on the selected year.
@@ -107,8 +121,11 @@ These are the legislated "Stage 3" tax rates, effective from 1 July 2024.
 
 ### Medicare Levy
 * **Standard Rate:** `2%` of taxable income.
-* **Low-income threshold (Singles):** No levy if income is below `$24,276`.
-* **Low-income phase-in (Singles):** A reduced rate is paid for income between `$24,276` and `$30,345`.
+* **Low-income threshold (Singles):** No levy if income is below `$27,222`.
+* **Low-income phase-in (Singles):** A reduced rate is paid for income between `$27,222` and `$34,027`.
+* **Low-income threshold (Families):** No levy if combined family income is below `$45,907` (increases by `$4,216` for each dependent child after the first).
+* **Low-income phase-in (Families):** A reduced rate is paid for combined income between `$45,907` and `$57,383`.
+*Source: Treasury Laws Amendment (More Cost of Living Relief) Act 2025 (Royal Assent 27 March 2025)*
 
 ### Medicare Levy Surcharge (MLS)
 An additional levy for higher-income earners without private hospital cover.
@@ -120,8 +137,7 @@ An additional levy for higher-income earners without private hospital cover.
 A government contribution to help cover the cost of private health insurance. The rebate amount is income-tested and age-based.
 
 ### Work-From-Home (WFH) Fixed Rate
-* **Rate for 2024-2025:** `70 cents per hour`. This rate covers electricity, gas, internet, phone, stationery, and computer consumables.
-* **Rate for 2025-2026:** `70 cents per hour` (subject to ATO confirmation - placeholder using 2024-25 rate).
+* **Rate for 2024-2025 and 2025-2026:** `70 cents per hour` (confirmed unchanged). This rate covers electricity, gas, internet, phone, stationery, and computer consumables.
 *Source: [ATO - Fixed rate method](https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/working-from-home-deductions/fixed-rate-method-work-from-home-expenses)*
 
 ### 2025-2026 Updates
@@ -134,7 +150,7 @@ The following ATO rates have been updated for the 2025-2026 financial year:
 * **Child Adjustment:** `$1,500` for each dependent child after the first (unchanged)
 * **Surcharge Rates:** `1%`, `1.25%`, or `1.5%` depending on the income tier (unchanged)
 
-*Note: Other tax rates (income tax brackets, LITO, Medicare levy, PHI rebate) for 2025-2026 use 2024-25 values as placeholder rates pending official ATO release.*
+All other 2025-2026 rates — income tax brackets, LITO, Medicare levy thresholds, and PHI rebate rates — are confirmed from official ATO sources and coded in `js/constants.js`. PHI rebate rates are updated for both 2025-26 periods (1 July 2025 – 31 March 2026 and 1 April 2026 – 30 June 2026) per Dept of Health PHI Circulars 21/25 and 12/26.
 
 ## Data Storage & Security
 
@@ -144,6 +160,16 @@ The following ATO rates have been updated for the 2025-2026 financial year:
 * **Privacy:** The app does not handle or store Tax File Numbers (TFNs).
 
 ## Changelog
+
+### Version 1.5.1
+* ***Fixed***
+    * ***Critical — Medicare Levy family thresholds:*** Corrected stale 2023-24 values (`$40,939`/`$51,174`, child adj `$3,760`) to the legislated 2024-25/2025-26 values (`$45,907`/`$57,383`, child adj `$4,216`) per the Treasury Laws Amendment (More Cost of Living Relief) Act 2025. Families with 2 dependent children and ~$50k income were incorrectly charged ~$154 in levy under the old values.
+    * ***High — PHI rebate period keys hardcoded:*** `calculatePhiOffset` was referencing 2024-25 period key strings directly, returning wrong rates for 2025-26. Keys are now resolved dynamically from `Object.keys(...).sort()`, making the function year-agnostic.
+    * ***High — 2025-26 PHI rebate rates:*** Updated Period 1 (`2025-07-01_2026-03-31`) and Period 2 (`2026-04-01_2026-06-30`) rates to correct values per Dept of Health PHI Circulars 21/25 and 12/26.
+    * ***Medium — 2025-26 MLS tier caps:*** Corrected single Tier 1 cap (`$117,000` → `$118,000`), Tier 2 cap (`$155,000` → `$158,000`); family Tier 1 cap (`$234,000` → `$236,000`), Tier 2 cap (`$310,000` → `$316,000`).
+* ***Added***
+    * ***Unit test suite:*** 183 Jest tests covering all calculation functions with >99% statement coverage and >92% branch coverage. Tests include regression cases for each data bug fix.
+    * ***CI/CD test pipeline:*** GitHub Actions now runs the test suite on every pull request and non-main branch push (`.github/workflows/test.yml`). The deployment workflow (`static.yml`) is gated behind tests passing.
 
 ### Version 1.5.0
 * ***🚀 Added***
