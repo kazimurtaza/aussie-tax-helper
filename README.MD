@@ -161,6 +161,20 @@ All other 2025-2026 rates — income tax brackets, LITO, Medicare levy threshold
 
 ## Changelog
 
+### Version 1.5.3
+* ***Added***
+    * ***Multi-property WFH Actual Cost:*** Users who move mid-year can now add a separate property period for each address, each with its own floor area, running expenses, and date range. The total deduction sums all periods automatically. Existing single-property data migrates transparently on first load.
+* ***Improved***
+    * ***Depreciation schedule display:*** Year labels changed from Y1/Y2 to financial year labels (e.g. 2024-25, 2025-26). The current FY row is bolded. Partial-year entries show a pro-rata note (e.g. "330/365 days · 100% DV/yr") making it clear why the first year's deduction is reduced.
+    * ***Residual year visibility:*** Assets with effectiveLife=1 purchased mid-year now show the residual carry-forward year in the schedule column, so the Y2 balance is visible without switching financial years.
+    * ***Test suite:*** 190 Jest tests (up from 187), including schedule FY-label and current-year highlight assertions.
+
+### Version 1.5.2
+* ***Fixed***
+    * ***Critical — DV carry-forward overclaim:*** Diminishing value depreciation in year 2+ was massively overclaiming for mid-year purchases (e.g. Pixel Tablet: $479 claimed instead of $6.56). The prior-year opening value now correctly pro-rates the acquisition FY before rolling forward, matching ATO methodology.
+    * ***DV effectiveLife=1 Y1 cap:*** Assets with a 1-year effective life were claiming 200% of written-down value in Y1 (e.g. $435 GPU showed $784). Capped at 100%.
+    * ***Test suite:*** 187 Jest tests with carry-forward regression tests using real asset data.
+
 ### Version 1.5.1
 * ***Fixed***
     * ***Critical — Medicare Levy family thresholds:*** Corrected stale 2023-24 values (`$40,939`/`$51,174`, child adj `$3,760`) to the legislated 2024-25/2025-26 values (`$45,907`/`$57,383`, child adj `$4,216`) per the Treasury Laws Amendment (More Cost of Living Relief) Act 2025. Families with 2 dependent children and ~$50k income were incorrectly charged ~$154 in levy under the old values.

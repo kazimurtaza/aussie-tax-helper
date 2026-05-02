@@ -630,6 +630,15 @@
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
                     <div>
+                        <h4 class="font-semibold">Version 1.5.3</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-green-600">Added:</strong> Multi-property support in WFH Actual Cost Method — add a separate period for each address when you move mid-year, each with its own floor area and running expenses. Totals are summed automatically.</li>
+                            <li><strong class="font-medium text-green-600">Improved:</strong> Depreciation schedule column now shows financial year labels (e.g. 2024-25, 2025-26) instead of Y1/Y2, bolds the current year's claim, and shows a pro-rata note on partial-year entries (e.g. "330/365 days · 100% DV/yr") explaining why the first year is less.</li>
+                            <li><strong class="font-medium text-green-600">Improved:</strong> Depreciation schedule now shows the residual balance year for assets with effectiveLife=1 purchased mid-year, so the carry-forward amount is visible.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> 190-test Jest suite (up from 187) with additional schedule label and highlight tests.</li>
+                        </ul>
+                    </div>
+                    <div>
                         <h4 class="font-semibold">Version 1.5.2</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
                             <li><strong class="font-medium text-red-600">Fixed:</strong> Critical — Diminishing value depreciation carry-forward (year 2+) was overclaiming significantly for assets purchased mid-year. The prior-year opening value now correctly pro-rates the acquisition year before rolling forward, matching ATO methodology.</li>
