@@ -38,9 +38,8 @@ const StorageManager = (() => {
             hoursLog: [],
             totalMinutes: 0,
             actualCostDetails: {
-                officeArea: 0, totalHomeArea: 0, electricityCost: 0, gasCost: 0,
-                internetCost: 0, internetWorkPercent: 0, phoneCost: 0,
-                stationeryCost: 0, assets: []
+                properties: [],
+                assets: []
             }
         }
     });
@@ -94,6 +93,30 @@ const StorageManager = (() => {
             }
             // --- END BACKWARD COMPATIBILITY ---
 
+            // Migrate old flat actualCostDetails to new properties-array format
+            const acd = parsedData.wfh?.actualCostDetails;
+            if (acd && !acd.properties) {
+                const hasData = acd.officeArea || acd.totalHomeArea || acd.electricityCost ||
+                    acd.gasCost || acd.internetCost || acd.phoneCost || acd.stationeryCost;
+                parsedData.wfh.actualCostDetails = {
+                    properties: hasData ? [{
+                        id: 'migrated_prop_1',
+                        description: 'Home (migrated)',
+                        fromDate: '',
+                        toDate: '',
+                        officeArea: acd.officeArea || 0,
+                        totalHomeArea: acd.totalHomeArea || 0,
+                        electricityCost: acd.electricityCost || 0,
+                        gasCost: acd.gasCost || 0,
+                        internetCost: acd.internetCost || 0,
+                        internetWorkPercent: acd.internetWorkPercent || 0,
+                        phoneCost: acd.phoneCost || 0,
+                        stationeryCost: acd.stationeryCost || 0,
+                    }] : [],
+                    assets: acd.assets || []
+                };
+            }
+
             // Deep merge with default data to ensure new properties from updates are included.
             const mergedData = {
                 ...defaultData,
@@ -108,7 +131,10 @@ const StorageManager = (() => {
                 wfh: {
                     ...defaultData.wfh,
                     ...(parsedData.wfh || {}),
-                    actualCostDetails: { ...defaultData.wfh.actualCostDetails, ...(parsedData.wfh?.actualCostDetails || {}) }
+                    actualCostDetails: {
+                        properties: parsedData.wfh?.actualCostDetails?.properties || defaultData.wfh.actualCostDetails.properties,
+                        assets: parsedData.wfh?.actualCostDetails?.assets || defaultData.wfh.actualCostDetails.assets
+                    }
                 },
             };
 
@@ -205,11 +231,12 @@ const StorageManager = (() => {
                 // WFH Hours Log
                 csvContent += `"WFH Hours Log"\n${arrayToCsv(data.wfh.hoursLog, ['Date', 'Minutes'], ['date', 'minutes'])}\n\n`;
 
-                // WFH Actual Cost - Running Costs
-                csvContent += `"WFH Actual Cost - Running Costs"\n${arrayToCsv(
-                    [data.wfh.actualCostDetails],
-                    ['Office Area (m²)', 'Total Home Area (m²)', 'Electricity Cost ($)', 'Gas Cost ($)', 'Internet Cost ($)', 'Internet Work %', 'Phone Cost ($)', 'Stationery Cost ($)'],
-                    ['officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
+                // WFH Actual Cost - Property Periods
+                const wfhProps = data.wfh.actualCostDetails.properties || [];
+                csvContent += `"WFH Actual Cost - Property Periods"\n${arrayToCsv(
+                    wfhProps,
+                    ['Description', 'From Date', 'To Date', 'Office Area (m²)', 'Total Home Area (m²)', 'Electricity Cost ($)', 'Gas Cost ($)', 'Internet Cost ($)', 'Internet Work %', 'Phone Cost ($)', 'Stationery Cost ($)'],
+                    ['description', 'fromDate', 'toDate', 'officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
                 )}\n\n`;
 
                 // WFH Actual Cost - Assets

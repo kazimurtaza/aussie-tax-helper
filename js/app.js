@@ -56,7 +56,7 @@ const App = (() => {
         UIManager.displayWfhAssetsList(appData.wfh.actualCostDetails.assets);
         UIManager.updateWfhMethodDisplay(appData.wfh.method);
         UIManager.populateOtherIncomeForm(appData.income.other);
-        UIManager.populateWfhActualCostForm(appData.wfh.actualCostDetails);
+        UIManager.displayWfhPropertiesList(appData.wfh.actualCostDetails.properties);
         UIManager.showSection(appData.userSettings.currentSection || 'dashboard-section');
     };
 
@@ -142,23 +142,18 @@ const App = (() => {
         document.getElementById('edit-expense-cancel-btn').addEventListener('click', UIManager.hideEditExpenseModal);
 
         document.getElementById('wfh-hours-form').addEventListener('submit', handleAddWfhHour);
-        document.getElementById('wfh-actual-cost-form').addEventListener('submit', handleUpdateWfhActualCosts);
 
-        const runningCostInputs = ['wfh-office-area', 'wfh-total-home-area', 'wfh-electricity-cost', 'wfh-gas-cost', 'wfh-internet-cost', 'wfh-internet-work-percent', 'wfh-phone-cost', 'wfh-stationery-cost'];
-        runningCostInputs.forEach(id => {
+        document.getElementById('wfh-property-form').addEventListener('submit', handleSaveWfhProperty);
+        document.getElementById('add-wfh-property-btn').addEventListener('click', () => UIManager.showWfhPropertyModal());
+        document.getElementById('wfh-property-cancel-btn').addEventListener('click', UIManager.hideWfhPropertyModal);
+
+        // Live floor % update in property modal
+        ['wfh-property-office-area', 'wfh-property-total-home-area'].forEach(id => {
             document.getElementById(id).addEventListener('input', () => {
-                const details = {
-                    officeArea: document.getElementById('wfh-office-area').value,
-                    totalHomeArea: document.getElementById('wfh-total-home-area').value,
-                    electricityCost: document.getElementById('wfh-electricity-cost').value,
-                    gasCost: document.getElementById('wfh-gas-cost').value,
-                    internetCost: document.getElementById('wfh-internet-cost').value,
-                    internetWorkPercent: document.getElementById('wfh-internet-work-percent').value,
-                    phoneCost: document.getElementById('wfh-phone-cost').value,
-                    stationeryCost: document.getElementById('wfh-stationery-cost').value,
-                };
-                UIManager.updateRunningExpensesSubtotal(details);
-                UIManager.updateFloorAreaPercentageDisplay();
+                const o = parseFloat(document.getElementById('wfh-property-office-area').value) || 0;
+                const t = parseFloat(document.getElementById('wfh-property-total-home-area').value) || 0;
+                document.getElementById('wfh-property-floor-pct').textContent =
+                    (o > 0 && t > 0) ? ((o/t)*100).toFixed(2)+'%' : '0.00%';
             });
         });
 
@@ -383,21 +378,32 @@ const App = (() => {
         saveAndRefresh();
     };
 
-    function handleUpdateWfhActualCosts(e) {
+    function handleSaveWfhProperty(e) {
         e.preventDefault();
-        const form = e.target;
-        const details = appData.wfh.actualCostDetails;
-        details.officeArea = parseFloat(form['wfh-office-area'].value) || 0;
-        details.totalHomeArea = parseFloat(form['wfh-total-home-area'].value) || 0;
-        details.electricityCost = parseFloat(form['wfh-electricity-cost'].value) || 0;
-        details.gasCost = parseFloat(form['wfh-gas-cost'].value) || 0;
-        details.internetCost = parseFloat(form['wfh-internet-cost'].value) || 0;
-        details.internetWorkPercent = parseInt(form['wfh-internet-work-percent'].value) || 0;
-        details.phoneCost = parseFloat(form['wfh-phone-cost'].value) || 0;
-        details.stationeryCost = parseFloat(form['wfh-stationery-cost'].value) || 0;
+        const propertyId = document.getElementById('wfh-property-id').value;
+        const propertyData = {
+            id: propertyId || generateId('wfh_prop'),
+            description: document.getElementById('wfh-property-description').value.trim(),
+            fromDate: document.getElementById('wfh-property-from-date').value,
+            toDate: document.getElementById('wfh-property-to-date').value,
+            officeArea: parseFloat(document.getElementById('wfh-property-office-area').value) || 0,
+            totalHomeArea: parseFloat(document.getElementById('wfh-property-total-home-area').value) || 0,
+            electricityCost: parseFloat(document.getElementById('wfh-property-electricity').value) || 0,
+            gasCost: parseFloat(document.getElementById('wfh-property-gas').value) || 0,
+            internetCost: parseFloat(document.getElementById('wfh-property-internet').value) || 0,
+            internetWorkPercent: parseInt(document.getElementById('wfh-property-internet-work-pct').value) || 0,
+            phoneCost: parseFloat(document.getElementById('wfh-property-phone').value) || 0,
+            stationeryCost: parseFloat(document.getElementById('wfh-property-stationery').value) || 0,
+        };
+        const props = appData.wfh.actualCostDetails.properties;
+        const idx = props.findIndex(p => p.id === propertyId);
+        if (idx !== -1) {
+            props[idx] = propertyData;
+        } else {
+            props.push(propertyData);
+        }
         saveAndRefresh();
-        UIManager.showNotification("Actual cost details saved.");
-        UIManager.flashHighlight('wfh-actual-cost-deduction');
+        UIManager.hideWfhPropertyModal();
     }
 
     function handleSaveWfhAsset(e) {
@@ -438,6 +444,19 @@ const App = (() => {
         form.reset();
     }
 
+    const editWfhProperty = (id) => {
+        const prop = appData.wfh.actualCostDetails.properties.find(p => p.id === id);
+        if (prop) UIManager.showWfhPropertyModal(prop);
+    };
+
+    const removeWfhProperty = (id) => {
+        UIManager.showConfirmation("Remove this property period?", () => {
+            appData.wfh.actualCostDetails.properties =
+                appData.wfh.actualCostDetails.properties.filter(p => p.id !== id);
+            saveAndRefresh();
+        });
+    };
+
     const editWfhAsset = (id) => {
         const asset = appData.wfh.actualCostDetails.assets.find(a => a.id === id);
         if (asset) {
@@ -470,7 +489,8 @@ const App = (() => {
         init,
         removePaygIncome, editPaygIncome,
         removeGeneralExpense, editGeneralExpense,
-        removeWfhHour, removeWfhAsset, editWfhAsset
+        removeWfhHour, removeWfhAsset, editWfhAsset,
+        editWfhProperty, removeWfhProperty
     };
 })();
 

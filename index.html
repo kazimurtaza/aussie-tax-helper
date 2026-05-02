@@ -495,35 +495,33 @@
                 <div id="wfh-actual-cost-details" class="wfh-method-details hidden mb-6">
                     <h3 class="text-md font-semibold text-purple-700 mb-2">Actual Cost Method Details</h3>
                     <p class="text-sm mb-4">Calculate the work-related portion of your actual WFH expenses. You must keep detailed records for all claimed expenses.</p>
-                    <form id="wfh-actual-cost-form">
+                    <div id="wfh-actual-cost-form">
                         <fieldset class="mb-4">
-                            <legend class="text-sm font-medium text-gray-600">1. Home Office Area</legend>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2 items-center">
-                                <div>
-                                    <label for="wfh-office-area" class="block text-xs font-medium text-gray-600">Dedicated Office Area (m²):</label>
-                                    <input type="number" id="wfh-office-area" name="wfh-office-area" step="0.01" min="0" class="text-sm">
-                                </div>
-                                <div>
-                                    <label for="wfh-total-home-area" class="block text-xs font-medium text-gray-600">Total Home Area (m²):</label>
-                                    <input type="number" id="wfh-total-home-area" name="wfh-total-home-area" step="0.01" min="0" class="text-sm">
-                                </div>
-                                <p class="text-sm md:mt-5">Floor Area % for Work: <strong id="wfh-floor-area-percentage" class="text-purple-700">0.00%</strong></p>
+                            <legend class="text-sm font-medium text-gray-600">1. Property Periods</legend>
+                            <p class="text-xs text-gray-500 mt-1 mb-2">Add each property you worked from during the year. If you moved mid-year, add a separate period for each address.</p>
+                            <div id="wfh-properties-table-container" class="overflow-x-auto my-2">
+                                <table class="w-full">
+                                    <thead>
+                                        <tr class="bg-gray-100">
+                                            <th class="p-2 text-left text-xs font-semibold text-gray-600">#</th>
+                                            <th class="p-2 text-left text-xs font-semibold text-gray-600">Description</th>
+                                            <th class="p-2 text-left text-xs font-semibold text-gray-600">Period</th>
+                                            <th class="p-2 text-left text-xs font-semibold text-gray-600">Office / Home</th>
+                                            <th class="p-2 text-left text-xs font-semibold text-gray-600">Floor %</th>
+                                            <th class="p-2 text-left text-xs font-semibold text-gray-600">Running Deduction</th>
+                                            <th class="p-2 text-left text-xs font-semibold text-gray-600">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="wfh-properties-list-body">
+                                        <tr><td colspan="7" class="text-center text-gray-400 py-2">No property periods added yet. Add one below.</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
-                        </fieldset>
-                        <fieldset class="mb-4">
-                            <legend class="text-sm font-medium text-gray-600">2. Running Expenses (Full Year Bills)</legend>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 mt-2 text-sm">
-                                <div><label for="wfh-electricity-cost">Total Electricity Cost ($):</label><input type="number" id="wfh-electricity-cost" name="wfh-electricity-cost" step="0.01" min="0"></div>
-                                <div><label for="wfh-gas-cost">Total Gas Cost ($):</label><input type="number" id="wfh-gas-cost" name="wfh-gas-cost" step="0.01" min="0"></div>
-                                <div><label for="wfh-internet-cost">Total Internet Cost ($):</label><input type="number" id="wfh-internet-cost" name="wfh-internet-cost" step="0.01" min="0"></div>
-                                <div><label for="wfh-internet-work-percent">Internet Work %:</label><input type="number" id="wfh-internet-work-percent" name="wfh-internet-work-percent" placeholder="e.g., 50" min="0" max="100"></div>
-                                <div><label for="wfh-phone-cost">Work-Related Phone Costs ($):</label><input type="number" id="wfh-phone-cost" name="wfh-phone-cost" step="0.01" min="0" placeholder="Portion from bills"></div>
-                                <div><label for="wfh-stationery-cost">Stationery & Consumables ($):</label><input type="number" id="wfh-stationery-cost" name="wfh-stationery-cost" step="0.01" min="0"></div>
-                            </div>
-                            <div class="text-right font-semibold text-sm mt-2 p-2 bg-purple-50 rounded-md">Deductible Running Expenses: <strong id="wfh-running-expenses-subtotal" class="text-purple-700">$0.00</strong></div>
+                            <button type="button" id="add-wfh-property-btn" class="text-sm bg-purple-400 hover:bg-purple-500 text-white px-3 py-1.5 rounded-md transition-colors">Add Property Period</button>
+                            <div class="text-right font-semibold text-sm mt-2 p-2 bg-purple-50 rounded-md">Total Running Expenses Deduction: <strong id="wfh-running-expenses-subtotal" class="text-purple-700">$0.00</strong></div>
                         </fieldset>
                         <fieldset>
-                            <legend class="text-sm font-medium text-gray-600">3. WFH Depreciable Assets</legend>
+                            <legend class="text-sm font-medium text-gray-600">2. WFH Depreciable Assets</legend>
                             <div id="wfh-assets-table-container" class="overflow-x-auto my-2">
                                 <table class="w-full">
                                     <thead>
@@ -547,8 +545,7 @@
                             <button type="button" id="add-wfh-asset-btn" class="text-sm bg-purple-400 hover:bg-purple-500 text-white px-3 py-1.5 rounded-md transition-colors">Add WFH Asset</button>
                             <div class="text-right font-semibold text-sm mt-2 p-2 bg-purple-50 rounded-md">Deductible Assets (This FY): <strong id="wfh-assets-subtotal" class="text-purple-700">$0.00</strong></div>
                         </fieldset>
-                        <button type="submit" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors">Save & Calculate Actual Costs</button>
-                    </form>
+                    </div>
                     <p class="text-sm font-semibold mt-4 rounded-md p-2">Estimated Deduction (Actual Costs): <strong id="wfh-actual-cost-deduction" class="text-purple-700">$0.00</strong></p>
                 </div>
 
@@ -792,6 +789,68 @@
                 <div class="modal-buttons">
                     <button id="wfh-asset-cancel-btn" type="button" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300">Cancel</button>
                     <button id="wfh-asset-save-btn" type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Save Asset</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="wfh-property-modal" class="modal-backdrop">
+        <div class="modal-content max-w-2xl">
+            <h3 id="wfh-property-modal-title" class="text-xl font-semibold text-gray-800 mb-4">Add Property Period</h3>
+            <form id="wfh-property-form">
+                <input type="hidden" id="wfh-property-id">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="md:col-span-2">
+                        <label for="wfh-property-description" class="block text-sm font-medium text-gray-700">Description (optional, e.g. address):</label>
+                        <input type="text" id="wfh-property-description" name="wfh-property-description" placeholder="e.g. 123 Main St, Sydney" class="mt-1">
+                    </div>
+                    <div>
+                        <label for="wfh-property-from-date" class="block text-sm font-medium text-gray-700">From Date:</label>
+                        <input type="date" id="wfh-property-from-date" name="wfh-property-from-date" class="mt-1">
+                    </div>
+                    <div>
+                        <label for="wfh-property-to-date" class="block text-sm font-medium text-gray-700">To Date:</label>
+                        <input type="date" id="wfh-property-to-date" name="wfh-property-to-date" class="mt-1">
+                    </div>
+                    <div>
+                        <label for="wfh-property-office-area" class="block text-sm font-medium text-gray-700">Dedicated Office Area (m²):</label>
+                        <input type="number" id="wfh-property-office-area" name="wfh-property-office-area" step="0.01" min="0" class="mt-1">
+                    </div>
+                    <div>
+                        <label for="wfh-property-total-home-area" class="block text-sm font-medium text-gray-700">Total Home Area (m²):</label>
+                        <input type="number" id="wfh-property-total-home-area" name="wfh-property-total-home-area" step="0.01" min="0" class="mt-1">
+                    </div>
+                    <div class="md:col-span-2">
+                        <p class="text-sm">Floor Area %: <strong id="wfh-property-floor-pct" class="text-purple-700">0.00%</strong></p>
+                    </div>
+                    <div>
+                        <label for="wfh-property-electricity" class="block text-sm font-medium text-gray-700">Electricity Cost for period ($):</label>
+                        <input type="number" id="wfh-property-electricity" step="0.01" min="0" class="mt-1">
+                    </div>
+                    <div>
+                        <label for="wfh-property-gas" class="block text-sm font-medium text-gray-700">Gas Cost for period ($):</label>
+                        <input type="number" id="wfh-property-gas" step="0.01" min="0" class="mt-1">
+                    </div>
+                    <div>
+                        <label for="wfh-property-internet" class="block text-sm font-medium text-gray-700">Internet Cost for period ($):</label>
+                        <input type="number" id="wfh-property-internet" step="0.01" min="0" class="mt-1">
+                    </div>
+                    <div>
+                        <label for="wfh-property-internet-work-pct" class="block text-sm font-medium text-gray-700">Internet Work %:</label>
+                        <input type="number" id="wfh-property-internet-work-pct" min="0" max="100" class="mt-1">
+                    </div>
+                    <div>
+                        <label for="wfh-property-phone" class="block text-sm font-medium text-gray-700">Work-Related Phone Costs ($):</label>
+                        <input type="number" id="wfh-property-phone" step="0.01" min="0" class="mt-1">
+                    </div>
+                    <div>
+                        <label for="wfh-property-stationery" class="block text-sm font-medium text-gray-700">Stationery & Consumables ($):</label>
+                        <input type="number" id="wfh-property-stationery" step="0.01" min="0" class="mt-1">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 mt-6">
+                    <button id="wfh-property-cancel-btn" type="button" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300">Cancel</button>
+                    <button id="wfh-property-save-btn" type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Save Property Period</button>
                 </div>
             </form>
         </div>

@@ -195,39 +195,82 @@ const UIManager = (() => {
         form['franking-credits'].value = otherIncome.frankingCredits || '';
     };
 
-    const updateFloorAreaPercentageDisplay = () => {
-        const officeArea = document.getElementById('wfh-office-area').value;
-        const totalHomeArea = document.getElementById('wfh-total-home-area').value;
-        const percentageEl = document.getElementById('wfh-floor-area-percentage');
-
-        const numOfficeArea = parseFloat(officeArea) || 0;
-        const numTotalHomeArea = parseFloat(totalHomeArea) || 0;
-
-        if (numOfficeArea > 0 && numTotalHomeArea > 0) {
-            const percentage = (numOfficeArea / numTotalHomeArea) * 100;
-            percentageEl.textContent = percentage.toFixed(2) + '%';
-        } else {
-            percentageEl.textContent = '0.00%';
+    const displayWfhPropertiesList = (properties) => {
+        const listEl = document.getElementById('wfh-properties-list-body');
+        listEl.innerHTML = '';
+        if (!properties || properties.length === 0) {
+            listEl.innerHTML = '<tr><td colspan="7" class="text-center text-gray-400 py-2">No property periods added yet. Add one below.</td></tr>';
+            document.getElementById('wfh-running-expenses-subtotal').textContent = formatCurrency(0);
+            return;
         }
+        let runningTotal = 0;
+        properties.forEach((prop, index) => {
+            const deduction = TaxCalculations.calculateWfhRunningExpensesDeduction(prop);
+            runningTotal += deduction;
+            const floorPct = (prop.officeArea > 0 && prop.totalHomeArea > 0)
+                ? ((prop.officeArea / prop.totalHomeArea) * 100).toFixed(1) + '%'
+                : '—';
+            const period = (prop.fromDate && prop.toDate)
+                ? `${prop.fromDate} → ${prop.toDate}`
+                : prop.fromDate || prop.toDate || '—';
+            const desc = prop.description || `Property ${index + 1}`;
+            const row = listEl.insertRow();
+            row.innerHTML = `
+                <td class="p-2 border-b border-gray-200 text-sm font-semibold">${index + 1}</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${desc}</td>
+                <td class="p-2 border-b border-gray-200 text-sm text-gray-600">${period}</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${prop.officeArea || 0}m² / ${prop.totalHomeArea || 0}m²</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${floorPct}</td>
+                <td class="p-2 border-b border-gray-200 text-sm font-semibold">${formatCurrency(deduction)}</td>
+                <td class="p-2 border-b border-gray-200 text-sm">
+                    <button class="text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2" onclick="App.editWfhProperty('${prop.id}')">Edit</button>
+                    <button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeWfhProperty('${prop.id}')">Remove</button>
+                </td>
+            `;
+        });
+        document.getElementById('wfh-running-expenses-subtotal').textContent = formatCurrency(runningTotal);
     };
 
-    const updateRunningExpensesSubtotal = (details) => {
-        const subtotal = TaxCalculations.calculateWfhRunningExpensesDeduction(details);
-        document.getElementById('wfh-running-expenses-subtotal').textContent = formatCurrency(subtotal);
+    const showWfhPropertyModal = (property = null) => {
+        const modal = document.getElementById('wfh-property-modal');
+        const form = document.getElementById('wfh-property-form');
+        const title = document.getElementById('wfh-property-modal-title');
+        form.reset();
+        document.getElementById('wfh-property-floor-pct').textContent = '0.00%';
+        if (property) {
+            title.textContent = 'Edit Property Period';
+            document.getElementById('wfh-property-id').value = property.id;
+            document.getElementById('wfh-property-description').value = property.description || '';
+            document.getElementById('wfh-property-from-date').value = property.fromDate || '';
+            document.getElementById('wfh-property-to-date').value = property.toDate || '';
+            document.getElementById('wfh-property-office-area').value = property.officeArea || '';
+            document.getElementById('wfh-property-total-home-area').value = property.totalHomeArea || '';
+            document.getElementById('wfh-property-electricity').value = property.electricityCost || '';
+            document.getElementById('wfh-property-gas').value = property.gasCost || '';
+            document.getElementById('wfh-property-internet').value = property.internetCost || '';
+            document.getElementById('wfh-property-internet-work-pct').value = property.internetWorkPercent || '';
+            document.getElementById('wfh-property-phone').value = property.phoneCost || '';
+            document.getElementById('wfh-property-stationery').value = property.stationeryCost || '';
+            // Update floor pct display
+            const o = parseFloat(property.officeArea) || 0;
+            const t = parseFloat(property.totalHomeArea) || 0;
+            if (o > 0 && t > 0) document.getElementById('wfh-property-floor-pct').textContent = ((o/t)*100).toFixed(2) + '%';
+        } else {
+            title.textContent = 'Add Property Period';
+            document.getElementById('wfh-property-id').value = '';
+        }
+        modal.classList.add('visible');
     };
 
-    const populateWfhActualCostForm = (details) => {
-        const form = document.getElementById('wfh-actual-cost-form');
-        form['wfh-office-area'].value = details.officeArea || '';
-        form['wfh-total-home-area'].value = details.totalHomeArea || '';
-        form['wfh-electricity-cost'].value = details.electricityCost || '';
-        form['wfh-gas-cost'].value = details.gasCost || '';
-        form['wfh-internet-cost'].value = details.internetCost || '';
-        form['wfh-internet-work-percent'].value = details.internetWorkPercent || '';
-        form['wfh-phone-cost'].value = details.phoneCost || '';
-        form['wfh-stationery-cost'].value = details.stationeryCost || '';
-        updateFloorAreaPercentageDisplay();
-        updateRunningExpensesSubtotal(details);
+    const hideWfhPropertyModal = () => {
+        document.getElementById('wfh-property-modal').classList.remove('visible');
+        document.getElementById('wfh-property-form').reset();
+    };
+
+    const updateRunningExpensesSubtotal = (properties) => {
+        const total = (properties || []).reduce((sum, prop) =>
+            sum + TaxCalculations.calculateWfhRunningExpensesDeduction(prop), 0);
+        document.getElementById('wfh-running-expenses-subtotal').textContent = formatCurrency(total);
     };
 
     const displayIncomeList = (paygItems, otherIncome) => {
@@ -410,7 +453,9 @@ const UIManager = (() => {
         // Update WFH Method-Specific Details
         const fixedRateDeductionValue = (appData.wfh.method === 'fixed_rate') ? totalWfhDeductions : 0;
         document.getElementById('wfh-fixed-rate-deduction').textContent = formatCurrency(fixedRateDeductionValue);
-        document.getElementById('wfh-running-expenses-subtotal').textContent = formatCurrency(TaxCalculations.calculateWfhRunningExpensesDeduction(appData.wfh.actualCostDetails));
+        const runningExpensesTotal = (appData.wfh.actualCostDetails.properties || []).reduce(
+            (sum, prop) => sum + TaxCalculations.calculateWfhRunningExpensesDeduction(prop), 0);
+        document.getElementById('wfh-running-expenses-subtotal').textContent = formatCurrency(runningExpensesTotal);
         document.getElementById('wfh-assets-subtotal').textContent = formatCurrency(TaxCalculations.calculateWfhAssetsDeduction(appData.wfh.actualCostDetails.assets));
         document.getElementById('wfh-actual-cost-deduction').textContent = formatCurrency(TaxCalculations.calculateWfhActualCostDeduction(appData.wfh.actualCostDetails));
 
@@ -437,11 +482,11 @@ const UIManager = (() => {
     return {
         showNotification, showConfirmation, showSection, populateOtherIncomeForm,
         displayIncomeList, displayGeneralExpensesList, displayWfhHoursList,
-        updateWfhMethodDisplay, updateAllSummaries, populateWfhActualCostForm,
+        updateWfhMethodDisplay, updateAllSummaries,
+        displayWfhPropertiesList, showWfhPropertyModal, hideWfhPropertyModal,
         showWfhAssetModal, hideWfhAssetModal, displayWfhAssetsList,
         showEditPaygModal, hideEditPaygModal,
         showEditExpenseModal, hideEditExpenseModal,
-        updateFloorAreaPercentageDisplay,
         updateRunningExpensesSubtotal,
         flashHighlight,
         toggleFamilyFields,

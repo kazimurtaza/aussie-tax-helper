@@ -110,7 +110,9 @@ const TaxCalculations = (() => {
 
     const calculateWfhActualCostDeduction = (details) => {
         if (!details) return 0;
-        const runningExpenses = calculateWfhRunningExpensesDeduction(details);
+        const properties = details.properties || [details];
+        const runningExpenses = properties.reduce((sum, prop) =>
+            sum + calculateWfhRunningExpensesDeduction(prop), 0);
         const assetExpenses = calculateWfhAssetsDeduction(details.assets);
         return runningExpenses + assetExpenses;
     };
