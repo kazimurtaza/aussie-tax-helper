@@ -53,19 +53,42 @@ const StorageManager = (() => {
     };
 
     const detectDefaultYear = () => {
-        // 1. Check saved preference
+        // Derive the current Australian financial year from today's date.
+        // FY starts Jul 1: Jan-Jun → FY started previous calendar year.
+        const today = new Date();
+        const m = today.getMonth(); // 0 = Jan
+        const y = today.getFullYear();
+        const fyStartYear = m >= 6 ? y : y - 1;
+        const currentFY = `${fyStartYear}-${fyStartYear + 1}`;
+
+        // 1. Check saved preference — but only honour it if it matches the current FY
+        //    or is the only year with data (user deliberately switched back to a prior year).
         const savedPreference = localStorage.getItem('aussieTaxHelper-activeYear');
         if (savedPreference && window.AVAILABLE_YEARS.includes(savedPreference)) {
-            return savedPreference;
+            // If they explicitly chose a prior year we respect it; if it IS the current
+            // FY that's fine too. Only ignore it if current FY is available and the
+            // saved pref is stale from a previous tax season with no data yet this year.
+            const currentFYAvailable = window.AVAILABLE_YEARS.includes(currentFY);
+            const currentFYHasData = !!localStorage.getItem(getStorageKey(currentFY));
+            if (savedPreference === currentFY || !currentFYAvailable || !currentFYHasData) {
+                return savedPreference;
+            }
+            // Saved pref is a prior year AND current FY has data → switch to current FY.
+            return currentFY;
         }
 
-        // 2. Most recent year with data
+        // 2. Current Australian FY (if available)
+        if (window.AVAILABLE_YEARS.includes(currentFY)) {
+            return currentFY;
+        }
+
+        // 3. Most recent year with data
         const yearsWithData = getYearsWithData();
         if (yearsWithData.length > 0) {
             return yearsWithData[yearsWithData.length - 1];
         }
 
-        // 3. Default to LATEST_YEAR
+        // 4. Latest configured year
         return window.LATEST_YEAR;
     };
 

@@ -126,11 +126,16 @@ const UIManager = (() => {
         const selector = document.getElementById('financial-year-selector');
         if (!selector) return;
 
+        const today = new Date();
+        const m = today.getMonth();
+        const y = today.getFullYear();
+        const currentFY = `${m >= 6 ? y : y - 1}-${m >= 6 ? y + 1 : y}`;
+
         selector.innerHTML = '';
         window.AVAILABLE_YEARS.forEach(year => {
             const option = document.createElement('option');
             option.value = year;
-            option.textContent = year;
+            option.textContent = year === currentFY ? `${year} (current)` : year;
             if (year === activeYear) {
                 option.selected = true;
             }
