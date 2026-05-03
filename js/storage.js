@@ -179,17 +179,27 @@ const StorageManager = (() => {
         }
     };
 
-    const exportData = (data, format) => {
+    const exportData = (currentData, format) => {
         try {
+            // Collect all years from localStorage (not just the active year)
+            const allYearsData = {};
+            window.AVAILABLE_YEARS.forEach(year => {
+                const stored = localStorage.getItem(getStorageKey(year));
+                if (stored) {
+                    try { allYearsData[year] = JSON.parse(stored); } catch (_) {}
+                }
+            });
+            // Always include the current (possibly unsaved) appData for the active year
+            allYearsData[window.FINANCIAL_YEAR] = currentData;
+
+            const today = new Date().toISOString().slice(0, 10);
             let dataStr, blobType, fileExtension;
+
             if (format === 'json') {
-                dataStr = JSON.stringify(data, null, 2);
+                dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: allYearsData }, null, 2);
                 blobType = 'application/json';
                 fileExtension = 'json';
             } else {
-                let csvContent = `Tax Calculator Data - Financial Year: ${data.userSettings.financialYear}\n\n`;
-
-                // Helper function to convert an array of objects to a CSV string
                 const arrayToCsv = (arr, headers, keys) => {
                     if (!arr || arr.length === 0) return `No data for this category.\n`;
                     const headerRow = headers.map(h => `"${h}"`).join(',');
@@ -199,54 +209,41 @@ const StorageManager = (() => {
                     return [headerRow, ...dataRows].join('\n');
                 };
 
-                // --- Build CSV Content Section by Section ---
+                const buildYearCsv = (data, year) => {
+                    let s = `"=== Financial Year: ${year} ==="\n\n`;
+                    s += `"Taxpayer Details"\n${arrayToCsv(
+                        [data.taxpayerDetails],
+                        ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid (Jul-Mar)', 'PHI Premiums Paid (Apr-Jun)', 'PHI Rebate Received'],
+                        ['filingStatus', 'spouseIncome', 'dependentChildren', 'isMedicareExempt', 'medicareExemptDays', 'hasPrivateHospitalCover', 'reportableFringeBenefits', 'personalSuperContribution', 'phiAgeBracket', 'phiPremiumsPaid_period1', 'phiPremiumsPaid_period2', 'phiRebateReceived']
+                    )}\n\n`;
+                    s += `"PAYG Income"\n${arrayToCsv(data.income.payg, ['Source Name', 'Gross Salary', 'Tax Withheld'], ['sourceName', 'grossSalary', 'taxWithheld'])}\n\n`;
+                    s += `"Other Income"\n${arrayToCsv(
+                        [data.income.other],
+                        ['Bank Interest', 'Unfranked Dividends', 'Franked Dividends', 'Franking Credits', 'Net Capital Gains'],
+                        ['bankInterest', 'dividendsUnfranked', 'dividendsFranked', 'frankingCredits', 'netCapitalGains']
+                    )}\n\n`;
+                    s += `"General Expenses"\n${arrayToCsv(
+                        data.generalExpenses,
+                        ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'],
+                        ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod']
+                    )}\n\n`;
+                    s += `"Work-From-Home Details"\n"Method:","${data.wfh.method}"\n\n`;
+                    s += `"WFH Hours Log"\n${arrayToCsv(data.wfh.hoursLog, ['Date', 'Minutes'], ['date', 'minutes'])}\n\n`;
+                    const wfhProps = data.wfh.actualCostDetails.properties || [];
+                    s += `"WFH Actual Cost - Property Periods"\n${arrayToCsv(
+                        wfhProps,
+                        ['Description', 'From Date', 'To Date', 'Office Area (m²)', 'Total Home Area (m²)', 'Electricity Cost ($)', 'Gas Cost ($)', 'Internet Cost ($)', 'Internet Work %', 'Phone Cost ($)', 'Stationery Cost ($)'],
+                        ['description', 'fromDate', 'toDate', 'officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
+                    )}\n\n`;
+                    s += `"WFH Actual Cost - Assets"\n${arrayToCsv(
+                        data.wfh.actualCostDetails.assets,
+                        ['Description', 'Date', 'Cost', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'],
+                        ['description', 'date', 'cost', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod']
+                    )}\n\n`;
+                    return s;
+                };
 
-                // Taxpayer Details
-                csvContent += `"Taxpayer Details"\n${arrayToCsv(
-                    [data.taxpayerDetails],
-                    ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid (Jul-Mar)', 'PHI Premiums Paid (Apr-Jun)', 'PHI Rebate Received'],
-                    ['filingStatus', 'spouseIncome', 'dependentChildren', 'isMedicareExempt', 'medicareExemptDays', 'hasPrivateHospitalCover', 'reportableFringeBenefits', 'personalSuperContribution', 'phiAgeBracket', 'phiPremiumsPaid_period1', 'phiPremiumsPaid_period2', 'phiRebateReceived']
-                )}\n\n`;
-
-                // PAYG Income
-                csvContent += `"PAYG Income"\n${arrayToCsv(data.income.payg, ['Source Name', 'Gross Salary', 'Tax Withheld'], ['sourceName', 'grossSalary', 'taxWithheld'])}\n\n`;
-
-                // Other Income (Now includes Net Capital Gains)
-                csvContent += `"Other Income"\n${arrayToCsv(
-                    [data.income.other],
-                    ['Bank Interest', 'Unfranked Dividends', 'Franked Dividends', 'Franking Credits', 'Net Capital Gains'],
-                    ['bankInterest', 'dividendsUnfranked', 'dividendsFranked', 'frankingCredits', 'netCapitalGains']
-                )}\n\n`;
-
-                // General Expenses
-                csvContent += `"General Expenses"\n${arrayToCsv(
-                    data.generalExpenses,
-                    ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'],
-                    ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod']
-                )}\n\n`;
-
-                // WFH Method
-                csvContent += `"Work-From-Home Details"\n"Method:","${data.wfh.method}"\n\n`;
-
-                // WFH Hours Log
-                csvContent += `"WFH Hours Log"\n${arrayToCsv(data.wfh.hoursLog, ['Date', 'Minutes'], ['date', 'minutes'])}\n\n`;
-
-                // WFH Actual Cost - Property Periods
-                const wfhProps = data.wfh.actualCostDetails.properties || [];
-                csvContent += `"WFH Actual Cost - Property Periods"\n${arrayToCsv(
-                    wfhProps,
-                    ['Description', 'From Date', 'To Date', 'Office Area (m²)', 'Total Home Area (m²)', 'Electricity Cost ($)', 'Gas Cost ($)', 'Internet Cost ($)', 'Internet Work %', 'Phone Cost ($)', 'Stationery Cost ($)'],
-                    ['description', 'fromDate', 'toDate', 'officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
-                )}\n\n`;
-
-                // WFH Actual Cost - Assets
-                csvContent += `"WFH Actual Cost - Assets"\n${arrayToCsv(
-                    data.wfh.actualCostDetails.assets,
-                    ['Description', 'Date', 'Cost', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'],
-                    ['description', 'date', 'cost', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod']
-                )}\n\n`;
-
-                dataStr = csvContent;
+                dataStr = Object.entries(allYearsData).map(([yr, d]) => buildYearCsv(d, yr)).join('\n');
                 blobType = 'text/csv;charset=utf-8;';
                 fileExtension = 'csv';
             }
@@ -255,7 +252,7 @@ const StorageManager = (() => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `tax_data_${window.FINANCIAL_YEAR}_${new Date().toISOString().slice(0, 10)}.${fileExtension}`;
+            a.download = `tax_data_all_years_${today}.${fileExtension}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -302,8 +299,28 @@ const StorageManager = (() => {
                     });
                 }
                 // --- END BACKWARD COMPATIBILITY MIGRATION ---
-                if (validateImportedData(importedData)) {
-                    // Read financialYear from imported data and switch to that year if valid
+                // Detect multi-year export format (exportVersion 2)
+                if (importedData.exportVersion === '2' && importedData.years && typeof importedData.years === 'object') {
+                    const yearsImported = Object.keys(importedData.years);
+                    if (yearsImported.length === 0) {
+                        UIManager.showNotification("No year data found in file.");
+                        return;
+                    }
+                    // Save each year's data directly to localStorage
+                    yearsImported.forEach(year => {
+                        const yearData = importedData.years[year];
+                        if (validateImportedData(yearData)) {
+                            localStorage.setItem(getStorageKey(year), JSON.stringify(yearData));
+                        }
+                    });
+                    // Switch to the most recent available imported year
+                    const bestYear = yearsImported.filter(y => window.AVAILABLE_YEARS.includes(y)).pop()
+                        || window.FINANCIAL_YEAR;
+                    window.loadConstantsForYear(bestYear);
+                    saveActiveYearPreference(bestYear);
+                    callback(importedData.years[bestYear] || loadData(bestYear));
+                } else if (validateImportedData(importedData)) {
+                    // Legacy single-year format
                     const importedYear = importedData.userSettings?.financialYear;
                     if (importedYear && window.AVAILABLE_YEARS.includes(importedYear)) {
                         window.loadConstantsForYear(importedYear);
