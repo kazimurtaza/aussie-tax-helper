@@ -457,6 +457,45 @@ const App = (() => {
         });
     };
 
+    const moveExpenseToWfh = (id) => {
+        const idx = appData.generalExpenses.findIndex(e => e.id === id);
+        if (idx === -1) return;
+        const exp = appData.generalExpenses[idx];
+        appData.wfh.actualCostDetails.assets.push({
+            id: generateId('wfh_asset'),
+            description: exp.description,
+            date: exp.date,
+            cost: exp.cost,
+            workPercentage: exp.workPercentage,
+            isDepreciable: exp.isDepreciable,
+            effectiveLife: exp.effectiveLife || 0,
+            depreciationMethod: exp.depreciationMethod || 'prime_cost',
+        });
+        appData.generalExpenses.splice(idx, 1);
+        saveAndRefresh();
+        UIManager.showNotification(`"${exp.description}" moved to WFH Assets.`);
+    };
+
+    const moveWfhAssetToGeneral = (id) => {
+        const idx = appData.wfh.actualCostDetails.assets.findIndex(a => a.id === id);
+        if (idx === -1) return;
+        const asset = appData.wfh.actualCostDetails.assets[idx];
+        appData.generalExpenses.push({
+            id: generateId('expense'),
+            description: asset.description,
+            date: asset.date,
+            cost: asset.cost,
+            workPercentage: asset.workPercentage,
+            isDepreciable: asset.isDepreciable,
+            effectiveLife: asset.effectiveLife || 0,
+            depreciationMethod: asset.depreciationMethod || 'prime_cost',
+            category: '',
+        });
+        appData.wfh.actualCostDetails.assets.splice(idx, 1);
+        saveAndRefresh();
+        UIManager.showNotification(`"${asset.description}" moved to General Expenses.`);
+    };
+
     const editWfhAsset = (id) => {
         const asset = appData.wfh.actualCostDetails.assets.find(a => a.id === id);
         if (asset) {
@@ -490,7 +529,8 @@ const App = (() => {
         removePaygIncome, editPaygIncome,
         removeGeneralExpense, editGeneralExpense,
         removeWfhHour, removeWfhAsset, editWfhAsset,
-        editWfhProperty, removeWfhProperty
+        editWfhProperty, removeWfhProperty,
+        moveExpenseToWfh, moveWfhAssetToGeneral
     };
 })();
 

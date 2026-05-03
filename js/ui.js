@@ -316,7 +316,7 @@ const UIManager = (() => {
                 <td class="p-2 border-b border-gray-200 text-sm">${methodDisplay}</td>
                 <td class="p-2 border-b border-gray-200 text-sm font-semibold">${formatCurrency(deduction)}</td>
                 <td class="p-2 border-b border-gray-200 text-xs">${claimScheduleHtml}</td>
-                <td class="p-2 border-b border-gray-200 text-sm"><button class="text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2" onclick="App.editGeneralExpense('${exp.id}')">Edit</button><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeGeneralExpense('${exp.id}')">Remove</button></td>
+                <td class="p-2 border-b border-gray-200 text-sm"><button class="text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2" onclick="App.editGeneralExpense('${exp.id}')">Edit</button><button class="text-purple-500 hover:text-purple-700 text-xs font-semibold mr-2" onclick="App.moveExpenseToWfh('${exp.id}')">→ WFH</button><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeGeneralExpense('${exp.id}')">Remove</button></td>
             `;
         });
     };
@@ -392,6 +392,12 @@ const UIManager = (() => {
             editButton.textContent = 'Edit';
             editButton.addEventListener('click', () => App.editWfhAsset(asset.id));
 
+            const moveButton = document.createElement('button');
+            moveButton.type = 'button';
+            moveButton.className = 'text-orange-500 hover:text-orange-700 text-xs font-semibold mr-2';
+            moveButton.textContent = '→ General';
+            moveButton.addEventListener('click', () => App.moveWfhAssetToGeneral(asset.id));
+
             const removeButton = document.createElement('button');
             removeButton.type = 'button';
             removeButton.className = 'text-red-500 hover:text-red-700 text-xs font-semibold';
@@ -399,6 +405,7 @@ const UIManager = (() => {
             removeButton.addEventListener('click', () => App.removeWfhAsset(asset.id));
 
             actionsCell.appendChild(editButton);
+            actionsCell.appendChild(moveButton);
             actionsCell.appendChild(removeButton);
             row.appendChild(actionsCell);
         });
