@@ -214,24 +214,32 @@ const StorageManager = (() => {
         }
     };
 
-    const exportData = (currentData, format) => {
+    const exportData = (currentData, format, scope = 'all') => {
         try {
-            // Collect all years from localStorage (not just the active year)
-            const allYearsData = {};
-            window.AVAILABLE_YEARS.forEach(year => {
-                const stored = localStorage.getItem(getStorageKey(year));
-                if (stored) {
-                    try { allYearsData[year] = JSON.parse(stored); } catch (_) {}
-                }
-            });
-            // Always include the current (possibly unsaved) appData for the active year
-            allYearsData[window.FINANCIAL_YEAR] = currentData;
+            // Build the dataset based on scope
+            let exportYearsData = {};
+            if (scope === 'current') {
+                exportYearsData[window.FINANCIAL_YEAR] = currentData;
+            } else {
+                // Collect all years from localStorage
+                window.AVAILABLE_YEARS.forEach(year => {
+                    const stored = localStorage.getItem(getStorageKey(year));
+                    if (stored) {
+                        try { exportYearsData[year] = JSON.parse(stored); } catch (_) {}
+                    }
+                });
+                // Always include the current (possibly unsaved) appData for the active year
+                exportYearsData[window.FINANCIAL_YEAR] = currentData;
+            }
 
             const today = new Date().toISOString().slice(0, 10);
+            const yearSlug = scope === 'current'
+                ? window.FINANCIAL_YEAR.replace('-', '_')
+                : 'all_years';
             let dataStr, blobType, fileExtension;
 
             if (format === 'json') {
-                dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: allYearsData }, null, 2);
+                dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: exportYearsData }, null, 2);
                 blobType = 'application/json';
                 fileExtension = 'json';
             } else {
@@ -278,7 +286,7 @@ const StorageManager = (() => {
                     return s;
                 };
 
-                dataStr = Object.entries(allYearsData).map(([yr, d]) => buildYearCsv(d, yr)).join('\n');
+                dataStr = Object.entries(exportYearsData).map(([yr, d]) => buildYearCsv(d, yr)).join('\n');
                 blobType = 'text/csv;charset=utf-8;';
                 fileExtension = 'csv';
             }
@@ -287,7 +295,7 @@ const StorageManager = (() => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `tax_data_all_years_${today}.${fileExtension}`;
+            a.download = `tax_data_${yearSlug}_${today}.${fileExtension}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

@@ -743,8 +743,12 @@
 
     <footer class="bg-gray-800 text-gray-300 p-6 mt-8 text-center text-sm">
         <div class="data-management mb-4 flex justify-center items-center flex-wrap gap-2">
-            <button id="exportDataBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-md text-xs">Export Data (JSON)</button>
-            <button id="exportCsvDataBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-md text-xs">Export Data (CSV)</button>
+            <select id="exportScopeSelect" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1.5 rounded-md text-xs border border-gray-500 cursor-pointer">
+                <option value="current">Current Year Only</option>
+                <option value="all">All Years</option>
+            </select>
+            <button id="exportDataBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-md text-xs">Export (JSON)</button>
+            <button id="exportCsvDataBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-md text-xs">Export (CSV)</button>
             <label for="importDataInput" class="button-like-label bg-gray-600 hover:bg-gray-700 text-xs">Import Data (JSON)</label>
             <input type="file" id="importDataInput" accept=".json" class="hidden">
             <button id="clearAllDataBtn" class="bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded-md text-xs">Clear All Data (from this browser)</button>

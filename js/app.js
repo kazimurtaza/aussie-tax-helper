@@ -106,11 +106,14 @@ const App = (() => {
         });
 
         document.getElementById('exportDataBtn').addEventListener('click', () => {
-            StorageManager.exportData(appData, 'json');
-
-            trackEvent('data_management', { action: 'export_json' });
+            const scope = document.getElementById('exportScopeSelect').value;
+            StorageManager.exportData(appData, 'json', scope);
+            trackEvent('data_management', { action: 'export_json', scope });
         });
-        document.getElementById('exportCsvDataBtn').addEventListener('click', () => StorageManager.exportData(appData, 'csv'));
+        document.getElementById('exportCsvDataBtn').addEventListener('click', () => {
+            const scope = document.getElementById('exportScopeSelect').value;
+            StorageManager.exportData(appData, 'csv', scope);
+        });
         document.getElementById('clearAllDataBtn').addEventListener('click', handleClearAllData);
 
         document.getElementById('importDataInput').addEventListener('change', (e) => {
