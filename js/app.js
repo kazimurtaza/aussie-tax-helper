@@ -7,18 +7,6 @@ const trackEvent = (eventName, eventParams = {}) => {
     }
 };
 
-// window.onerror = function(message, source, lineno, colno, error) {
-//   // Log errors to the console for debugging
-//   console.error('An error occurred:', { message, source, lineno, colno, error });
-//   if (typeof gtag === 'function') {
-//     gtag('event', 'exception', {
-//       'description': `${message} at ${source}:${lineno}`,
-//       'fatal': false // set to true if the error is critical
-//     });
-//   }
-//   return true; // Prevents the error from showing in the user's browser console
-// };
-
 const App = (() => {
     // The single source of truth for the application's state.
     // Changed to null - data loading now happens in init()

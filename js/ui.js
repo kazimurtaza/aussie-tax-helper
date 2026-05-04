@@ -285,7 +285,28 @@ const UIManager = (() => {
         paygItems.forEach(item => {
             hasIncome = true;
             const row = listEl.insertRow();
-            row.innerHTML = `<td class="p-2 border-b border-gray-200">${item.sourceName}</td><td class="p-2 border-b border-gray-200">${formatCurrency(item.grossSalary)}</td><td class="p-2 border-b border-gray-200">${formatCurrency(item.taxWithheld)}</td><td class="p-2 border-b border-gray-200"><button class="text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2" onclick="App.editPaygIncome('${item.id}')">Edit</button><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removePaygIncome('${item.id}')">Remove</button></td>`;
+            const cell = (text, cls = 'p-2 border-b border-gray-200') => {
+                const td = document.createElement('td');
+                td.className = cls;
+                td.textContent = text;
+                return td;
+            };
+            row.appendChild(cell(item.sourceName));
+            row.appendChild(cell(formatCurrency(item.grossSalary)));
+            row.appendChild(cell(formatCurrency(item.taxWithheld)));
+            const actions = document.createElement('td');
+            actions.className = 'p-2 border-b border-gray-200';
+            const editBtn = document.createElement('button');
+            editBtn.className = 'text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2';
+            editBtn.textContent = 'Edit';
+            editBtn.addEventListener('click', () => App.editPaygIncome(item.id));
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'text-red-500 hover:text-red-700 text-xs font-semibold';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', () => App.removePaygIncome(item.id));
+            actions.appendChild(editBtn);
+            actions.appendChild(removeBtn);
+            row.appendChild(actions);
         });
         const otherIncomeTotal = (otherIncome.bankInterest || 0) + (otherIncome.dividendsUnfranked || 0) + (otherIncome.dividendsFranked || 0) + (otherIncome.netCapitalGains || 0);
         if(otherIncomeTotal > 0 || (otherIncome.frankingCredits || 0) > 0){
@@ -345,7 +366,17 @@ const UIManager = (() => {
             const li = document.createElement('li');
             li.className = "flex justify-between items-center py-1";
             const logTimeString = minutesToTimeString(log.minutes);
-            li.innerHTML = `<span>${log.date}: <strong>${logTimeString}</strong> hours</span><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeWfhHour('${log.id}')">Remove</button>`;
+            const span = document.createElement('span');
+            span.textContent = `${log.date}: `;
+            const strong = document.createElement('strong');
+            strong.textContent = `${logTimeString} hours`;
+            span.appendChild(strong);
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'text-red-500 hover:text-red-700 text-xs font-semibold';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', () => App.removeWfhHour(log.id));
+            li.appendChild(span);
+            li.appendChild(removeBtn);
             listEl.appendChild(li);
         });
     };

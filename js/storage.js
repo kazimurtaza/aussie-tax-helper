@@ -102,6 +102,25 @@ const StorageManager = (() => {
         localStorage.setItem('aussieTaxHelper-activeYear', year);
     };
 
+    // Apply backward-compatibility migrations to parsed data (used by both loadData and importData).
+    const migrateData = (data) => {
+        if (data.taxpayerDetails && data.taxpayerDetails.phiPremiumsPaid) {
+            data.taxpayerDetails.phiPremiumsPaid_period1 = data.taxpayerDetails.phiPremiumsPaid;
+            delete data.taxpayerDetails.phiPremiumsPaid;
+        }
+        if (data.wfh && data.wfh.totalHours) {
+            data.wfh.totalMinutes = Math.round(data.wfh.totalHours * 60);
+            delete data.wfh.totalHours;
+        }
+        if (data.wfh && data.wfh.hoursLog.length > 0 && data.wfh.hoursLog[0].hours) {
+            data.wfh.hoursLog.forEach(log => {
+                log.minutes = Math.round(log.hours * 60);
+                delete log.hours;
+            });
+        }
+        return data;
+    };
+
     const loadData = (year) => {
         const targetYear = year || window.FINANCIAL_YEAR;
         try {
@@ -113,14 +132,7 @@ const StorageManager = (() => {
             }
 
             const parsedData = JSON.parse(storedData);
-            // --- BACKWARD COMPATIBILITY ---
-            // If the old phiPremiumsPaid field exists, migrate its value to the new
-            // phiPremiumsPaid_period1 field and delete the old one.
-            if (parsedData.taxpayerDetails && parsedData.taxpayerDetails.phiPremiumsPaid) {
-                parsedData.taxpayerDetails.phiPremiumsPaid_period1 = parsedData.taxpayerDetails.phiPremiumsPaid;
-                delete parsedData.taxpayerDetails.phiPremiumsPaid;
-            }
-            // --- END BACKWARD COMPATIBILITY ---
+            migrateData(parsedData);
 
             // Migrate old flat actualCostDetails to new properties-array format
             const acd = parsedData.wfh?.actualCostDetails;
@@ -166,18 +178,6 @@ const StorageManager = (() => {
                     }
                 },
             };
-
-            // Backwards compatibility: if old totalHours exists, convert it to totalMinutes
-            if (mergedData.wfh.totalHours) {
-                mergedData.wfh.totalMinutes = Math.round(mergedData.wfh.totalHours * 60);
-                delete mergedData.wfh.totalHours;
-            }
-            if (mergedData.wfh.hoursLog.length > 0 && mergedData.wfh.hoursLog[0].hours) {
-                 mergedData.wfh.hoursLog.forEach(log => {
-                    log.minutes = Math.round(log.hours * 60);
-                    delete log.hours;
-                 });
-            }
 
 
             return mergedData;
@@ -324,24 +324,7 @@ const StorageManager = (() => {
         reader.onload = (e) => {
             try {
                 const importedData = JSON.parse(e.target.result);
-                // --- BACKWARD COMPATIBILITY MIGRATION ---
-                // If old phiPremiumsPaid exists, migrate it to the new period1 field.
-                if (importedData.taxpayerDetails && importedData.taxpayerDetails.phiPremiumsPaid) {
-                    importedData.taxpayerDetails.phiPremiumsPaid_period1 = importedData.taxpayerDetails.phiPremiumsPaid;
-                    delete importedData.taxpayerDetails.phiPremiumsPaid; // Remove the old field
-                }
-                // Backwards compatibility for WFH hours
-                if (importedData.wfh && importedData.wfh.totalHours) {
-                    importedData.wfh.totalMinutes = Math.round(importedData.wfh.totalHours * 60);
-                    delete importedData.wfh.totalHours;
-                }
-                if (importedData.wfh && importedData.wfh.hoursLog.length > 0 && importedData.wfh.hoursLog[0].hours) {
-                    importedData.wfh.hoursLog.forEach(log => {
-                        log.minutes = Math.round(log.hours * 60);
-                        delete log.hours;
-                    });
-                }
-                // --- END BACKWARD COMPATIBILITY MIGRATION ---
+                migrateData(importedData);
                 // Detect multi-year export format (exportVersion 2)
                 if (importedData.exportVersion === '2' && importedData.years && typeof importedData.years === 'object') {
                     const yearsImported = Object.keys(importedData.years);

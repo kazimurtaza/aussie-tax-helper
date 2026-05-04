@@ -25,7 +25,9 @@ const TaxCalculations = (() => {
         }
 
         if (!purchaseDateString || typeof purchaseDateString !== 'string') return 0;
-        const purchaseDate = new Date(purchaseDateString);
+        // Parse as local time to stay consistent with FY boundary dates (also local).
+        const [py, pm, pd] = purchaseDateString.split('-').map(Number);
+        const purchaseDate = new Date(py, pm - 1, pd);
         if (isNaN(purchaseDate.getTime())) return 0;
 
         const yearStart = parseInt(window.FINANCIAL_YEAR.split('-')[0]);
@@ -78,7 +80,10 @@ const TaxCalculations = (() => {
     const calculateTotalGeneralDeductions = (generalExpenses) => {
         const financialYearEnd = new Date(parseInt(window.FINANCIAL_YEAR.split('-')[1]), 5, 30);
         return generalExpenses
-            .filter(exp => new Date(exp.date) <= financialYearEnd)
+            .filter(exp => {
+                const [ey, em, ed] = exp.date.split('-').map(Number);
+                return new Date(ey, em - 1, ed) <= financialYearEnd;
+            })
             .reduce((total, exp) => {
                 const deduction = exp.isDepreciable 
                     ? calculateDepreciationForFinancialYear(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
@@ -296,7 +301,8 @@ const TaxCalculations = (() => {
         const life = parseInt(asset.effectiveLife);
         const isDV = asset.depreciationMethod === 'diminishing_value';
         if (!asset.date || typeof asset.date !== 'string') return 'Invalid date';
-        const purchaseDate = new Date(asset.date);
+        const [ay, am, ad] = asset.date.split('-').map(Number);
+        const purchaseDate = new Date(ay, am - 1, ad);
         if (isNaN(purchaseDate.getTime())) return 'Invalid date';
         const purchaseMonth = purchaseDate.getMonth();
         const fmt = (v) => (v || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
