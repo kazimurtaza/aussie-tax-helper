@@ -1,7 +1,7 @@
 const StorageManager = (() => {
     // Notify callback — defaults to UIManager but can be overridden (e.g. in tests).
     let _notify = (msg) => {
-        if (typeof UIManager !== 'undefined') _notify(msg);
+        if (typeof UIManager !== 'undefined') UIManager.showNotification(msg);
     };
     const setNotifyCallback = (fn) => { _notify = fn; };
 
