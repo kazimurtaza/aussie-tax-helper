@@ -1,4 +1,10 @@
 const StorageManager = (() => {
+    // Notify callback — defaults to UIManager but can be overridden (e.g. in tests).
+    let _notify = (msg) => {
+        if (typeof UIManager !== 'undefined') _notify(msg);
+    };
+    const setNotifyCallback = (fn) => { _notify = fn; };
+
     // Dynamic storage key based on financial year (backward compatible)
     // 2024-2025 resolves to aussieTaxHelperData-2025
     const getStorageKey = (year) => `aussieTaxHelperData-${year.split('-')[1]}`;
@@ -177,7 +183,7 @@ const StorageManager = (() => {
             return mergedData;
         } catch (e) {
             console.error("Error loading data from local storage:", e);
-            UIManager.showNotification("Could not load saved data. Starting with a clean slate.");
+            _notify("Could not load saved data. Starting with a clean slate.");
             return getDefaultData();
         }
     };
@@ -188,7 +194,13 @@ const StorageManager = (() => {
             localStorage.setItem(key, JSON.stringify(data));
         } catch (e) {
             console.error("Error saving data to local storage:", e);
-            UIManager.showNotification("Failed to save data. Your browser's local storage might be full or disabled.");
+            const isQuotaError = e instanceof DOMException && (
+                e.code === 22 || e.code === 1014 ||
+                e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+            );
+            _notify(isQuotaError
+                ? "Storage is full. Export your data and clear old years to free space."
+                : "Failed to save data. Your browser's local storage may be disabled.");
         }
     };
 
@@ -198,7 +210,7 @@ const StorageManager = (() => {
             localStorage.removeItem(key);
         } catch (e) {
             console.error("Error clearing data:", e);
-            UIManager.showNotification("Failed to clear data.");
+            _notify("Failed to clear data.");
         }
     };
 
@@ -282,7 +294,7 @@ const StorageManager = (() => {
             URL.revokeObjectURL(url);
         } catch (e) {
             console.error("Error exporting data:", e);
-            UIManager.showNotification("Failed to export data.");
+            _notify("Failed to export data.");
         }
     };
 
@@ -326,7 +338,7 @@ const StorageManager = (() => {
                 if (importedData.exportVersion === '2' && importedData.years && typeof importedData.years === 'object') {
                     const yearsImported = Object.keys(importedData.years);
                     if (yearsImported.length === 0) {
-                        UIManager.showNotification("No year data found in file.");
+                        _notify("No year data found in file.");
                         return;
                     }
                     // Save each year's data directly to localStorage
@@ -351,15 +363,18 @@ const StorageManager = (() => {
                     }
                     callback(importedData);
                 } else {
-                    UIManager.showNotification("Invalid or corrupted data format in JSON file.");
+                    _notify("Invalid data format. Expected fields (income, generalExpenses, wfh, taxpayerDetails) not found. Is this an Aussie Tax Helper export?");
                 }
             } catch (error) {
                 console.error("Failed to import data:", error);
-                UIManager.showNotification("Failed to import data. File might be corrupted or not valid JSON.");
+                const msg = error instanceof SyntaxError
+                    ? `Invalid JSON: ${error.message}. Ensure the file has not been manually edited.`
+                    : "Failed to import data. The file may be corrupted.";
+                _notify(msg);
             }
         };
         reader.onerror = () => {
-             UIManager.showNotification("Error reading the selected file.");
+             _notify("Error reading the selected file.");
         };
         reader.readAsText(file);
     };
@@ -367,7 +382,7 @@ const StorageManager = (() => {
     const importWfhHoursFromCSV = (file, callback) => {
         if (!file) return;
         if (!file.name.toLowerCase().endsWith('.csv')) {
-            UIManager.showNotification("Please select a valid CSV file.");
+            _notify("Please select a valid CSV file.");
             return;
         }
 
@@ -419,7 +434,12 @@ const StorageManager = (() => {
                     }
 
                     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                        dailyMinutes[dateStr] = (dailyMinutes[dateStr] || 0) + totalMinutesForLine;
+                        const parsedYear = parseInt(dateStr.slice(0, 4), 10);
+                        if (parsedYear < 2000 || parsedYear > 2100) {
+                            console.warn(`Skipping line ${index + 1} due to out-of-range date (${dateStr}): ${line}`);
+                        } else {
+                            dailyMinutes[dateStr] = (dailyMinutes[dateStr] || 0) + totalMinutesForLine;
+                        }
                     } else {
                         console.warn(`Skipping line ${index + 1} due to unrecognized date format: ${line}`);
                     }
@@ -433,17 +453,17 @@ const StorageManager = (() => {
                 if (importedLogs.length > 0) {
                     callback(importedLogs);
                 } else {
-                    UIManager.showNotification("Could not find any valid hour entries in the file. Please check the file format.");
+                    _notify("Could not find any valid hour entries in the file. Please check the file format.");
                 }
 
             } catch (error) {
                 console.error("Failed to import WFH hours from CSV:", error);
-                UIManager.showNotification("An error occurred while parsing the CSV file.");
+                _notify("An error occurred while parsing the CSV file.");
             }
         };
 
         reader.onerror = () => {
-             UIManager.showNotification("Error reading the selected file.");
+             _notify("Error reading the selected file.");
         };
 
         reader.readAsText(file);
@@ -459,6 +479,7 @@ const StorageManager = (() => {
         importWfhHoursFromCSV,
         getYearsWithData,
         detectDefaultYear,
-        saveActiveYearPreference
+        saveActiveYearPreference,
+        setNotifyCallback
     };
 })();

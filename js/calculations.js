@@ -24,12 +24,15 @@ const TaxCalculations = (() => {
              return numCost * (numWorkPercentage / 100);
         }
 
+        if (!purchaseDateString || typeof purchaseDateString !== 'string') return 0;
         const purchaseDate = new Date(purchaseDateString);
+        if (isNaN(purchaseDate.getTime())) return 0;
+
         const yearStart = parseInt(window.FINANCIAL_YEAR.split('-')[0]);
         const financialYearStart = new Date(yearStart, 6, 1);
         const financialYearEnd = new Date(yearStart + 1, 5, 30);
-        
-        if (isNaN(purchaseDate.getTime()) || purchaseDate > financialYearEnd) return 0;
+
+        if (purchaseDate > financialYearEnd) return 0;
 
         let openingValue = numCost;
         
@@ -276,6 +279,12 @@ const TaxCalculations = (() => {
         return totalTaxWithheld - netTaxPayable;
     };
 
+    const escapeHtml = (str) => String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
     const generateDepreciationSchedule = (asset) => {
         if (!asset.isDepreciable || !asset.effectiveLife || asset.effectiveLife <= 0) {
             return 'Immediate';
@@ -286,7 +295,9 @@ const TaxCalculations = (() => {
         const workPct = (parseFloat(asset.workPercentage) || 100) / 100;
         const life = parseInt(asset.effectiveLife);
         const isDV = asset.depreciationMethod === 'diminishing_value';
+        if (!asset.date || typeof asset.date !== 'string') return 'Invalid date';
         const purchaseDate = new Date(asset.date);
+        if (isNaN(purchaseDate.getTime())) return 'Invalid date';
         const purchaseMonth = purchaseDate.getMonth();
         const fmt = (v) => (v || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
 

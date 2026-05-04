@@ -630,6 +630,21 @@
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
                     <div>
+                        <h4 class="font-semibold">Version 1.5.4</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Removed debug <code>console.log</code> statements from WFH asset removal flow.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Date validation in depreciation calculations now rejects <code>null</code>, <code>undefined</code>, and malformed strings, preventing silent NaN deductions.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Depreciation schedule returns <code>"Invalid date"</code> (rather than blank) for assets with a missing or malformed purchase date.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Numeric form inputs (cost, work %, effective life) are clamped server-side — negative values can no longer bypass browser <code>min</code> attributes.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> WFH hours CSV import rejects dates outside 2000–2100 to prevent absurd date entries.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Manually logging WFH hours on an already-logged date now accumulates minutes on the existing entry rather than creating a duplicate row.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> JSON import error messages now distinguish parse errors from structural validation failures and include actionable guidance.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> <code>localStorage</code> quota exceeded is now detected and reported with a clear "export and clear old years" prompt.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> <code>StorageManager</code> notification callback is now configurable via <code>setNotifyCallback(fn)</code>, decoupling storage from UI for testability.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> 202-test Jest suite (up from 190) — new suites for multi-property WFH, date validation, and invalid-date schedule handling.</li>
+                        </ul>
+                    </div>
+                    <div>
                         <h4 class="font-semibold">Version 1.5.3</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
                             <li><strong class="font-medium text-green-600">Added:</strong> Multi-property support in WFH Actual Cost Method — add a separate period for each address when you move mid-year, each with its own floor area and running expenses. Totals are summed automatically.</li>

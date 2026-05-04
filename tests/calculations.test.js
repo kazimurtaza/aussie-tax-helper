@@ -1463,4 +1463,111 @@ describe('generateDepreciationSchedule', () => {
         expect(result).not.toMatch(/<strong>2023-24:/);
         expect(result).toMatch(/<strong>2024-25:/);
     });
+
+    test('invalid date string → returns "Invalid date"', () => {
+        const result = TaxCalculations.generateDepreciationSchedule(
+            asset({ date: 'not-a-date' })
+        );
+        expect(result).toBe('Invalid date');
+    });
+
+    test('missing date → returns "Invalid date"', () => {
+        const a = asset();
+        delete a.date;
+        expect(TaxCalculations.generateDepreciationSchedule(a)).toBe('Invalid date');
+    });
+});
+
+// ─────────────────────────────────────────────
+// calculateWfhActualCostDeduction — multi-property
+// ─────────────────────────────────────────────
+describe('calculateWfhActualCostDeduction — multi-property', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    const prop = (overrides = {}) => ({
+        officeArea: 10,
+        totalHomeArea: 100,
+        electricityCost: 2000,
+        gasCost: 0,
+        internetCost: 0,
+        internetWorkPercent: 0,
+        phoneCost: 0,
+        stationeryCost: 0,
+        ...overrides,
+    });
+
+    test('single property in array matches flat-object result', () => {
+        const details = { properties: [prop()], assets: [] };
+        // electricity: 2000 * (10/100) = 200
+        expect(TaxCalculations.calculateWfhActualCostDeduction(details)).toBeCloseTo(200, 2);
+    });
+
+    test('two properties are summed correctly', () => {
+        // prop1: electricity 2000, area 10/100 → 200
+        // prop2: electricity 1000, area 20/100 → 200; internet 600 * 50% = 300
+        const details = {
+            properties: [
+                prop({ electricityCost: 2000 }),
+                prop({ officeArea: 20, electricityCost: 1000, internetCost: 600, internetWorkPercent: 50 }),
+            ],
+            assets: [],
+        };
+        // 200 + 200 + 300 = 700
+        expect(TaxCalculations.calculateWfhActualCostDeduction(details)).toBeCloseTo(700, 2);
+    });
+
+    test('assets deduction is added on top of property running expenses', () => {
+        // running: electricity 2000 * 10% = 200
+        // asset: cost=500, work=100%, not depreciable → 500 immediate
+        const details = {
+            properties: [prop()],
+            assets: [{ cost: 500, workPercentage: 100, isDepreciable: false, date: '2024-07-01' }],
+        };
+        expect(TaxCalculations.calculateWfhActualCostDeduction(details)).toBeCloseTo(700, 2);
+    });
+
+    test('backward compat: flat details object (no properties key) still works', () => {
+        // Old data format — no migration needed at the calculation layer
+        const details = {
+            officeArea: 10, totalHomeArea: 100,
+            electricityCost: 2000, gasCost: 0,
+            internetCost: 0, internetWorkPercent: 0,
+            phoneCost: 0, stationeryCost: 0,
+            assets: [],
+        };
+        expect(TaxCalculations.calculateWfhActualCostDeduction(details)).toBeCloseTo(200, 2);
+    });
+
+    test('empty properties array → zero running expenses', () => {
+        const details = { properties: [], assets: [] };
+        expect(TaxCalculations.calculateWfhActualCostDeduction(details)).toBe(0);
+    });
+});
+
+// ─────────────────────────────────────────────
+// calculateDepreciationForFinancialYear — date validation
+// ─────────────────────────────────────────────
+describe('calculateDepreciationForFinancialYear — date validation', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    test('null date string → returns 0', () => {
+        expect(TaxCalculations.calculateDepreciationForFinancialYear(1000, 100, 5, null)).toBe(0);
+    });
+
+    test('undefined date string → returns 0', () => {
+        expect(TaxCalculations.calculateDepreciationForFinancialYear(1000, 100, 5, undefined)).toBe(0);
+    });
+
+    test('invalid date string → returns 0', () => {
+        expect(TaxCalculations.calculateDepreciationForFinancialYear(1000, 100, 5, 'not-a-date')).toBe(0);
+    });
+
+    test('future date beyond FY end → returns 0', () => {
+        // FY 2024-2025 ends 2025-06-30; date 2026-01-01 is beyond it
+        expect(TaxCalculations.calculateDepreciationForFinancialYear(1000, 100, 5, '2026-01-01')).toBe(0);
+    });
+
+    test('valid date within FY → non-zero deduction', () => {
+        expect(TaxCalculations.calculateDepreciationForFinancialYear(1000, 100, 5, '2024-07-01')).toBeGreaterThan(0);
+    });
 });

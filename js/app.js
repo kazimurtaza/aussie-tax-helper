@@ -60,6 +60,10 @@ const App = (() => {
         UIManager.showSection(appData.userSettings.currentSection || 'dashboard-section');
     };
 
+    // Sanitise numeric form inputs at the boundary — prevent negatives bypassing browser validation.
+    const clampNum = (value, min = 0, max = Infinity) => Math.min(max, Math.max(min, parseFloat(value) || 0));
+    const clampPct = (value) => clampNum(value, 0, 100);
+
     const saveAndRefresh = () => {
         StorageManager.saveData(appData);
         refreshUI();
@@ -273,11 +277,11 @@ const App = (() => {
             id: generateId('exp'),
             description: form['expense-description'].value.trim(),
             date: form['expense-date'].value,
-            cost: parseFloat(form['expense-cost'].value) || 0,
+            cost: clampNum(form['expense-cost'].value),
             category: form['expense-category'].value,
-            workPercentage: parseInt(form['expense-work-percentage'].value) || 100,
+            workPercentage: clampPct(form['expense-work-percentage'].value) || 100,
             isDepreciable: isDepreciable,
-            effectiveLife: isDepreciable ? (parseInt(form['expense-effective-life'].value) || 0) : 0,
+            effectiveLife: isDepreciable ? clampNum(form['expense-effective-life'].value) : 0,
             depreciationMethod: isDepreciable ? form['depreciation-method'].value : 'prime_cost',
         };
         if (newExpense.description && newExpense.date && newExpense.cost >= 0) {
@@ -310,11 +314,11 @@ const App = (() => {
                 id: id,
                 description: form['edit-expense-description'].value.trim(),
                 date: form['edit-expense-date'].value,
-                cost: parseFloat(form['edit-expense-cost'].value) || 0,
+                cost: clampNum(form['edit-expense-cost'].value),
                 category: form['edit-expense-category'].value,
-                workPercentage: parseInt(form['edit-expense-work-percentage'].value) || 100,
+                workPercentage: clampPct(form['edit-expense-work-percentage'].value) || 100,
                 isDepreciable: isDepreciable,
-                effectiveLife: isDepreciable ? (parseInt(form['edit-expense-effective-life'].value) || 0) : 0,
+                effectiveLife: isDepreciable ? clampNum(form['edit-expense-effective-life'].value) : 0,
                 depreciationMethod: isDepreciable ? form['edit-depreciation-method'].value : 'prime_cost',
             };
             saveAndRefresh();
@@ -340,7 +344,12 @@ const App = (() => {
             minutes: Math.round(decimalHours * 60),
         };
         if (newLog.date && newLog.minutes > 0) {
-            appData.wfh.hoursLog.push(newLog);
+            const existing = appData.wfh.hoursLog.find(log => log.date === newLog.date);
+            if (existing) {
+                existing.minutes += newLog.minutes;
+            } else {
+                appData.wfh.hoursLog.push(newLog);
+            }
             appData.wfh.totalMinutes = appData.wfh.hoursLog.reduce((sum, log) => sum + log.minutes, 0);
             saveAndRefresh();
             form.reset();
@@ -416,10 +425,10 @@ const App = (() => {
             id: assetId || generateId('wfh_asset'),
             description: form['wfh-asset-description'].value.trim(),
             date: form['wfh-asset-date'].value,
-            cost: parseFloat(form['wfh-asset-cost'].value) || 0,
-            workPercentage: parseInt(form['wfh-asset-work-percentage'].value) || 100,
+            cost: clampNum(form['wfh-asset-cost'].value),
+            workPercentage: clampPct(form['wfh-asset-work-percentage'].value) || 100,
             isDepreciable: isDepreciable,
-            effectiveLife: isDepreciable ? (parseInt(form['wfh-asset-effective-life'].value) || 0) : 0,
+            effectiveLife: isDepreciable ? clampNum(form['wfh-asset-effective-life'].value) : 0,
             depreciationMethod: isDepreciable ? form['wfh-asset-depreciation-method'].value : 'prime_cost',
         };
 
@@ -504,11 +513,8 @@ const App = (() => {
     };
 
     const removeWfhAsset = (id) => {
-        console.log(`[DEBUG] removeWfhAsset called with id: ${id}`);
         UIManager.showConfirmation("Are you sure you want to remove this WFH asset?", () => {
-            console.log(`[DEBUG] Confirmation received. Filtering asset with id: ${id}`);
             appData.wfh.actualCostDetails.assets = appData.wfh.actualCostDetails.assets.filter(asset => asset.id !== id);
-            console.log(`[DEBUG] Assets remaining: ${appData.wfh.actualCostDetails.assets.length}`);
             saveAndRefresh();
         });
     }

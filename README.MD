@@ -161,6 +161,24 @@ All other 2025-2026 rates — income tax brackets, LITO, Medicare levy threshold
 
 ## Changelog
 
+### Version 1.5.4
+* ***Fixed***
+    * ***XSS guard in depreciation schedule:*** Added `escapeHtml` helper; asset dates are validated before schedule generation (invalid dates return `"Invalid date"` rather than producing NaN output).
+    * ***Date validation:*** `calculateDepreciationForFinancialYear` now rejects `null`, `undefined`, and non-string dates up-front, preventing silent NaN propagation.
+    * ***Removed debug logs:*** Three `[DEBUG]` `console.log` statements in the WFH asset removal flow removed.
+    * ***Numeric input clamping:*** Cost, work-percentage, and effective-life values in expense and WFH-asset forms are clamped to valid ranges (`≥ 0`; work % capped at 100) in the save handlers, preventing negative values from bypassing browser-side `min` attributes.
+    * ***CSV date range guard:*** WFH hours CSV import now rejects dates outside 2000–2100 with a console warning, preventing absurd dates (e.g. `2999-12-31`) from entering the log.
+    * ***Duplicate WFH date handling:*** Manually logging hours for an already-logged date now accumulates minutes on the existing entry rather than creating a duplicate row (consistent with CSV import behaviour).
+    * ***Improved import error messages:*** JSON import now distinguishes `SyntaxError` (shows the specific parse error) from structural validation failures (lists expected fields), and `localStorage` save errors distinguish quota-exceeded from other failures.
+* ***Improved***
+    * ***Storage / UI decoupling:*** `StorageManager` no longer references `UIManager` directly. All notifications go through a configurable `_notify` callback (default: `UIManager.showNotification`), overridable via `StorageManager.setNotifyCallback(fn)` — enabling unit testing without a DOM.
+    * ***Active year defaults to current Australian FY:*** `detectDefaultYear()` now derives the current FY from `new Date()` (Jul–Jun boundary) and prefers it over saved preferences from previous tax seasons.
+    * ***Year selector shows "(current)":*** The financial-year dropdown appends `(current)` to whichever year matches today's Australian FY.
+* ***Added***
+    * ***Move expenses between sections:*** "→ WFH" button on general expenses and "→ General" button on WFH assets allow moving entries between sections in one click.
+    * ***All-years export/import:*** JSON and CSV exports now include data for all financial years; import detects the v2 multi-year format and restores each year's data independently.
+    * ***Test suite:*** 202 Jest tests (up from 190) — added multi-property WFH, date-validation, and depreciation-schedule-invalid-date suites.
+
 ### Version 1.5.3
 * ***Added***
     * ***Multi-property WFH Actual Cost:*** Users who move mid-year can now add a separate property period for each address, each with its own floor area, running expenses, and date range. The total deduction sums all periods automatically. Existing single-property data migrates transparently on first load.
