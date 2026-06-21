@@ -1,13 +1,13 @@
 {
   "name": "aussie-tax-helper",
-  "version": "1.5.4",
+  "version": "1.6.0",
   "description": "Australian tax deductions helper - client-side app",
   "scripts": {
     "test": "jest --coverage",
     "test:watch": "jest --watch"
   },
   "devDependencies": {
-    "jest": "^29.7.0"
+    "jest": "^30.4.2"
   },
   "jest": {
     "testEnvironment": "node",
