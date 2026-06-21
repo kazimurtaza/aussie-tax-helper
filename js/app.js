@@ -186,7 +186,7 @@ const App = (() => {
         UIManager.showConfirmation(`Are you sure you want to delete ALL data for FY ${window.FINANCIAL_YEAR}? This action cannot be undone.`, () => {
             StorageManager.clearAllData();
             appData = StorageManager.getDefaultData();
-            saveAndRefresh();
+            refreshUI();
             UIManager.showNotification("All data has been cleared.");
 
             trackEvent('data_management', { action: 'clear_all_data' });
@@ -349,18 +349,19 @@ const App = (() => {
 
     function handleImportWfhHours(e) {
         StorageManager.importWfhHoursFromCSV(e.target.files[0], (importedLogs) => {
-            const newLogsWithIds = importedLogs.map(log => ({
-                ...log,
-                id: generateId('wfh_csv')
-            }));
-
             const existingDates = new Set(appData.wfh.hoursLog.map(log => log.date));
-            const uniqueNewLogs = newLogsWithIds.filter(log => !existingDates.has(log.date));
+            const newLogsWithIds = importedLogs
+                .filter(log => !existingDates.has(log.date))
+                .map(log => ({ ...log, id: generateId('wfh_csv') }));
 
-            appData.wfh.hoursLog.push(...uniqueNewLogs);
+            appData.wfh.hoursLog.push(...newLogsWithIds);
             appData.wfh.totalMinutes = appData.wfh.hoursLog.reduce((sum, log) => sum + log.minutes, 0);
             saveAndRefresh();
-            UIManager.showNotification(`${uniqueNewLogs.length} new daily hour entries imported successfully.`);
+
+            const skipped = importedLogs.length - newLogsWithIds.length;
+            let msg = `${newLogsWithIds.length} new daily hour entries imported successfully.`;
+            if (skipped > 0) msg += ` ${skipped} duplicate date(s) skipped.`;
+            UIManager.showNotification(msg);
         });
         e.target.value = null; // Reset file input
     }
@@ -391,7 +392,7 @@ const App = (() => {
             electricityCost: parseFloat(document.getElementById('wfh-property-electricity').value) || 0,
             gasCost: parseFloat(document.getElementById('wfh-property-gas').value) || 0,
             internetCost: parseFloat(document.getElementById('wfh-property-internet').value) || 0,
-            internetWorkPercent: parseInt(document.getElementById('wfh-property-internet-work-pct').value) || 0,
+            internetWorkPercent: clampPct(document.getElementById('wfh-property-internet-work-pct').value),
             phoneCost: parseFloat(document.getElementById('wfh-property-phone').value) || 0,
             stationeryCost: parseFloat(document.getElementById('wfh-property-stationery').value) || 0,
         };

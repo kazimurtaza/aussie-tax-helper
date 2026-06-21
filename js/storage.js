@@ -112,7 +112,7 @@ const StorageManager = (() => {
             data.wfh.totalMinutes = Math.round(data.wfh.totalHours * 60);
             delete data.wfh.totalHours;
         }
-        if (data.wfh && data.wfh.hoursLog.length > 0 && data.wfh.hoursLog[0].hours) {
+        if (data.wfh?.hoursLog?.length > 0 && data.wfh.hoursLog[0].hours) {
             data.wfh.hoursLog.forEach(log => {
                 log.minutes = Math.round(log.hours * 60);
                 delete log.hours;
@@ -222,12 +222,18 @@ const StorageManager = (() => {
                 exportYearsData[window.FINANCIAL_YEAR] = currentData;
             } else {
                 // Collect all years from localStorage
+                const skippedYears = [];
                 window.AVAILABLE_YEARS.forEach(year => {
                     const stored = localStorage.getItem(getStorageKey(year));
                     if (stored) {
-                        try { exportYearsData[year] = JSON.parse(stored); } catch (_) {}
+                        try { exportYearsData[year] = JSON.parse(stored); } catch (_) {
+                            skippedYears.push(year);
+                        }
                     }
                 });
+                if (skippedYears.length > 0) {
+                    _notify(`Warning: ${skippedYears.length} year(s) with corrupted data were skipped: ${skippedYears.join(', ')}.`);
+                }
                 // Always include the current (possibly unsaved) appData for the active year
                 exportYearsData[window.FINANCIAL_YEAR] = currentData;
             }
@@ -332,10 +338,11 @@ const StorageManager = (() => {
                         _notify("No year data found in file.");
                         return;
                     }
-                    // Save each year's data directly to localStorage
+                    // Save each year's data directly to localStorage, migrating each individually
                     yearsImported.forEach(year => {
                         const yearData = importedData.years[year];
                         if (validateImportedData(yearData)) {
+                            migrateData(yearData);
                             localStorage.setItem(getStorageKey(year), JSON.stringify(yearData));
                         }
                     });
@@ -344,15 +351,21 @@ const StorageManager = (() => {
                         || window.FINANCIAL_YEAR;
                     window.loadConstantsForYear(bestYear);
                     saveActiveYearPreference(bestYear);
-                    callback(importedData.years[bestYear] || loadData(bestYear));
+                    // Load through the full merge pipeline to ensure all default fields are present
+                    callback(loadData(bestYear));
                 } else if (validateImportedData(importedData)) {
                     // Legacy single-year format
                     const importedYear = importedData.userSettings?.financialYear;
-                    if (importedYear && window.AVAILABLE_YEARS.includes(importedYear)) {
-                        window.loadConstantsForYear(importedYear);
-                        saveActiveYearPreference(importedYear);
+                    if (!importedYear || !window.AVAILABLE_YEARS.includes(importedYear)) {
+                        _notify(`Imported data is for financial year "${importedYear || 'unknown'}" which is not supported. Only ${window.AVAILABLE_YEARS.join(', ')} are available.`);
+                        return;
                     }
-                    callback(importedData);
+                    migrateData(importedData);
+                    localStorage.setItem(getStorageKey(importedYear), JSON.stringify(importedData));
+                    window.loadConstantsForYear(importedYear);
+                    saveActiveYearPreference(importedYear);
+                    // Load through the full merge pipeline to ensure all default fields are present
+                    callback(loadData(importedYear));
                 } else {
                     _notify("Invalid data format. Expected fields (income, generalExpenses, wfh, taxpayerDetails) not found. Is this an Aussie Tax Helper export?");
                 }

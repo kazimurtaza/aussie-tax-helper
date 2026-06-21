@@ -219,19 +219,24 @@ const UIManager = (() => {
                 ? `${prop.fromDate} → ${prop.toDate}`
                 : prop.fromDate || prop.toDate || '—';
             const desc = prop.description || `Property ${index + 1}`;
+            const esc = TaxCalculations.escapeHtml;
             const row = listEl.insertRow();
             row.innerHTML = `
                 <td class="p-2 border-b border-gray-200 text-sm font-semibold">${index + 1}</td>
-                <td class="p-2 border-b border-gray-200 text-sm">${desc}</td>
-                <td class="p-2 border-b border-gray-200 text-sm text-gray-600">${period}</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${esc(desc)}</td>
+                <td class="p-2 border-b border-gray-200 text-sm text-gray-600">${esc(period)}</td>
                 <td class="p-2 border-b border-gray-200 text-sm">${prop.officeArea || 0}m² / ${prop.totalHomeArea || 0}m²</td>
                 <td class="p-2 border-b border-gray-200 text-sm">${floorPct}</td>
                 <td class="p-2 border-b border-gray-200 text-sm font-semibold">${formatCurrency(deduction)}</td>
                 <td class="p-2 border-b border-gray-200 text-sm">
-                    <button class="text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2" onclick="App.editWfhProperty('${prop.id}')">Edit</button>
-                    <button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeWfhProperty('${prop.id}')">Remove</button>
+                    <button class="text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2" data-prop-id="${esc(prop.id)}" data-action="edit">Edit</button>
+                    <button class="text-red-500 hover:text-red-700 text-xs font-semibold" data-prop-id="${esc(prop.id)}" data-action="remove">Remove</button>
                 </td>
             `;
+            row.querySelectorAll('[data-action="edit"]').forEach(btn =>
+                btn.addEventListener('click', () => App.editWfhProperty(btn.dataset.propId)));
+            row.querySelectorAll('[data-action="remove"]').forEach(btn =>
+                btn.addEventListener('click', () => App.removeWfhProperty(btn.dataset.propId)));
         });
         document.getElementById('wfh-running-expenses-subtotal').textContent = formatCurrency(runningTotal);
     };
@@ -334,16 +339,27 @@ const UIManager = (() => {
             const methodDisplay = exp.isDepreciable ? (exp.depreciationMethod === 'prime_cost' ? 'Prime Cost' : 'Diminishing') : 'N/A';
 
             const row = listEl.insertRow();
+            const esc = TaxCalculations.escapeHtml;
             row.innerHTML = `
-                <td class="p-2 border-b border-gray-200 text-sm">${exp.description}</td>
-                <td class="p-2 border-b border-gray-200 text-sm">${exp.date}</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${esc(exp.description)}</td>
+                <td class="p-2 border-b border-gray-200 text-sm">${esc(exp.date)}</td>
                 <td class="p-2 border-b border-gray-200 text-sm">${formatCurrency(exp.cost)}</td>
                 <td class="p-2 border-b border-gray-200 text-sm">${exp.workPercentage}%</td>
                 <td class="p-2 border-b border-gray-200 text-sm">${methodDisplay}</td>
                 <td class="p-2 border-b border-gray-200 text-sm font-semibold">${formatCurrency(deduction)}</td>
                 <td class="p-2 border-b border-gray-200 text-xs">${claimScheduleHtml}</td>
-                <td class="p-2 border-b border-gray-200 text-sm"><button class="text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2" onclick="App.editGeneralExpense('${exp.id}')">Edit</button><button class="text-purple-500 hover:text-purple-700 text-xs font-semibold mr-2" onclick="App.moveExpenseToWfh('${exp.id}')">→ WFH</button><button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="App.removeGeneralExpense('${exp.id}')">Remove</button></td>
+                <td class="p-2 border-b border-gray-200 text-sm">
+                    <button class="text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2" data-exp-id="${esc(exp.id)}" data-action="edit">Edit</button>
+                    <button class="text-purple-500 hover:text-purple-700 text-xs font-semibold mr-2" data-exp-id="${esc(exp.id)}" data-action="move-wfh">→ WFH</button>
+                    <button class="text-red-500 hover:text-red-700 text-xs font-semibold" data-exp-id="${esc(exp.id)}" data-action="remove">Remove</button>
+                </td>
             `;
+            row.querySelectorAll('[data-action="edit"]').forEach(btn =>
+                btn.addEventListener('click', () => App.editGeneralExpense(btn.dataset.expId)));
+            row.querySelectorAll('[data-action="move-wfh"]').forEach(btn =>
+                btn.addEventListener('click', () => App.moveExpenseToWfh(btn.dataset.expId)));
+            row.querySelectorAll('[data-action="remove"]').forEach(btn =>
+                btn.addEventListener('click', () => App.removeGeneralExpense(btn.dataset.expId)));
         });
     };
 
@@ -392,11 +408,15 @@ const UIManager = (() => {
         [...assets].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach((asset, index) => {
             const row = listEl.insertRow();
 
-            const createCell = (content, classes = []) => {
+            const createCell = (content, classes = [], isHtml = false) => {
                 const cell = document.createElement('td');
                 cell.className = 'p-2 border-b border-gray-200 text-sm';
                 classes.forEach(c => cell.classList.add(c));
-                cell.innerHTML = content;
+                if (isHtml) {
+                    cell.innerHTML = content;
+                } else {
+                    cell.textContent = String(content);
+                }
                 return cell;
             };
 
@@ -417,7 +437,7 @@ const UIManager = (() => {
             row.appendChild(createCell(`${workPercentage}%`));
             row.appendChild(createCell(methodDisplay));
             row.appendChild(createCell(formatCurrency(deduction), ['font-semibold']));
-            row.appendChild(createCell(claimScheduleHtml, ['text-xs']));
+            row.appendChild(createCell(claimScheduleHtml, ['text-xs'], true));
 
             const actionsCell = document.createElement('td');
             actionsCell.className = 'p-2 border-b border-gray-200 text-sm';

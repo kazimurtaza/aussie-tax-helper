@@ -13,10 +13,17 @@ const TaxCalculations = (() => {
         return paygIncome + otherIncome;
     };
     
+        // Compute actual days in a financial year (366 for leap years like 2023-24, 2027-28).
+    const daysInFY = (fyStartYear) => {
+        const fyEnd = new Date(fyStartYear + 1, 5, 30);
+        const fyStart = new Date(fyStartYear, 6, 1);
+        return Math.floor((fyEnd - fyStart) / 86400000) + 1;
+    };
+
     const calculateDepreciationForFinancialYear = (cost, workPercentage, effectiveLifeYears, purchaseDateString, method = 'prime_cost') => {
         const numCost = parseFloat(cost || 0);
         const numEffectiveLife = parseInt(effectiveLifeYears || 0);
-        const numWorkPercentage = parseInt(workPercentage || 0);
+        const numWorkPercentage = parseFloat(workPercentage || 0);
 
         if (numCost <= 0) return 0;
         
@@ -49,7 +56,7 @@ const TaxCalculations = (() => {
             // Pro-rate the acquisition year deduction, then apply full DV for each subsequent FY.
             const acqDaysOwned = Math.floor((acqFYEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
             const acqAnnualDepr = numEffectiveLife <= 1 ? openingValue : openingValue * (2 / numEffectiveLife);
-            openingValue = Math.max(0, openingValue - acqAnnualDepr * (acqDaysOwned / 365));
+            openingValue = Math.max(0, openingValue - acqAnnualDepr * (acqDaysOwned / daysInFY(acqFYStartYear)));
 
             const completeFYs = yearStart - (acqFYStartYear + 1);
             for (let i = 0; i < completeFYs; i++) {
@@ -68,9 +75,8 @@ const TaxCalculations = (() => {
         const workRelatedDepreciation = annualDepreciation * (numWorkPercentage / 100);
 
         if (purchaseDate >= financialYearStart && purchaseDate <= financialYearEnd) {
-            const daysInYear = 365;
             const daysOwned = Math.floor((financialYearEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
-            const proRataFactor = Math.max(0, daysOwned / daysInYear);
+            const proRataFactor = Math.max(0, daysOwned / daysInFY(yearStart));
             return workRelatedDepreciation * proRataFactor;
         }
         
@@ -238,6 +244,9 @@ const TaxCalculations = (() => {
     };
     
     const calculatePhiOffset = (taxableIncome, taxpayerDetails) => {
+        if (!taxpayerDetails) {
+            return 0;
+        }
         const { phiAgeBracket, phiPremiumsPaid_period1, phiPremiumsPaid_period2, phiRebateReceived, filingStatus, spouseIncome } = taxpayerDetails;
         if ((phiPremiumsPaid_period1 || 0) <= 0 && (phiPremiumsPaid_period2 || 0) <= 0) {
             return 0;
@@ -330,10 +339,11 @@ const TaxCalculations = (() => {
             if (i === 0) {
                 const acqFYEnd = new Date(acqFYStartYear + 1, 5, 30);
                 const daysOwned = Math.floor((acqFYEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
-                if (daysOwned < 365) {
-                    proRataFactor = daysOwned / 365;
+                const acqFYDays = daysInFY(acqFYStartYear);
+                if (daysOwned < acqFYDays) {
+                    proRataFactor = daysOwned / acqFYDays;
                     const dvRate = isDV ? ` · ${life <= 1 ? 100 : Math.round(200 / life)}% DV/yr` : ` · ${Math.round(100 / life)}% PC/yr`;
-                    proRataNote = ` <span style="opacity:0.55;font-size:0.8em">(${daysOwned}/365 days${dvRate})</span>`;
+                    proRataNote = ` <span style="opacity:0.55;font-size:0.8em">(${daysOwned}/${acqFYDays} days${dvRate})</span>`;
                 }
             }
 
@@ -365,7 +375,8 @@ const TaxCalculations = (() => {
         calculateWfhActualCostDeduction,
         calculateWfhRunningExpensesDeduction,
         calculateWfhAssetsDeduction,
-        generateDepreciationSchedule
+        generateDepreciationSchedule,
+        escapeHtml
     };
 })();
 

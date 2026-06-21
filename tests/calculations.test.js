@@ -539,6 +539,14 @@ describe('calculatePhiOffset — 2024-2025', () => {
         expect(TaxCalculations.calculatePhiOffset(80000, td)).toBeCloseTo(10000 * 0.32812, 4);
     });
 
+    test('returns 0 for null taxpayerDetails', () => {
+        expect(TaxCalculations.calculatePhiOffset(80000, null)).toBe(0);
+    });
+
+    test('returns 0 for undefined taxpayerDetails', () => {
+        expect(TaxCalculations.calculatePhiOffset(80000, undefined)).toBe(0);
+    });
+
     test('Tier 1 income (single, 2024-25): income $100,000 → tier1 rate applied', () => {
         // Single MLS Tier 1: $97,001-$113,000 → income $100,000 is tier1
         // under65 tier1 Period 1: 0.16405
@@ -664,6 +672,11 @@ describe('calculateDepreciationForFinancialYear', () => {
     test('prime cost: 50% work-related', () => {
         // 1000 / 5 * (50/100) = 100
         expect(depr(1000, 50, 5, '2024-07-01', 'prime_cost')).toBeCloseTo(100, 2);
+    });
+
+    test('fractional work percentage is not truncated', () => {
+        // 1000 / 5 * (33.5/100) = 67.00 (not 66.00 from parseInt truncation)
+        expect(depr(1000, 33.5, 5, '2024-07-01', 'prime_cost')).toBeCloseTo(67.00, 2);
     });
 
     test('prime cost: partial year (purchased 2025-01-01)', () => {
@@ -1151,10 +1164,10 @@ describe('calculateDepreciationForFinancialYear — DV prior-year opening value'
     test('DV: asset purchased Jul 2023, FY 2024-25 — full acquisition FY then no complete FYs', () => {
         // acqFY = 2023-24 (month=6 ≥ 6 → acqFYStartYear = 2023)
         // acqFYEnd = 2024-06-30; acqDaysOwned = 366 (2024 is leap year)
-        // acqDepr = 1000*(2/5)*(366/365) = 401.10; openingValue = 598.90
+        // daysInFY(2023) = 366 → acqDepr = 1000*(2/5)*(366/366) = 400.00; openingValue = 600.00
         // completeFYs = 2024 - (2023+1) = 0
-        // FY 2024-25 deduction = 598.90*(2/5) = 239.56
-        expect(depr(1000, 100, 5, '2023-07-01')).toBeCloseTo(239.56, 1);
+        // FY 2024-25 deduction = 600.00*(2/5) = 240.00
+        expect(depr(1000, 100, 5, '2023-07-01')).toBeCloseTo(240.00, 1);
     });
 
     test('DV: effectiveLife=1 in prior-year loop — fully depreciated in acquisition year', () => {
