@@ -630,6 +630,24 @@
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
                     <div>
+                        <h4 class="font-semibold">Version 1.6.0</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Depreciation pro-rata calculations now use actual days in the financial year (366 for leap years like 2023-24, 2027-28) instead of hardcoded 365.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> <code>calculatePhiOffset</code> no longer crashes when <code>taxpayerDetails</code> is <code>null</code> or <code>undefined</code>.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> XSS vulnerability — user-supplied text (property descriptions, expense names, dates, IDs) in tables is now HTML-escaped. Inline <code>onclick</code> handlers replaced with <code>addEventListener</code> to eliminate ID-injection vector.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> CSV import now skips dates that already exist, preventing accidental double-counting when re-importing the same file.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Internet work percentage input now clamped to 0–100% range (previously <code>parseInt</code> allowed values above 100).</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Optional chaining guard in storage migration prevents crash on malformed data missing <code>wfh.hoursLog</code>.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> Import pipeline now runs data migration per-year and loads through the full merge pipeline, ensuring all default fields are present in imported data.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> Legacy single-year imports now validate the financial year and reject unsupported years with a clear error message.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> Export warns when years with corrupted localStorage data are skipped during multi-year export.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> Fractional work percentages (e.g. 33.5%) are now preserved instead of truncated by <code>parseInt</code>.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> Clear All Data no longer writes empty defaults back to localStorage — the key is truly removed.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> 205-test Jest suite (up from 200) — new tests for null PHI offset, fractional work percentage, and updated leap-year diminishing value expectations.</li>
+                            <li><strong class="font-medium text-blue-600">Chore:</strong> Upgraded Jest from v29 to v30.</li>
+                        </ul>
+                    </div>
+                    <div>
                         <h4 class="font-semibold">Version 1.5.4</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
                             <li><strong class="font-medium text-red-600">Fixed:</strong> Removed debug <code>console.log</code> statements from WFH asset removal flow.</li>
