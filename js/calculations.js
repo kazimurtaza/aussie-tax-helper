@@ -157,7 +157,7 @@ const TaxCalculations = (() => {
     const calculateGrossTax = (taxableIncome) => {
         const income = Math.floor(taxableIncome);
         if (income <= 18200) return 0;
-        const bracket = window.TAX_RATES_2025.slice().reverse().find(b => income >= b.min);
+        const bracket = window.TAX_RATES.slice().reverse().find(b => income >= b.min);
         if (!bracket) return 0;
         return bracket.base + ((income - (bracket.min - 1)) * bracket.rate);
     };

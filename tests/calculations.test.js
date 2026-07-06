@@ -135,6 +135,58 @@ describe('calculateGrossTax', () => {
 });
 
 // ─────────────────────────────────────────────
+// calculateGrossTax — 2026-27 (16% bracket cut to 15%)
+// ─────────────────────────────────────────────
+describe('calculateGrossTax — 2026-2027', () => {
+    beforeEach(() => loadConstantsForYear('2026-2027'));
+
+    test('at tax-free threshold ($18,200) → zero tax', () => {
+        expect(TaxCalculations.calculateGrossTax(18200)).toBe(0);
+    });
+
+    test('$18,201 (first dollar of 15% bracket)', () => {
+        expect(TaxCalculations.calculateGrossTax(18201)).toBeCloseTo(0.15, 5);
+    });
+
+    test('$45,000 (top of 15% bracket) → $4,020', () => {
+        // (45000 - 18200) * 0.15 = 4020
+        expect(TaxCalculations.calculateGrossTax(45000)).toBeCloseTo(4020, 2);
+    });
+
+    test('$45,001 (first dollar of 30% bracket)', () => {
+        expect(TaxCalculations.calculateGrossTax(45001)).toBeCloseTo(4020.30, 2);
+    });
+
+    test('$80,000 in 30% bracket → $14,520', () => {
+        // 4020 + (80000 - 45000) * 0.30 = 14520
+        expect(TaxCalculations.calculateGrossTax(80000)).toBeCloseTo(14520, 2);
+    });
+
+    test('$135,000 (top of 30% bracket) → $31,020', () => {
+        expect(TaxCalculations.calculateGrossTax(135000)).toBeCloseTo(31020, 2);
+    });
+
+    test('$190,000 (top of 37% bracket) → $51,370', () => {
+        // 31020 + (190000 - 135000) * 0.37 = 51370
+        expect(TaxCalculations.calculateGrossTax(190000)).toBeCloseTo(51370, 2);
+    });
+
+    test('$250,000 (45% bracket) → $78,370', () => {
+        // 51370 + (250000 - 190000) * 0.45 = 78370
+        expect(TaxCalculations.calculateGrossTax(250000)).toBeCloseTo(78370, 2);
+    });
+
+    test('2026-27 tax differs from 2025-26 (15% vs 16% bracket)', () => {
+        loadConstantsForYear('2025-2026');
+        const tax2526 = TaxCalculations.calculateGrossTax(80000);
+        loadConstantsForYear('2026-2027');
+        const tax2627 = TaxCalculations.calculateGrossTax(80000);
+        expect(tax2526).toBeCloseTo(14788, 2);
+        expect(tax2627).toBeCloseTo(14520, 2);
+    });
+});
+
+// ─────────────────────────────────────────────
 // calculateLITO
 // ─────────────────────────────────────────────
 describe('calculateLITO', () => {
@@ -468,6 +520,37 @@ describe('calculateMLS — 2025-2026 single (fixed MLS tier caps)', () => {
 
     test('income $300,000 → Tier 3 (1.5%)', () => {
         expect(TaxCalculations.calculateMLS(300000, singleTaxpayer())).toBeCloseTo(300000 * 0.015, 2);
+    });
+});
+
+// ─────────────────────────────────────────────
+// calculateMLS — 2026-2027 (indexed tier thresholds)
+// ─────────────────────────────────────────────
+describe('calculateMLS — 2026-2027', () => {
+    beforeEach(() => loadConstantsForYear('2026-2027'));
+
+    test('single income $105,000 (at base threshold) → zero', () => {
+        expect(TaxCalculations.calculateMLS(105000, singleTaxpayer())).toBe(0);
+    });
+
+    test('single income $105,001 → Tier 1 (1%)', () => {
+        expect(TaxCalculations.calculateMLS(105001, singleTaxpayer())).toBeCloseTo(105001 * 0.01, 2);
+    });
+
+    test('single income $123,001 → Tier 2 (1.25%)', () => {
+        expect(TaxCalculations.calculateMLS(123001, singleTaxpayer())).toBeCloseTo(123001 * 0.0125, 2);
+    });
+
+    test('single income $164,001 → Tier 3 (1.5%)', () => {
+        expect(TaxCalculations.calculateMLS(164001, singleTaxpayer())).toBeCloseTo(164001 * 0.015, 2);
+    });
+
+    test('family income $210,000 (at base threshold) → zero', () => {
+        expect(TaxCalculations.calculateMLS(210000, familyTaxpayer())).toBe(0);
+    });
+
+    test('family income $210,001 → Tier 1 (1%)', () => {
+        expect(TaxCalculations.calculateMLS(210001, familyTaxpayer())).toBeCloseTo(210001 * 0.01, 2);
     });
 });
 
@@ -1090,20 +1173,21 @@ describe('Integration — full tax scenarios', () => {
 // constants.js: TAX_CONFIG structure validation
 // ─────────────────────────────────────────────
 describe('TAX_CONFIG structure', () => {
-    test('both years exist', () => {
+    test('all configured years exist', () => {
         expect(TAX_CONFIG['2024-2025']).toBeDefined();
         expect(TAX_CONFIG['2025-2026']).toBeDefined();
+        expect(TAX_CONFIG['2026-2027']).toBeDefined();
     });
 
     test('AVAILABLE_YEARS is sorted', () => {
-        expect(AVAILABLE_YEARS).toEqual(['2024-2025', '2025-2026']);
+        expect(AVAILABLE_YEARS).toEqual(['2024-2025', '2025-2026', '2026-2027']);
     });
 
-    test('LATEST_YEAR is 2025-2026', () => {
-        expect(LATEST_YEAR).toBe('2025-2026');
+    test('LATEST_YEAR is 2026-2027', () => {
+        expect(LATEST_YEAR).toBe('2026-2027');
     });
 
-    test.each(['2024-2025', '2025-2026'])('%s has all required keys', (year) => {
+    test.each(Object.keys(TAX_CONFIG))('%s has all required keys', (year) => {
         const cfg = TAX_CONFIG[year];
         const requiredKeys = [
             'TAX_RATES', 'LITO_MAX_OFFSET', 'LITO_THRESHOLD_1',
@@ -1116,8 +1200,13 @@ describe('TAX_CONFIG structure', () => {
         requiredKeys.forEach(key => expect(cfg).toHaveProperty(key));
     });
 
-    test.each(['2024-2025', '2025-2026'])('%s has 5 tax brackets', (year) => {
+    test.each(Object.keys(TAX_CONFIG))('%s has 5 tax brackets', (year) => {
         expect(TAX_CONFIG[year].TAX_RATES).toHaveLength(5);
+    });
+
+    test('2026-2027 carries forward 2025-26 Medicare thresholds until the 2027 Budget', () => {
+        expect(TAX_CONFIG['2026-2027'].MEDICARE_LEVY_THRESHOLD_SINGLE).toBe(28011);
+        expect(TAX_CONFIG['2026-2027'].MEDICARE_LEVY_THRESHOLD_FAMILY).toBe(47238);
     });
 
     test.each([
@@ -1158,6 +1247,32 @@ describe('TAX_CONFIG structure', () => {
     test('2025-2026 PHI Period 2 under65 base rate is 0.24118', () => {
         const period2 = TAX_CONFIG['2025-2026'].PHI_REBATE_RATES_PERIODS['2026-04-01_2026-06-30'];
         expect(period2.under65.base).toBeCloseTo(0.24118, 5);
+    });
+
+    test('2026-2027 has correct MLS tier caps (single 105k/123k/164k, family 210k/246k/328k)', () => {
+        const single = TAX_CONFIG['2026-2027'].MLS_THRESHOLDS_SINGLE;
+        expect(single[0].max).toBe(105000);
+        expect(single[1].max).toBe(123000);
+        expect(single[2].max).toBe(164000);
+        const family = TAX_CONFIG['2026-2027'].MLS_THRESHOLDS_FAMILY;
+        expect(family[0].max).toBe(210000);
+        expect(family[1].max).toBe(246000);
+        expect(family[2].max).toBe(328000);
+    });
+
+    test('2026-2027 has the two expected PHI rebate periods (Apr-2026 rates carried in)', () => {
+        const periods = TAX_CONFIG['2026-2027'].PHI_REBATE_RATES_PERIODS;
+        expect(Object.keys(periods).sort()).toEqual(['2026-07-01_2027-03-31', '2027-04-01_2027-06-30']);
+        expect(periods['2026-07-01_2027-03-31'].under65.base).toBeCloseTo(0.24118, 5);
+        expect(periods['2027-04-01_2027-06-30'].under65.base).toBeCloseTo(0.24118, 5);
+    });
+
+    test('2026-2027 tax table uses the 15% rate with rebased bracket bases', () => {
+        const rates = TAX_CONFIG['2026-2027'].TAX_RATES;
+        expect(rates[1].rate).toBeCloseTo(0.15, 5);
+        expect(rates[2].base).toBe(4020);
+        expect(rates[3].base).toBe(31020);
+        expect(rates[4].base).toBe(51370);
     });
 
     test('loadConstantsForYear sets window.FINANCIAL_YEAR', () => {
