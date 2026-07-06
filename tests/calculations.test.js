@@ -491,6 +491,14 @@ describe('calculateMLS — 2024-2025 single', () => {
 // ─────────────────────────────────────────────
 // calculateMLS — 2025-2026 single (MEDIUM fix)
 // ─────────────────────────────────────────────
+describe('calculateMLS — fractional income at tier boundary', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    test('single income $97,000.99 is floored to $97,000 → base tier, no surcharge', () => {
+        expect(TaxCalculations.calculateMLS(97000.99, singleTaxpayer())).toBe(0);
+    });
+});
+
 describe('calculateMLS — 2025-2026 single (fixed MLS tier caps)', () => {
     beforeEach(() => loadConstantsForYear('2025-2026'));
 
@@ -681,6 +689,22 @@ describe('calculatePhiOffset — 2024-2025', () => {
         // under65 tier1 Period 1: 0.16405
         const td = singleTaxpayer({ phiPremiumsPaid_period1: 10000 });
         expect(TaxCalculations.calculatePhiOffset(100000, td)).toBeCloseTo(10000 * 0.16405, 4);
+    });
+
+    test('REGRESSION: fractional income at a tier boundary no longer falls back to base rate', () => {
+        // Income $113,000.50 sat in the $1 gap between tier1 (≤113,000) and
+        // tier2 (≥113,001) integer checks and wrongly got the base rebate.
+        // Floored to 113,000 → tier1 (0.16405), not base (0.24608).
+        const td = singleTaxpayer({ phiPremiumsPaid_period1: 10000 });
+        expect(TaxCalculations.calculatePhiOffset(113000.50, td)).toBeCloseTo(10000 * 0.16405, 4);
+    });
+
+    test('REGRESSION: PHI tier applies the MLS dependent-child adjustment', () => {
+        // Family, 3 children → tier minima shift by 2 × $1,500 = $3,000.
+        // Income $195,000 < shifted tier1 min $197,001 → base rate, matching
+        // calculateMLS (old code used unshifted thresholds → tier1).
+        const td = familyTaxpayer({ dependentChildren: 3, phiPremiumsPaid_period1: 10000 });
+        expect(TaxCalculations.calculatePhiOffset(195000, td)).toBeCloseTo(10000 * 0.24608, 4);
     });
 
     test('Tier 2 income (single, 2024-25): income $120,000 → tier2 rate applied', () => {

@@ -213,34 +213,39 @@ const TaxCalculations = (() => {
          return taxableIncome + (parseFloat(taxpayerDetails.reportableFringeBenefits) || 0) + (parseFloat(taxpayerDetails.personalSuperContribution) || 0);
     }
 
+    const MLS_TIER_NAMES = ['base', 'tier1', 'tier2', 'tier3'];
+
+    // Single source of truth for MLS/PHI income-tier determination. Tier
+    // tables use integer boundaries, so income is floored to whole dollars;
+    // family tier minima shift by (children - 1) x MLS_CHILD_ADJUSTMENT.
+    const getMlsTier = (incomeForTest, taxpayerDetails) => {
+        const income = Math.floor(incomeForTest);
+        const isFamily = taxpayerDetails.filingStatus === 'family';
+        const childAdjustment = isFamily && taxpayerDetails.dependentChildren > 1
+            ? (taxpayerDetails.dependentChildren - 1) * window.MLS_CHILD_ADJUSTMENT
+            : 0;
+        const tiers = isFamily ? window.MLS_THRESHOLDS_FAMILY : window.MLS_THRESHOLDS_SINGLE;
+        for (let i = tiers.length - 1; i >= 1; i--) {
+            if (income >= tiers[i].min + childAdjustment) {
+                return { index: i, rate: tiers[i].rate };
+            }
+        }
+        return { index: 0, rate: tiers[0].rate };
+    };
+
     const calculateMLS = (taxableIncome, taxpayerDetails) => {
         if (!taxpayerDetails || taxpayerDetails.hasPrivateHospitalCover) {
             return 0;
         }
-        
+
         const incomeForMls = getIncomeForMls(taxableIncome, taxpayerDetails);
-        let surchargeRate = 0;
+        const testIncome = taxpayerDetails.filingStatus === 'family'
+            ? incomeForMls + (parseFloat(taxpayerDetails.spouseIncome) || 0)
+            : incomeForMls;
 
-        if (taxpayerDetails.filingStatus === 'family') {
-            const familyIncomeForMls = incomeForMls + (parseFloat(taxpayerDetails.spouseIncome) || 0);
-            const childAdjustment = taxpayerDetails.dependentChildren > 1
-                ? (taxpayerDetails.dependentChildren - 1) * window.MLS_CHILD_ADJUSTMENT
-                : 0;
-
-            const familyThresholds = window.MLS_THRESHOLDS_FAMILY.map(tier => ({
-                ...tier,
-                min: tier.min > 0 ? tier.min + childAdjustment : 0,
-                max: tier.max !== Infinity ? tier.max + childAdjustment : Infinity,
-            }));
-            
-            const bracket = familyThresholds.slice().reverse().find(b => familyIncomeForMls >= b.min);
-            if (bracket) surchargeRate = bracket.rate;
-        } else {
-            const bracket = window.MLS_THRESHOLDS_SINGLE.slice().reverse().find(b => incomeForMls >= b.min);
-            if (bracket) surchargeRate = bracket.rate;
-        }
-
-        return incomeForMls * surchargeRate;
+        // Tier is set by family income; the surcharge applies to the individual's own MLS income
+        const { rate } = getMlsTier(testIncome, taxpayerDetails);
+        return incomeForMls * rate;
     };
     
     const calculatePhiOffset = (taxableIncome, taxpayerDetails) => {
@@ -255,15 +260,7 @@ const TaxCalculations = (() => {
         const incomeForPhi = getIncomeForMls(taxableIncome, taxpayerDetails);
         const totalIncome = filingStatus === 'family' ? incomeForPhi + (parseFloat(spouseIncome) || 0) : incomeForPhi;
 
-        const thresholds = filingStatus === 'family' ? window.MLS_THRESHOLDS_FAMILY : window.MLS_THRESHOLDS_SINGLE;
-        let incomeTier = 'base';
-        if (totalIncome >= thresholds[1].min && totalIncome <= thresholds[1].max) {
-            incomeTier = 'tier1';
-        } else if (totalIncome >= thresholds[2].min && totalIncome <= thresholds[2].max) {
-            incomeTier = 'tier2';
-        } else if (totalIncome >= thresholds[3].min) {
-            incomeTier = 'tier3';
-        }
+        const incomeTier = MLS_TIER_NAMES[getMlsTier(totalIncome, taxpayerDetails).index];
 
         const periodKeys = Object.keys(window.PHI_REBATE_RATES_PERIODS).sort();
         const rebateRatePeriod1 = window.PHI_REBATE_RATES_PERIODS[periodKeys[0]][phiAgeBracket][incomeTier];
