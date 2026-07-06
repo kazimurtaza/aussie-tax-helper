@@ -630,6 +630,22 @@
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
                     <div>
+                        <h4 class="font-semibold">Version 1.7.0</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-green-600">Added:</strong> FY 2026-27 support — 15% bracket (down from 16%, legislated from 1 July 2026), indexed MLS thresholds ($105k/$123k/$164k single, $210k/$246k/$328k family), PHI rebate periods, and the confirmed 70c/hr WFH fixed rate.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> 2025-26 Medicare levy low-income thresholds updated per the March 2026 Budget (single $28,011, family $47,238, +$4,338 per child — retroactive to 1 July 2025). Previously the 2024-25 figures were applied.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Family Medicare levy phase-in upper limit now scales by $5,270/$5,423 per child (1.25× the lower adjustment) — families with children in the phase-in band were overcharged the flat 2% levy.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> PHI rebate tier now applies the same dependent-child threshold adjustment as the MLS, and fractional incomes at tier boundaries no longer fall back to the base rebate rate.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> LITO no longer offsets the Medicare levy (it is non-refundable and applies to income tax only); franking credits and the PHI offset are now fully refundable and can increase your refund.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Prime-cost depreciation stops once an asset is fully written off — prior-year assets no longer generate deductions forever, and the claim now matches the displayed schedule.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> An over-claimed PHI rebate (rebate received above entitlement) is now counted as a liability instead of being ignored.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> An explicit 0% work-use percentage is preserved instead of being coerced to 100%.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> Export All Years now includes stored data for years this version can't display yet, and import notifies you when such a year is saved.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> Medicare exemption pro-rata uses the actual days in the financial year (366 in leap FYs); tax-free threshold is derived from the active year's bracket table.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> Test suite grown to 243 tests (up from 205) covering the new year, thresholds, and regressions.</li>
+                        </ul>
+                    </div>
+                    <div>
                         <h4 class="font-semibold">Version 1.6.0</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
                             <li><strong class="font-medium text-red-600">Fixed:</strong> Depreciation pro-rata calculations now use actual days in the financial year (366 for leap years like 2023-24, 2027-28) instead of hardcoded 365.</li>
