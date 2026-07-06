@@ -92,6 +92,19 @@ const TaxCalculations = (() => {
         return workRelatedDepreciation;
     };
 
+    // Deduction for a single expense/asset in the active FY. Non-depreciable
+    // items claim cost x work%; depreciable items go through the depreciation
+    // engine. An explicit 0% work-use is honoured; only a missing value takes
+    // the fallback (0 for general expenses, 100 for WFH assets).
+    const calculateItemDeduction = (item, fallbackWorkPct = 0) => {
+        if (item.isDepreciable) {
+            return calculateDepreciationForFinancialYear(item.cost, item.workPercentage, item.effectiveLife, item.date, item.depreciationMethod);
+        }
+        const raw = item.workPercentage;
+        const workPct = (raw === undefined || raw === null || raw === '') ? fallbackWorkPct : (parseFloat(raw) || 0);
+        return parseFloat(item.cost || 0) * (workPct / 100);
+    };
+
     const calculateTotalGeneralDeductions = (generalExpenses) => {
         const financialYearEnd = new Date(parseInt(window.FINANCIAL_YEAR.split('-')[1]), 5, 30);
         return generalExpenses
@@ -99,12 +112,7 @@ const TaxCalculations = (() => {
                 const [ey, em, ed] = exp.date.split('-').map(Number);
                 return new Date(ey, em - 1, ed) <= financialYearEnd;
             })
-            .reduce((total, exp) => {
-                const deduction = exp.isDepreciable 
-                    ? calculateDepreciationForFinancialYear(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
-                    : (parseFloat(exp.cost || 0) * (parseFloat(exp.workPercentage || 0) / 100));
-                return total + deduction;
-            }, 0);
+            .reduce((total, exp) => total + calculateItemDeduction(exp, 0), 0);
     };
 
     const calculateWfhRunningExpensesDeduction = (details) => {
@@ -123,12 +131,7 @@ const TaxCalculations = (() => {
 
     const calculateWfhAssetsDeduction = (assets) => {
         if (!assets || assets.length === 0) return 0;
-        return assets.reduce((total, asset) => {
-            const deduction = asset.isDepreciable
-                ? calculateDepreciationForFinancialYear(asset.cost, asset.workPercentage, asset.effectiveLife, asset.date, asset.depreciationMethod)
-                : (parseFloat(asset.cost || 0) * (parseFloat(asset.workPercentage || 100) / 100));
-            return total + deduction;
-        }, 0);
+        return assets.reduce((total, asset) => total + calculateItemDeduction(asset, 100), 0);
     };
 
     const calculateWfhActualCostDeduction = (details) => {
@@ -303,6 +306,41 @@ const TaxCalculations = (() => {
         return totalTaxWithheld - netTaxPayable;
     };
 
+    // Full calculation breakdown for one year's data under the active FY
+    // constants — drives the summary UI and is embedded in exports so an
+    // accountant sees the derived figures, not just the raw inputs.
+    const calculateYearSummary = (appData) => {
+        const totalAssessableIncome = calculateTotalAssessableIncome(appData.income);
+        const totalTaxWithheld = appData.income.payg.reduce((sum, item) => sum + (parseFloat(item.taxWithheld) || 0), 0);
+        const totalGeneralDeductions = calculateTotalGeneralDeductions(appData.generalExpenses);
+        const totalWfhDeductions = calculateTotalWfhDeductions(appData.wfh);
+        const totalSuperDeductions = parseFloat(appData.taxpayerDetails.personalSuperContribution) || 0;
+        const overallTotalDeductions = totalGeneralDeductions + totalWfhDeductions + totalSuperDeductions;
+        const taxableIncome = calculateTaxableIncome(appData);
+        const grossTax = calculateGrossTax(taxableIncome);
+        const medicareLevy = calculateMedicareLevy(taxableIncome, appData.taxpayerDetails);
+        const mls = calculateMLS(taxableIncome, appData.taxpayerDetails);
+        const offsets = calculateTotalOffsets(taxableIncome, appData);
+        const netTaxPayable = calculateNetTaxPayable(grossTax, medicareLevy, mls, offsets);
+        const finalOutcome = calculateFinalOutcome(totalTaxWithheld, netTaxPayable);
+        return {
+            financialYear: window.FINANCIAL_YEAR,
+            totalAssessableIncome,
+            totalTaxWithheld,
+            totalGeneralDeductions,
+            totalWfhDeductions,
+            totalSuperDeductions,
+            overallTotalDeductions,
+            taxableIncome,
+            grossTax,
+            medicareLevy,
+            mls,
+            offsets,
+            netTaxPayable,
+            finalOutcome,
+        };
+    };
+
     const escapeHtml = (str) => String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -381,6 +419,8 @@ const TaxCalculations = (() => {
         calculateTotalOffsets,
         calculateNetTaxPayable,
         calculateFinalOutcome,
+        calculateYearSummary,
+        calculateItemDeduction,
         calculateDepreciationForFinancialYear,
         calculateWfhActualCostDeduction,
         calculateWfhRunningExpensesDeduction,

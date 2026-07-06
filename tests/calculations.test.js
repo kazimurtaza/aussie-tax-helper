@@ -1145,6 +1145,86 @@ describe('calculateTotalOffsets', () => {
 });
 
 // ─────────────────────────────────────────────
+// calculateItemDeduction
+// ─────────────────────────────────────────────
+describe('calculateItemDeduction', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    test('non-depreciable: cost × work%', () => {
+        expect(TaxCalculations.calculateItemDeduction({ cost: 1000, workPercentage: 50 })).toBeCloseTo(500, 2);
+    });
+
+    test('explicit 0% work-use → zero deduction, even with a 100 fallback (WFH asset path)', () => {
+        // Old WFH reduce used `workPercentage || 100`, silently claiming 100%
+        expect(TaxCalculations.calculateItemDeduction({ cost: 1000, workPercentage: 0 }, 100)).toBe(0);
+    });
+
+    test('missing work% takes the fallback (100 for WFH assets, 0 for general)', () => {
+        expect(TaxCalculations.calculateItemDeduction({ cost: 1000 }, 100)).toBeCloseTo(1000, 2);
+        expect(TaxCalculations.calculateItemDeduction({ cost: 1000 }, 0)).toBe(0);
+    });
+
+    test('depreciable item routes through the depreciation engine', () => {
+        const item = { cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 5, date: '2024-07-01', depreciationMethod: 'prime_cost' };
+        expect(TaxCalculations.calculateItemDeduction(item)).toBeCloseTo(200, 2);
+    });
+});
+
+// ─────────────────────────────────────────────
+// calculateYearSummary (drives summary UI + exports)
+// ─────────────────────────────────────────────
+describe('calculateYearSummary', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    test('default scenario: $80k salary, $18k withheld, no deductions', () => {
+        const s = TaxCalculations.calculateYearSummary(makeAppData());
+        expect(s.financialYear).toBe('2024-2025');
+        expect(s.totalAssessableIncome).toBe(80000);
+        expect(s.totalTaxWithheld).toBe(18000);
+        expect(s.overallTotalDeductions).toBe(0);
+        expect(s.taxableIncome).toBe(80000);
+        expect(s.grossTax).toBeCloseTo(14788, 2);
+        expect(s.medicareLevy).toBeCloseTo(1600, 2);
+        expect(s.mls).toBe(0);
+        expect(s.offsets.total).toBe(0);
+        expect(s.netTaxPayable).toBeCloseTo(16388, 2);
+        expect(s.finalOutcome).toBeCloseTo(1612, 2);
+    });
+
+    test('composed scenario: expenses, WFH fixed rate, super, franking credits', () => {
+        const data = makeAppData({
+            otherIncome: { frankingCredits: 500 },
+            generalExpenses: [{ cost: 1000, workPercentage: 50, date: '2024-10-01', isDepreciable: false }],
+            wfh: { method: 'fixed_rate', totalMinutes: 6000 },
+            taxpayerDetails: { personalSuperContribution: 1000 },
+        });
+        data.income.payg = [{ grossSalary: 90000, taxWithheld: 20000, sourceName: 'Employer' }];
+        const s = TaxCalculations.calculateYearSummary(data);
+        // assessable = 90000 + 500 franking credits = 90500
+        expect(s.totalAssessableIncome).toBe(90500);
+        expect(s.totalGeneralDeductions).toBeCloseTo(500, 2);
+        expect(s.totalWfhDeductions).toBeCloseTo(70, 2);      // 100 hrs × $0.70
+        expect(s.totalSuperDeductions).toBe(1000);
+        expect(s.taxableIncome).toBeCloseTo(88930, 2);
+        expect(s.grossTax).toBeCloseTo(17467, 2);
+        expect(s.medicareLevy).toBeCloseTo(1778.60, 2);
+        expect(s.mls).toBe(0);
+        expect(s.offsets.frankingCredits).toBe(500);
+        expect(s.netTaxPayable).toBeCloseTo(17467 + 1778.60 - 500, 2);
+        expect(s.finalOutcome).toBeCloseTo(20000 - 18745.60, 2);
+    });
+
+    test('summary matches per-year constants (same data, different years)', () => {
+        const data = makeAppData();
+        loadConstantsForYear('2026-2027');
+        const s2627 = TaxCalculations.calculateYearSummary(data);
+        // 15% bracket: gross tax at 80k = 14520 (vs 14788 under 16%)
+        expect(s2627.financialYear).toBe('2026-2027');
+        expect(s2627.grossTax).toBeCloseTo(14520, 2);
+    });
+});
+
+// ─────────────────────────────────────────────
 // Integration: full tax calculation scenarios
 // ─────────────────────────────────────────────
 describe('Integration — full tax scenarios', () => {

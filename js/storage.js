@@ -228,7 +228,21 @@ const StorageManager = (() => {
         }
     };
 
+    // Calculated summary for one year's data, computed under that year's
+    // constants. Returns null for years this version has no configuration for.
+    const computeYearSummary = (year, data) => {
+        if (typeof TaxCalculations === 'undefined' || !window.AVAILABLE_YEARS.includes(year)) return null;
+        window.loadConstantsForYear(year);
+        try {
+            return TaxCalculations.calculateYearSummary(data);
+        } catch (e) {
+            console.error(`Failed to compute summary for ${year}:`, e);
+            return null;
+        }
+    };
+
     const exportData = (currentData, format, scope = 'all') => {
+        const activeYear = window.FINANCIAL_YEAR;
         try {
             // Build the dataset based on scope
             let exportYearsData = {};
@@ -260,7 +274,14 @@ const StorageManager = (() => {
             let dataStr, blobType, fileExtension;
 
             if (format === 'json') {
-                dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: exportYearsData }, null, 2);
+                // Derived figures for the accountant — regenerated on import,
+                // never read back in.
+                const calculatedSummaries = {};
+                Object.entries(exportYearsData).forEach(([yr, d]) => {
+                    const summary = computeYearSummary(yr, d);
+                    if (summary) calculatedSummaries[yr] = summary;
+                });
+                dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: exportYearsData, calculatedSummaries }, null, 2);
                 blobType = 'application/json';
                 fileExtension = 'json';
             } else {
@@ -273,8 +294,51 @@ const StorageManager = (() => {
                     return [headerRow, ...dataRows].join('\n');
                 };
 
-                const buildYearCsv = (data, year) => {
+                const buildYearCsv = (data, year, summary) => {
+                    const money = (v) => (Math.round(((v || 0) + Number.EPSILON) * 100) / 100).toFixed(2);
+                    // Per-item deduction as claimed this FY (general expenses are
+                    // date-filtered the same way calculateTotalGeneralDeductions is)
+                    const fyEnd = new Date(parseInt(year.split('-')[1]), 5, 30);
+                    const inFY = (dateStr) => {
+                        if (!dateStr || typeof dateStr !== 'string') return false;
+                        const [dy, dm, dd] = dateStr.split('-').map(Number);
+                        return new Date(dy, dm - 1, dd) <= fyEnd;
+                    };
+                    const withDeduction = (items, fallbackPct, dateFiltered) => summary
+                        ? (items || []).map(item => ({
+                            ...item,
+                            deductionThisFY: money((!dateFiltered || inFY(item.date)) ? TaxCalculations.calculateItemDeduction(item, fallbackPct) : 0),
+                        }))
+                        : (items || []);
+
                     let s = `"=== Financial Year: ${year} ==="\n\n`;
+
+                    if (summary) {
+                        s += `"Calculated Tax Summary (estimates computed by Aussie Tax Helper)"\n`;
+                        s += `"Item","Amount (AUD)"\n`;
+                        [
+                            ['Total Assessable Income', summary.totalAssessableIncome],
+                            ['Total Tax Withheld', summary.totalTaxWithheld],
+                            ['General Expense Deductions', summary.totalGeneralDeductions],
+                            ['Work-From-Home Deductions', summary.totalWfhDeductions],
+                            ['Personal Super Contribution Deduction', summary.totalSuperDeductions],
+                            ['Total Deductions', summary.overallTotalDeductions],
+                            ['Taxable Income', summary.taxableIncome],
+                            ['Gross Income Tax', summary.grossTax],
+                            ['Medicare Levy', summary.medicareLevy],
+                            ['Medicare Levy Surcharge', summary.mls],
+                            ['Low Income Tax Offset (non-refundable)', summary.offsets.lito],
+                            ['Franking Credits (refundable)', summary.offsets.frankingCredits],
+                            ['PHI Rebate Offset (refundable)', summary.offsets.phiOffset],
+                            ['Total Offsets', summary.offsets.total],
+                            ['Net Tax Payable', summary.netTaxPayable],
+                            [summary.finalOutcome >= 0 ? 'Estimated Refund' : 'Estimated Amount Owing', Math.abs(summary.finalOutcome)],
+                        ].forEach(([label, value]) => { s += `"${label}","${money(value)}"\n`; });
+                        s += '\n';
+                    } else {
+                        s += `"Calculated Tax Summary","Unavailable - this app version has no tax configuration for ${year}"\n\n`;
+                    }
+
                     s += `"Taxpayer Details"\n${arrayToCsv(
                         [data.taxpayerDetails],
                         ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid (Jul-Mar)', 'PHI Premiums Paid (Apr-Jun)', 'PHI Rebate Received'],
@@ -287,9 +351,9 @@ const StorageManager = (() => {
                         ['bankInterest', 'dividendsUnfranked', 'dividendsFranked', 'frankingCredits', 'netCapitalGains']
                     )}\n\n`;
                     s += `"General Expenses"\n${arrayToCsv(
-                        data.generalExpenses,
-                        ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'],
-                        ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod']
+                        withDeduction(data.generalExpenses, 0, true),
+                        ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
+                        ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
                     )}\n\n`;
                     s += `"Work-From-Home Details"\n"Method:","${data.wfh.method}"\n\n`;
                     s += `"WFH Hours Log"\n${arrayToCsv(data.wfh.hoursLog, ['Date', 'Minutes'], ['date', 'minutes'])}\n\n`;
@@ -300,14 +364,14 @@ const StorageManager = (() => {
                         ['description', 'fromDate', 'toDate', 'officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
                     )}\n\n`;
                     s += `"WFH Actual Cost - Assets"\n${arrayToCsv(
-                        data.wfh.actualCostDetails.assets,
-                        ['Description', 'Date', 'Cost', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'],
-                        ['description', 'date', 'cost', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod']
+                        withDeduction(data.wfh.actualCostDetails.assets, 100, false),
+                        ['Description', 'Date', 'Cost', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
+                        ['description', 'date', 'cost', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
                     )}\n\n`;
                     return s;
                 };
 
-                dataStr = Object.entries(exportYearsData).map(([yr, d]) => buildYearCsv(d, yr)).join('\n');
+                dataStr = Object.entries(exportYearsData).map(([yr, d]) => buildYearCsv(d, yr, computeYearSummary(yr, d))).join('\n');
                 blobType = 'text/csv;charset=utf-8;';
                 fileExtension = 'csv';
             }
@@ -324,6 +388,9 @@ const StorageManager = (() => {
         } catch (e) {
             console.error("Error exporting data:", e);
             _notify("Failed to export data.");
+        } finally {
+            // computeYearSummary swaps window constants per exported year
+            if (window.FINANCIAL_YEAR !== activeYear) window.loadConstantsForYear(activeYear);
         }
     };
 

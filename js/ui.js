@@ -483,24 +483,12 @@ const UIManager = (() => {
 
         document.getElementById('wfh-fixed-rate-value').textContent = formatCurrency(window.WFH_FIXED_RATE_PER_HOUR);
 
-        const totalAssessableIncome = TaxCalculations.calculateTotalAssessableIncome(appData.income);
-        const totalTaxWithheld = appData.income.payg.reduce((sum, item) => sum + item.taxWithheld, 0);
-
-        const totalGeneralDeductions = TaxCalculations.calculateTotalGeneralDeductions(appData.generalExpenses);
-        const totalWfhDeductions = TaxCalculations.calculateTotalWfhDeductions(appData.wfh);
-        const totalSuperDeductions = parseFloat(appData.taxpayerDetails.personalSuperContribution) || 0;
-
-        const overallTotalDeductions = totalGeneralDeductions + totalWfhDeductions + totalSuperDeductions;
-        const taxableIncome = TaxCalculations.calculateTaxableIncome(appData);
-
-        const grossTax = TaxCalculations.calculateGrossTax(taxableIncome);
-        const medicareLevy = TaxCalculations.calculateMedicareLevy(taxableIncome, appData.taxpayerDetails);
-        const mls = TaxCalculations.calculateMLS(taxableIncome, appData.taxpayerDetails);
-
-        const offsets = TaxCalculations.calculateTotalOffsets(taxableIncome, appData);
-
-        const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, mls, offsets);
-        const finalOutcome = TaxCalculations.calculateFinalOutcome(totalTaxWithheld, netTaxPayable);
+        const {
+            totalAssessableIncome, totalTaxWithheld,
+            totalGeneralDeductions, totalWfhDeductions, totalSuperDeductions,
+            overallTotalDeductions, taxableIncome,
+            grossTax, medicareLevy, mls, offsets, netTaxPayable, finalOutcome,
+        } = TaxCalculations.calculateYearSummary(appData);
 
         const outcomeText = finalOutcome >= 0 ? `${formatCurrency(finalOutcome)} Refund` : `${formatCurrency(Math.abs(finalOutcome))} Payable`;
 
