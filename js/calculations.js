@@ -165,14 +165,14 @@ const TaxCalculations = (() => {
 
     const calculateGrossTax = (taxableIncome) => {
         const income = Math.floor(taxableIncome);
-        if (income <= 18200) return 0;
+        if (income <= window.TAX_RATES[0].max) return 0;
         const bracket = window.TAX_RATES.slice().reverse().find(b => income >= b.min);
         if (!bracket) return 0;
         return bracket.base + ((income - (bracket.min - 1)) * bracket.rate);
     };
 
     const calculateLITO = (taxableIncome) => {
-        if (taxableIncome <= 18200) return 0;
+        if (taxableIncome <= window.TAX_RATES[0].max) return 0;
         if (taxableIncome <= window.LITO_THRESHOLD_1) return window.LITO_MAX_OFFSET;
         if (taxableIncome > window.LITO_THRESHOLD_3) return 0;
         let offset;
@@ -209,10 +209,10 @@ const TaxCalculations = (() => {
         }
 
         if (taxpayerDetails.isMedicareExempt) {
+            const totalDays = daysInFY(parseInt(window.FINANCIAL_YEAR.split('-')[0], 10));
             const exemptDays = taxpayerDetails.medicareExemptDays || 0;
-            if (exemptDays >= 365) return 0;
-            const liableDays = 365 - exemptDays;
-            return (fullYearLevy / 365) * liableDays;
+            if (exemptDays >= totalDays) return 0;
+            return (fullYearLevy / totalDays) * (totalDays - exemptDays);
         }
 
         return fullYearLevy;
