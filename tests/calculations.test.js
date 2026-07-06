@@ -850,6 +850,36 @@ describe('calculateDepreciationForFinancialYear', () => {
         expect(depr(1000, 100, 5, '2023-07-01', 'prime_cost')).toBeCloseTo(200, 2);
     });
 
+    test('REGRESSION: prime cost stops after effective life expires (was claiming forever)', () => {
+        // Purchased 2019-07-01, life 5: fully written off across FY19-20..FY23-24.
+        // FY 2024-25 claim must be 0 (old code returned 200/year indefinitely).
+        expect(depr(1000, 100, 5, '2019-07-01', 'prime_cost')).toBe(0);
+    });
+
+    test('prime cost: final year claims only the remaining value', () => {
+        // Purchased 2020-01-01 (acq FY 2019-20 had 366 days, 182 owned).
+        // Consumed by FY 2023-24: 200 × (182/366 + 4) = 899.45; remaining = 100.55
+        expect(depr(1000, 100, 5, '2020-01-01', 'prime_cost')).toBeCloseTo(100.55, 2);
+    });
+
+    test('prime cost: final-year remainder respects work percentage', () => {
+        expect(depr(1000, 50, 5, '2020-01-01', 'prime_cost')).toBeCloseTo(50.27, 2);
+    });
+
+    test('prime cost: claim matches the depreciation schedule row for the FY', () => {
+        // The displayed schedule caps at the remaining value; the claimed
+        // amount must agree with it (they previously diverged).
+        const schedule = TaxCalculations.generateDepreciationSchedule({
+            isDepreciable: true, cost: 1000, workPercentage: 100, effectiveLife: 5,
+            date: '2020-01-01', depreciationMethod: 'prime_cost',
+        });
+        // Current FY (2024-25) row is bolded, e.g. <strong>2024-25: $100.55</strong>
+        const match = schedule.match(/<strong>2024-25: \$([\d,]+\.\d{2})/);
+        expect(match).not.toBeNull();
+        const scheduleAmount = parseFloat(match[1].replace(/,/g, ''));
+        expect(depr(1000, 100, 5, '2020-01-01', 'prime_cost')).toBeCloseTo(scheduleAmount, 2);
+    });
+
     test('diminishing value: year 1 at FY start → cost × (2/life)', () => {
         // 1000 * (2/5) = 400
         expect(depr(1000, 100, 5, '2024-07-01', 'diminishing_value')).toBeCloseTo(400, 2);

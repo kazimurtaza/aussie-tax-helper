@@ -44,19 +44,20 @@ const TaxCalculations = (() => {
         if (purchaseDate > financialYearEnd) return 0;
 
         let openingValue = numCost;
-        
-        if (method === 'diminishing_value' && purchaseDate < financialYearStart) {
-            // Determine which Australian FY the asset was acquired in (FY starts Jul 1).
-            // Month >= 6 means Jul-Dec: acquisition FY starts in the purchase calendar year.
-            // Month < 6 means Jan-Jun: acquisition FY started the previous calendar year.
-            const purchaseMonth = purchaseDate.getMonth();
-            const acqFYStartYear = purchaseMonth >= 6 ? purchaseDate.getFullYear() : purchaseDate.getFullYear() - 1;
-            const acqFYEnd = new Date(acqFYStartYear + 1, 5, 30);
 
+        // Determine which Australian FY the asset was acquired in (FY starts Jul 1).
+        // Month >= 6 means Jul-Dec: acquisition FY starts in the purchase calendar year.
+        // Month < 6 means Jan-Jun: acquisition FY started the previous calendar year.
+        const purchaseMonth = purchaseDate.getMonth();
+        const acqFYStartYear = purchaseMonth >= 6 ? purchaseDate.getFullYear() : purchaseDate.getFullYear() - 1;
+        const acqFYEnd = new Date(acqFYStartYear + 1, 5, 30);
+        const acqDaysOwned = Math.floor((acqFYEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
+        const acqFraction = Math.min(1, acqDaysOwned / daysInFY(acqFYStartYear));
+
+        if (method === 'diminishing_value' && purchaseDate < financialYearStart) {
             // Pro-rate the acquisition year deduction, then apply full DV for each subsequent FY.
-            const acqDaysOwned = Math.floor((acqFYEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
             const acqAnnualDepr = numEffectiveLife <= 1 ? openingValue : openingValue * (2 / numEffectiveLife);
-            openingValue = Math.max(0, openingValue - acqAnnualDepr * (acqDaysOwned / daysInFY(acqFYStartYear)));
+            openingValue = Math.max(0, openingValue - acqAnnualDepr * acqFraction);
 
             const completeFYs = yearStart - (acqFYStartYear + 1);
             for (let i = 0; i < completeFYs; i++) {
@@ -64,12 +65,20 @@ const TaxCalculations = (() => {
                 openingValue = Math.max(0, openingValue - deprAmt);
             }
         }
-        
+
         let annualDepreciation;
         if (method === 'diminishing_value') {
             annualDepreciation = (numEffectiveLife <= 1) ? openingValue : openingValue * (2 / numEffectiveLife);
         } else {
             annualDepreciation = numCost / numEffectiveLife;
+            if (purchaseDate < financialYearStart) {
+                // Prime cost ends once the asset is fully written off: cap this
+                // year's claim at the value remaining after the pro-rated
+                // acquisition year and each complete FY since.
+                const completeFYs = yearStart - (acqFYStartYear + 1);
+                const remainingValue = Math.max(0, numCost - annualDepreciation * (acqFraction + completeFYs));
+                annualDepreciation = Math.min(annualDepreciation, remainingValue);
+            }
         }
 
         const workRelatedDepreciation = annualDepreciation * (numWorkPercentage / 100);
