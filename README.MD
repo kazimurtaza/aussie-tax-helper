@@ -178,6 +178,15 @@ All other 2025-2026 rates — income tax brackets, LITO, and PHI rebate rates �
 
 ## Changelog
 
+### Version 1.8.0
+* ***Added***
+    * ***Calculated Tax Summary in exports:*** Both CSV and JSON exports now include the app's computed figures per financial year — assessable income, tax withheld, deduction totals (general / WFH / super), taxable income, gross tax, Medicare levy, MLS, each offset, net tax payable, and the estimated refund or amount owing. Each year's summary is computed under that year's tax constants. CSV places it at the top of each year block; JSON carries a `calculatedSummaries` object (ignored on import and regenerated from raw data).
+    * ***Per-item deductions in CSV:*** General expense and WFH asset rows gain a "Deduction This FY ($)" column showing the amount actually claimable this year (depreciation-aware, date-filtered).
+* ***Fixed***
+    * ***WFH asset 0% work-use:*** An explicit 0% is no longer coerced to 100% in the WFH asset deduction calculation.
+* ***Improved***
+    * ***Single calculation path:*** The summary page and exports share `TaxCalculations.calculateYearSummary`, guaranteeing exported figures match the on-screen summary. 250 Jest tests (up from 243).
+
 ### Version 1.7.0
 * ***Added***
     * ***FY 2026-27 support:*** New `TAX_CONFIG` entry with the legislated 15% bracket (down from 16% from 1 July 2026), indexed MLS thresholds ($105k/$123k/$164k singles, $210k/$246k/$328k families), PHI rebate periods, and the confirmed 70c/hr WFH fixed rate. Year selector, storage keys, and default-year detection pick it up automatically.

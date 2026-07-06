@@ -630,6 +630,15 @@
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
                     <div>
+                        <h4 class="font-semibold">Version 1.8.0</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-green-600">Added:</strong> Exports now include a per-year <em>Calculated Tax Summary</em> for your accountant — assessable income, deductions breakdown, taxable income, gross tax, Medicare levy, MLS, offsets, net tax, and the estimated refund/amount owing. CSV shows it at the top of each year; JSON carries it in a <code>calculatedSummaries</code> block.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> CSV expense and WFH-asset rows include a "Deduction This FY" column — for depreciable assets this is the actual claimable depreciation, not the purchase cost.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> A WFH asset saved with an explicit 0% work-use is no longer treated as 100% in the deduction calculation.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> Summary page and exports now share one calculation path (<code>calculateYearSummary</code>), so exported figures always match what the app displays. Test suite grown to 250 tests.</li>
+                        </ul>
+                    </div>
+                    <div>
                         <h4 class="font-semibold">Version 1.7.0</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
                             <li><strong class="font-medium text-green-600">Added:</strong> FY 2026-27 support — 15% bracket (down from 16%, legislated from 1 July 2026), indexed MLS thresholds ($105k/$123k/$164k single, $210k/$246k/$328k family), PHI rebate periods, and the confirmed 70c/hr WFH fixed rate.</li>
