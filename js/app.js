@@ -3,7 +3,6 @@ const trackEvent = (eventName, eventParams = {}) => {
     // Check if gtag is available
     if (typeof gtag === 'function') {
         gtag('event', eventName, eventParams);
-        console.log(`Event tracked: ${eventName}`, eventParams); // Optional: for debugging
     }
 };
 
@@ -51,6 +50,8 @@ const App = (() => {
     // Sanitise numeric form inputs at the boundary — prevent negatives bypassing browser validation.
     const clampNum = (value, min = 0, max = Infinity) => Math.min(max, Math.max(min, parseFloat(value) || 0));
     const clampPct = (value) => clampNum(value, 0, 100);
+    // Work-use %: keep an explicit 0, but default blank/invalid input to the fallback.
+    const clampPctOr = (value, fallback) => Number.isNaN(parseFloat(value)) ? fallback : clampPct(value);
 
     const saveAndRefresh = () => {
         StorageManager.saveData(appData);
@@ -270,7 +271,7 @@ const App = (() => {
             date: form['expense-date'].value,
             cost: clampNum(form['expense-cost'].value),
             category: form['expense-category'].value,
-            workPercentage: clampPct(form['expense-work-percentage'].value) || 100,
+            workPercentage: clampPctOr(form['expense-work-percentage'].value, 100),
             isDepreciable: isDepreciable,
             effectiveLife: isDepreciable ? clampNum(form['expense-effective-life'].value) : 0,
             depreciationMethod: isDepreciable ? form['depreciation-method'].value : 'prime_cost',
@@ -307,7 +308,7 @@ const App = (() => {
                 date: form['edit-expense-date'].value,
                 cost: clampNum(form['edit-expense-cost'].value),
                 category: form['edit-expense-category'].value,
-                workPercentage: clampPct(form['edit-expense-work-percentage'].value) || 100,
+                workPercentage: clampPctOr(form['edit-expense-work-percentage'].value, 100),
                 isDepreciable: isDepreciable,
                 effectiveLife: isDepreciable ? clampNum(form['edit-expense-effective-life'].value) : 0,
                 depreciationMethod: isDepreciable ? form['edit-depreciation-method'].value : 'prime_cost',
@@ -418,7 +419,7 @@ const App = (() => {
             description: form['wfh-asset-description'].value.trim(),
             date: form['wfh-asset-date'].value,
             cost: clampNum(form['wfh-asset-cost'].value),
-            workPercentage: clampPct(form['wfh-asset-work-percentage'].value) || 100,
+            workPercentage: clampPctOr(form['wfh-asset-work-percentage'].value, 100),
             isDepreciable: isDepreciable,
             effectiveLife: isDepreciable ? clampNum(form['wfh-asset-effective-life'].value) : 0,
             depreciationMethod: isDepreciable ? form['wfh-asset-depreciation-method'].value : 'prime_cost',

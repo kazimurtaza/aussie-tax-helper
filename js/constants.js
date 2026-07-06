@@ -1,37 +1,68 @@
 // js/constants.js
 
-// Values shared across 2024-25 and 2025-26 (Stage 3 tax cuts, LITO, Medicare Levy)
+// Values shared across all configured years (LITO, Medicare Levy rate, WFH rate)
 // Sources: ATO rates page, CPA Australia Budget Reports
 const SHARED_TAX_CONFIG = {
-    TAX_RATES: [
-        { min: 0,      max: 18200,   rate: 0,     base: 0 },
-        { min: 18201,  max: 45000,   rate: 0.16,   base: 0 },
-        { min: 45001,  max: 135000,  rate: 0.30,   base: 4288 },
-        { min: 135001, max: 190000,  rate: 0.37,   base: 31288 },
-        { min: 190001, max: Infinity,rate: 0.45,   base: 51638 }
-    ],
     LITO_MAX_OFFSET: 700,
     LITO_THRESHOLD_1: 37500,
     LITO_THRESHOLD_2: 45000,
     LITO_THRESHOLD_3: 66667,
     LITO_REDUCTION_RATE_1: 0.05,
     LITO_REDUCTION_RATE_2: 0.015,
-    // Medicare Levy: rate and thresholds confirmed unchanged
-    // Family thresholds: Treasury Laws Amendment (More Cost of Living Relief) Act 2025
     MEDICARE_LEVY_RATE: 0.02,
+    MLS_CHILD_ADJUSTMENT: 1500,
+    // ATO confirmed 70c/hour continues for 2026-27 (PCG 2023/1 fixed rate method)
+    WFH_FIXED_RATE_PER_HOUR: 0.70
+};
+
+// Stage 3 brackets as revised, applying to 2024-25 and 2025-26
+const TAX_RATES_2024_TO_2026 = [
+    { min: 0,      max: 18200,   rate: 0,     base: 0 },
+    { min: 18201,  max: 45000,   rate: 0.16,   base: 0 },
+    { min: 45001,  max: 135000,  rate: 0.30,   base: 4288 },
+    { min: 135001, max: 190000,  rate: 0.37,   base: 31288 },
+    { min: 190001, max: Infinity,rate: 0.45,   base: 51638 }
+];
+
+// From 1 July 2026 the 16% rate drops to 15% (legislated 2025 cost-of-living
+// tax cuts; falls again to 14% from 1 July 2027)
+const TAX_RATES_FROM_2026_27 = [
+    { min: 0,      max: 18200,   rate: 0,     base: 0 },
+    { min: 18201,  max: 45000,   rate: 0.15,   base: 0 },
+    { min: 45001,  max: 135000,  rate: 0.30,   base: 4020 },
+    { min: 135001, max: 190000,  rate: 0.37,   base: 31020 },
+    { min: 190001, max: Infinity,rate: 0.45,   base: 51370 }
+];
+
+// Medicare levy low-income thresholds are indexed annually (announced in the
+// Budget, retroactive to 1 July). The upper phase-in child adjustment is the
+// lower adjustment × 1.25, matching the 8% shade-in band.
+const MEDICARE_THRESHOLDS_2024_25 = {
     MEDICARE_LEVY_THRESHOLD_SINGLE: 27222,
     MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE: 34027,
     MEDICARE_LEVY_THRESHOLD_FAMILY: 45907,
     MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY: 57383,
     MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT: 4216,
-    MLS_CHILD_ADJUSTMENT: 1500,
-    WFH_FIXED_RATE_PER_HOUR: 0.70
+    MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER: 5270
+};
+
+// March 2026 Budget, retroactive to 1 July 2025 — Source: ATO Medicare levy
+// reduction for low-income earners page
+const MEDICARE_THRESHOLDS_2025_26 = {
+    MEDICARE_LEVY_THRESHOLD_SINGLE: 28011,
+    MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE: 35013,
+    MEDICARE_LEVY_THRESHOLD_FAMILY: 47238,
+    MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY: 59047,
+    MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT: 4338,
+    MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER: 5423
 };
 
 // Year-keyed tax configuration
 const TAX_CONFIG = {
     "2024-2025": {
         ...SHARED_TAX_CONFIG,
+        ...MEDICARE_THRESHOLDS_2024_25,
+        TAX_RATES: TAX_RATES_2024_TO_2026,
         // MLS thresholds for 2024-25
         MLS_THRESHOLDS_SINGLE: [
             { min: 0, max: 97000, rate: 0 },
@@ -60,6 +91,8 @@ const TAX_CONFIG = {
     },
     "2025-2026": {
         ...SHARED_TAX_CONFIG,
+        ...MEDICARE_THRESHOLDS_2025_26,
+        TAX_RATES: TAX_RATES_2024_TO_2026,
         // MLS thresholds updated for 2025-26 — Source: ATO MLS income thresholds page
         MLS_THRESHOLDS_SINGLE: [
             { min: 0, max: 101000, rate: 0 },
@@ -86,6 +119,41 @@ const TAX_CONFIG = {
                 '70plus':  { base: 0.32158, tier1: 0.24118, tier2: 0.16079, tier3: 0.00000 }
             }
         }
+    },
+    "2026-2027": {
+        ...SHARED_TAX_CONFIG,
+        // TODO: 2026-27 Medicare low-income thresholds are announced in the 2027
+        // Budget — carried forward from 2025-26 until then
+        ...MEDICARE_THRESHOLDS_2025_26,
+        TAX_RATES: TAX_RATES_FROM_2026_27,
+        // MLS thresholds for 2026-27 — Source: ATO MLS income thresholds page
+        MLS_THRESHOLDS_SINGLE: [
+            { min: 0, max: 105000, rate: 0 },
+            { min: 105001, max: 123000, rate: 0.01 },
+            { min: 123001, max: 164000, rate: 0.0125 },
+            { min: 164001, max: Infinity, rate: 0.015 }
+        ],
+        MLS_THRESHOLDS_FAMILY: [
+            { min: 0, max: 210000, rate: 0 },
+            { min: 210001, max: 246000, rate: 0.01 },
+            { min: 246001, max: 328000, rate: 0.0125 },
+            { min: 328001, max: Infinity, rate: 0.015 }
+        ],
+        PHI_REBATE_RATES_PERIODS: {
+            // 1 April 2026 rates continue from 1 July 2026 — Source: ATO PHI rebate page
+            '2026-07-01_2027-03-31': {
+                'under65': { base: 0.24118, tier1: 0.16079, tier2: 0.08038, tier3: 0.00000 },
+                '65to69':  { base: 0.28139, tier1: 0.20098, tier2: 0.12058, tier3: 0.00000 },
+                '70plus':  { base: 0.32158, tier1: 0.24118, tier2: 0.16079, tier3: 0.00000 }
+            },
+            // TODO: placeholder — the 1 April 2027 rebate adjustment factor is
+            // announced ~Feb 2027; update these rates when published
+            '2027-04-01_2027-06-30': {
+                'under65': { base: 0.24118, tier1: 0.16079, tier2: 0.08038, tier3: 0.00000 },
+                '65to69':  { base: 0.28139, tier1: 0.20098, tier2: 0.12058, tier3: 0.00000 },
+                '70plus':  { base: 0.32158, tier1: 0.24118, tier2: 0.16079, tier3: 0.00000 }
+            }
+        }
     }
 };
 
@@ -103,7 +171,7 @@ const loadConstantsForYear = (year) => {
     const c = TAX_CONFIG[year];
 
     // Set all window globals that calculations.js, ui.js, and app.js read from
-    window.TAX_RATES_2025 = c.TAX_RATES;
+    window.TAX_RATES = c.TAX_RATES;
     window.LITO_MAX_OFFSET = c.LITO_MAX_OFFSET;
     window.LITO_THRESHOLD_1 = c.LITO_THRESHOLD_1;
     window.LITO_THRESHOLD_2 = c.LITO_THRESHOLD_2;
@@ -116,6 +184,7 @@ const loadConstantsForYear = (year) => {
     window.MEDICARE_LEVY_THRESHOLD_FAMILY = c.MEDICARE_LEVY_THRESHOLD_FAMILY;
     window.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY = c.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY;
     window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT = c.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT;
+    window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER = c.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER;
     window.MLS_THRESHOLDS_SINGLE = c.MLS_THRESHOLDS_SINGLE;
     window.MLS_THRESHOLDS_FAMILY = c.MLS_THRESHOLDS_FAMILY;
     window.MLS_CHILD_ADJUSTMENT = c.MLS_CHILD_ADJUSTMENT;

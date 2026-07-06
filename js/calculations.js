@@ -44,19 +44,20 @@ const TaxCalculations = (() => {
         if (purchaseDate > financialYearEnd) return 0;
 
         let openingValue = numCost;
-        
-        if (method === 'diminishing_value' && purchaseDate < financialYearStart) {
-            // Determine which Australian FY the asset was acquired in (FY starts Jul 1).
-            // Month >= 6 means Jul-Dec: acquisition FY starts in the purchase calendar year.
-            // Month < 6 means Jan-Jun: acquisition FY started the previous calendar year.
-            const purchaseMonth = purchaseDate.getMonth();
-            const acqFYStartYear = purchaseMonth >= 6 ? purchaseDate.getFullYear() : purchaseDate.getFullYear() - 1;
-            const acqFYEnd = new Date(acqFYStartYear + 1, 5, 30);
 
+        // Determine which Australian FY the asset was acquired in (FY starts Jul 1).
+        // Month >= 6 means Jul-Dec: acquisition FY starts in the purchase calendar year.
+        // Month < 6 means Jan-Jun: acquisition FY started the previous calendar year.
+        const purchaseMonth = purchaseDate.getMonth();
+        const acqFYStartYear = purchaseMonth >= 6 ? purchaseDate.getFullYear() : purchaseDate.getFullYear() - 1;
+        const acqFYEnd = new Date(acqFYStartYear + 1, 5, 30);
+        const acqDaysOwned = Math.floor((acqFYEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
+        const acqFraction = Math.min(1, acqDaysOwned / daysInFY(acqFYStartYear));
+
+        if (method === 'diminishing_value' && purchaseDate < financialYearStart) {
             // Pro-rate the acquisition year deduction, then apply full DV for each subsequent FY.
-            const acqDaysOwned = Math.floor((acqFYEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
             const acqAnnualDepr = numEffectiveLife <= 1 ? openingValue : openingValue * (2 / numEffectiveLife);
-            openingValue = Math.max(0, openingValue - acqAnnualDepr * (acqDaysOwned / daysInFY(acqFYStartYear)));
+            openingValue = Math.max(0, openingValue - acqAnnualDepr * acqFraction);
 
             const completeFYs = yearStart - (acqFYStartYear + 1);
             for (let i = 0; i < completeFYs; i++) {
@@ -64,12 +65,20 @@ const TaxCalculations = (() => {
                 openingValue = Math.max(0, openingValue - deprAmt);
             }
         }
-        
+
         let annualDepreciation;
         if (method === 'diminishing_value') {
             annualDepreciation = (numEffectiveLife <= 1) ? openingValue : openingValue * (2 / numEffectiveLife);
         } else {
             annualDepreciation = numCost / numEffectiveLife;
+            if (purchaseDate < financialYearStart) {
+                // Prime cost ends once the asset is fully written off: cap this
+                // year's claim at the value remaining after the pro-rated
+                // acquisition year and each complete FY since.
+                const completeFYs = yearStart - (acqFYStartYear + 1);
+                const remainingValue = Math.max(0, numCost - annualDepreciation * (acqFraction + completeFYs));
+                annualDepreciation = Math.min(annualDepreciation, remainingValue);
+            }
         }
 
         const workRelatedDepreciation = annualDepreciation * (numWorkPercentage / 100);
@@ -156,14 +165,14 @@ const TaxCalculations = (() => {
 
     const calculateGrossTax = (taxableIncome) => {
         const income = Math.floor(taxableIncome);
-        if (income <= 18200) return 0;
-        const bracket = window.TAX_RATES_2025.slice().reverse().find(b => income >= b.min);
+        if (income <= window.TAX_RATES[0].max) return 0;
+        const bracket = window.TAX_RATES.slice().reverse().find(b => income >= b.min);
         if (!bracket) return 0;
         return bracket.base + ((income - (bracket.min - 1)) * bracket.rate);
     };
 
     const calculateLITO = (taxableIncome) => {
-        if (taxableIncome <= 18200) return 0;
+        if (taxableIncome <= window.TAX_RATES[0].max) return 0;
         if (taxableIncome <= window.LITO_THRESHOLD_1) return window.LITO_MAX_OFFSET;
         if (taxableIncome > window.LITO_THRESHOLD_3) return 0;
         let offset;
@@ -185,9 +194,9 @@ const TaxCalculations = (() => {
         let upperThreshold = window.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE;
 
         if (taxpayerDetails.filingStatus === 'family') {
-            const childAdjustment = (taxpayerDetails.dependentChildren || 0) * window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT;
-            threshold = window.MEDICARE_LEVY_THRESHOLD_FAMILY + childAdjustment;
-            upperThreshold = window.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY + childAdjustment;
+            const children = taxpayerDetails.dependentChildren || 0;
+            threshold = window.MEDICARE_LEVY_THRESHOLD_FAMILY + children * window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT;
+            upperThreshold = window.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY + children * window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER;
         }
 
         let fullYearLevy = 0;
@@ -200,10 +209,10 @@ const TaxCalculations = (() => {
         }
 
         if (taxpayerDetails.isMedicareExempt) {
+            const totalDays = daysInFY(parseInt(window.FINANCIAL_YEAR.split('-')[0], 10));
             const exemptDays = taxpayerDetails.medicareExemptDays || 0;
-            if (exemptDays >= 365) return 0;
-            const liableDays = 365 - exemptDays;
-            return (fullYearLevy / 365) * liableDays;
+            if (exemptDays >= totalDays) return 0;
+            return (fullYearLevy / totalDays) * (totalDays - exemptDays);
         }
 
         return fullYearLevy;
@@ -213,34 +222,39 @@ const TaxCalculations = (() => {
          return taxableIncome + (parseFloat(taxpayerDetails.reportableFringeBenefits) || 0) + (parseFloat(taxpayerDetails.personalSuperContribution) || 0);
     }
 
+    const MLS_TIER_NAMES = ['base', 'tier1', 'tier2', 'tier3'];
+
+    // Single source of truth for MLS/PHI income-tier determination. Tier
+    // tables use integer boundaries, so income is floored to whole dollars;
+    // family tier minima shift by (children - 1) x MLS_CHILD_ADJUSTMENT.
+    const getMlsTier = (incomeForTest, taxpayerDetails) => {
+        const income = Math.floor(incomeForTest);
+        const isFamily = taxpayerDetails.filingStatus === 'family';
+        const childAdjustment = isFamily && taxpayerDetails.dependentChildren > 1
+            ? (taxpayerDetails.dependentChildren - 1) * window.MLS_CHILD_ADJUSTMENT
+            : 0;
+        const tiers = isFamily ? window.MLS_THRESHOLDS_FAMILY : window.MLS_THRESHOLDS_SINGLE;
+        for (let i = tiers.length - 1; i >= 1; i--) {
+            if (income >= tiers[i].min + childAdjustment) {
+                return { index: i, rate: tiers[i].rate };
+            }
+        }
+        return { index: 0, rate: tiers[0].rate };
+    };
+
     const calculateMLS = (taxableIncome, taxpayerDetails) => {
         if (!taxpayerDetails || taxpayerDetails.hasPrivateHospitalCover) {
             return 0;
         }
-        
+
         const incomeForMls = getIncomeForMls(taxableIncome, taxpayerDetails);
-        let surchargeRate = 0;
+        const testIncome = taxpayerDetails.filingStatus === 'family'
+            ? incomeForMls + (parseFloat(taxpayerDetails.spouseIncome) || 0)
+            : incomeForMls;
 
-        if (taxpayerDetails.filingStatus === 'family') {
-            const familyIncomeForMls = incomeForMls + (parseFloat(taxpayerDetails.spouseIncome) || 0);
-            const childAdjustment = taxpayerDetails.dependentChildren > 1
-                ? (taxpayerDetails.dependentChildren - 1) * window.MLS_CHILD_ADJUSTMENT
-                : 0;
-
-            const familyThresholds = window.MLS_THRESHOLDS_FAMILY.map(tier => ({
-                ...tier,
-                min: tier.min > 0 ? tier.min + childAdjustment : 0,
-                max: tier.max !== Infinity ? tier.max + childAdjustment : Infinity,
-            }));
-            
-            const bracket = familyThresholds.slice().reverse().find(b => familyIncomeForMls >= b.min);
-            if (bracket) surchargeRate = bracket.rate;
-        } else {
-            const bracket = window.MLS_THRESHOLDS_SINGLE.slice().reverse().find(b => incomeForMls >= b.min);
-            if (bracket) surchargeRate = bracket.rate;
-        }
-
-        return incomeForMls * surchargeRate;
+        // Tier is set by family income; the surcharge applies to the individual's own MLS income
+        const { rate } = getMlsTier(testIncome, taxpayerDetails);
+        return incomeForMls * rate;
     };
     
     const calculatePhiOffset = (taxableIncome, taxpayerDetails) => {
@@ -255,15 +269,7 @@ const TaxCalculations = (() => {
         const incomeForPhi = getIncomeForMls(taxableIncome, taxpayerDetails);
         const totalIncome = filingStatus === 'family' ? incomeForPhi + (parseFloat(spouseIncome) || 0) : incomeForPhi;
 
-        const thresholds = filingStatus === 'family' ? window.MLS_THRESHOLDS_FAMILY : window.MLS_THRESHOLDS_SINGLE;
-        let incomeTier = 'base';
-        if (totalIncome >= thresholds[1].min && totalIncome <= thresholds[1].max) {
-            incomeTier = 'tier1';
-        } else if (totalIncome >= thresholds[2].min && totalIncome <= thresholds[2].max) {
-            incomeTier = 'tier2';
-        } else if (totalIncome >= thresholds[3].min) {
-            incomeTier = 'tier3';
-        }
+        const incomeTier = MLS_TIER_NAMES[getMlsTier(totalIncome, taxpayerDetails).index];
 
         const periodKeys = Object.keys(window.PHI_REBATE_RATES_PERIODS).sort();
         const rebateRatePeriod1 = window.PHI_REBATE_RATES_PERIODS[periodKeys[0]][phiAgeBracket][incomeTier];
@@ -273,9 +279,9 @@ const TaxCalculations = (() => {
         const correctRebate2 = (parseFloat(phiPremiumsPaid_period2) || 0) * rebateRatePeriod2;
 
         const totalCorrectRebate = correctRebate1 + correctRebate2;
-        const offset = totalCorrectRebate - (parseFloat(phiRebateReceived) || 0);
-
-        return Math.max(0, offset);
+        // May be negative when more rebate was received than the entitlement —
+        // that liability flows through as a negative offset.
+        return totalCorrectRebate - (parseFloat(phiRebateReceived) || 0);
     };
 
     const calculateTotalOffsets = (taxableIncome, appData) => {
@@ -285,8 +291,12 @@ const TaxCalculations = (() => {
         return { lito, frankingCredits, phiOffset, total: lito + frankingCredits + phiOffset };
     };
 
-    const calculateNetTaxPayable = (grossTax, medicareLevy, mls, totalOffsets) => {
-        return Math.max(0, grossTax + medicareLevy + mls - totalOffsets);
+    const calculateNetTaxPayable = (grossTax, medicareLevy, mls, offsets) => {
+        // LITO is non-refundable and offsets income tax only (not the levy or
+        // MLS). Franking credits and the PHI offset are refundable, so the
+        // result can go negative — a larger refund in calculateFinalOutcome.
+        return Math.max(0, grossTax - offsets.lito)
+            + medicareLevy + mls - offsets.frankingCredits - offsets.phiOffset;
     };
 
     const calculateFinalOutcome = (totalTaxWithheld, netTaxPayable) => {

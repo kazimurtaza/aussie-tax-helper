@@ -135,6 +135,58 @@ describe('calculateGrossTax', () => {
 });
 
 // ─────────────────────────────────────────────
+// calculateGrossTax — 2026-27 (16% bracket cut to 15%)
+// ─────────────────────────────────────────────
+describe('calculateGrossTax — 2026-2027', () => {
+    beforeEach(() => loadConstantsForYear('2026-2027'));
+
+    test('at tax-free threshold ($18,200) → zero tax', () => {
+        expect(TaxCalculations.calculateGrossTax(18200)).toBe(0);
+    });
+
+    test('$18,201 (first dollar of 15% bracket)', () => {
+        expect(TaxCalculations.calculateGrossTax(18201)).toBeCloseTo(0.15, 5);
+    });
+
+    test('$45,000 (top of 15% bracket) → $4,020', () => {
+        // (45000 - 18200) * 0.15 = 4020
+        expect(TaxCalculations.calculateGrossTax(45000)).toBeCloseTo(4020, 2);
+    });
+
+    test('$45,001 (first dollar of 30% bracket)', () => {
+        expect(TaxCalculations.calculateGrossTax(45001)).toBeCloseTo(4020.30, 2);
+    });
+
+    test('$80,000 in 30% bracket → $14,520', () => {
+        // 4020 + (80000 - 45000) * 0.30 = 14520
+        expect(TaxCalculations.calculateGrossTax(80000)).toBeCloseTo(14520, 2);
+    });
+
+    test('$135,000 (top of 30% bracket) → $31,020', () => {
+        expect(TaxCalculations.calculateGrossTax(135000)).toBeCloseTo(31020, 2);
+    });
+
+    test('$190,000 (top of 37% bracket) → $51,370', () => {
+        // 31020 + (190000 - 135000) * 0.37 = 51370
+        expect(TaxCalculations.calculateGrossTax(190000)).toBeCloseTo(51370, 2);
+    });
+
+    test('$250,000 (45% bracket) → $78,370', () => {
+        // 51370 + (250000 - 190000) * 0.45 = 78370
+        expect(TaxCalculations.calculateGrossTax(250000)).toBeCloseTo(78370, 2);
+    });
+
+    test('2026-27 tax differs from 2025-26 (15% vs 16% bracket)', () => {
+        loadConstantsForYear('2025-2026');
+        const tax2526 = TaxCalculations.calculateGrossTax(80000);
+        loadConstantsForYear('2026-2027');
+        const tax2627 = TaxCalculations.calculateGrossTax(80000);
+        expect(tax2526).toBeCloseTo(14788, 2);
+        expect(tax2627).toBeCloseTo(14520, 2);
+    });
+});
+
+// ─────────────────────────────────────────────
 // calculateLITO
 // ─────────────────────────────────────────────
 describe('calculateLITO', () => {
@@ -299,21 +351,67 @@ describe('calculateMedicareLevy — family (CRITICAL: fixed family thresholds)',
             // Correct: threshold = 45907 → 43000 < 45907 → 0
             expect(TaxCalculations.calculateMedicareLevy(43000, familyTaxpayer())).toBe(0);
         });
+
+        test('REGRESSION: family, 2 children, $66,000 → phase-in, not flat 2% (upper scales by $5,270/child)', () => {
+            // Lower = 45907 + 2×4216 = 54339; upper = 57383 + 2×5270 = 67923
+            // Old (wrong) upper = 57383 + 2×4216 = 65815 → flat 2% = 1320.00
+            // Correct: (66000 - 54339) * 0.10 = 1166.10
+            expect(TaxCalculations.calculateMedicareLevy(66000, familyTaxpayer({ dependentChildren: 2 }))).toBeCloseTo(1166.10, 2);
+        });
     });
 
-    describe('2025-2026 (same family thresholds)', () => {
+    describe('2025-2026 (thresholds raised by the March 2026 Budget)', () => {
         beforeEach(() => loadConstantsForYear('2025-2026'));
 
-        test('family thresholds are identical to 2024-25', () => {
+        test('family thresholds differ from 2024-25', () => {
             loadConstantsForYear('2024-2025');
             const levy2425 = TaxCalculations.calculateMedicareLevy(50000, familyTaxpayer());
             loadConstantsForYear('2025-2026');
             const levy2526 = TaxCalculations.calculateMedicareLevy(50000, familyTaxpayer());
-            expect(levy2526).toBe(levy2425);
+            // 2024-25: (50000 - 45907) * 0.10 = 409.30; 2025-26: (50000 - 47238) * 0.10 = 276.20
+            expect(levy2425).toBeCloseTo(409.30, 2);
+            expect(levy2526).toBeCloseTo(276.20, 2);
         });
 
-        test('family, 0 children: income $45,907 → zero', () => {
-            expect(TaxCalculations.calculateMedicareLevy(45907, familyTaxpayer())).toBe(0);
+        test('single: income at threshold $28,011 → zero levy', () => {
+            expect(TaxCalculations.calculateMedicareLevy(28011, singleTaxpayer())).toBe(0);
+        });
+
+        test('single: income $28,012 → phase-in starts', () => {
+            expect(TaxCalculations.calculateMedicareLevy(28012, singleTaxpayer())).toBeCloseTo(0.10, 5);
+        });
+
+        test('single: income $35,013 (top of phase-in) → $700.20', () => {
+            expect(TaxCalculations.calculateMedicareLevy(35013, singleTaxpayer())).toBeCloseTo(700.20, 2);
+        });
+
+        test('single: income $35,014 → full levy zone (2%) = $700.28', () => {
+            expect(TaxCalculations.calculateMedicareLevy(35014, singleTaxpayer())).toBeCloseTo(700.28, 2);
+        });
+
+        test('family, 0 children: income at threshold $47,238 → zero levy', () => {
+            expect(TaxCalculations.calculateMedicareLevy(47238, familyTaxpayer())).toBe(0);
+        });
+
+        test('family, 0 children: income $59,047 (top of phase-in) → $1,180.90', () => {
+            expect(TaxCalculations.calculateMedicareLevy(59047, familyTaxpayer())).toBeCloseTo(1180.90, 2);
+        });
+
+        test('family, 0 children: income $59,048 → full levy zone (2%) = $1,180.96', () => {
+            expect(TaxCalculations.calculateMedicareLevy(59048, familyTaxpayer())).toBeCloseTo(1180.96, 2);
+        });
+
+        test('family, 2 children: threshold = $47,238 + 2×$4,338 = $55,914', () => {
+            expect(TaxCalculations.calculateMedicareLevy(55914, familyTaxpayer({ dependentChildren: 2 }))).toBe(0);
+        });
+
+        test('family, 2 children: income $60,000 → phase-in = $408.60', () => {
+            // Upper = 59047 + 2×5423 = 69893, so 60000 is inside the phase-in band
+            expect(TaxCalculations.calculateMedicareLevy(60000, familyTaxpayer({ dependentChildren: 2 }))).toBeCloseTo(408.60, 2);
+        });
+
+        test('family, 2 children: income $69,894 → full levy zone (2%)', () => {
+            expect(TaxCalculations.calculateMedicareLevy(69894, familyTaxpayer({ dependentChildren: 2 }))).toBeCloseTo(1397.88, 2);
         });
     });
 });
@@ -393,6 +491,14 @@ describe('calculateMLS — 2024-2025 single', () => {
 // ─────────────────────────────────────────────
 // calculateMLS — 2025-2026 single (MEDIUM fix)
 // ─────────────────────────────────────────────
+describe('calculateMLS — fractional income at tier boundary', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    test('single income $97,000.99 is floored to $97,000 → base tier, no surcharge', () => {
+        expect(TaxCalculations.calculateMLS(97000.99, singleTaxpayer())).toBe(0);
+    });
+});
+
 describe('calculateMLS — 2025-2026 single (fixed MLS tier caps)', () => {
     beforeEach(() => loadConstantsForYear('2025-2026'));
 
@@ -422,6 +528,37 @@ describe('calculateMLS — 2025-2026 single (fixed MLS tier caps)', () => {
 
     test('income $300,000 → Tier 3 (1.5%)', () => {
         expect(TaxCalculations.calculateMLS(300000, singleTaxpayer())).toBeCloseTo(300000 * 0.015, 2);
+    });
+});
+
+// ─────────────────────────────────────────────
+// calculateMLS — 2026-2027 (indexed tier thresholds)
+// ─────────────────────────────────────────────
+describe('calculateMLS — 2026-2027', () => {
+    beforeEach(() => loadConstantsForYear('2026-2027'));
+
+    test('single income $105,000 (at base threshold) → zero', () => {
+        expect(TaxCalculations.calculateMLS(105000, singleTaxpayer())).toBe(0);
+    });
+
+    test('single income $105,001 → Tier 1 (1%)', () => {
+        expect(TaxCalculations.calculateMLS(105001, singleTaxpayer())).toBeCloseTo(105001 * 0.01, 2);
+    });
+
+    test('single income $123,001 → Tier 2 (1.25%)', () => {
+        expect(TaxCalculations.calculateMLS(123001, singleTaxpayer())).toBeCloseTo(123001 * 0.0125, 2);
+    });
+
+    test('single income $164,001 → Tier 3 (1.5%)', () => {
+        expect(TaxCalculations.calculateMLS(164001, singleTaxpayer())).toBeCloseTo(164001 * 0.015, 2);
+    });
+
+    test('family income $210,000 (at base threshold) → zero', () => {
+        expect(TaxCalculations.calculateMLS(210000, familyTaxpayer())).toBe(0);
+    });
+
+    test('family income $210,001 → Tier 1 (1%)', () => {
+        expect(TaxCalculations.calculateMLS(210001, familyTaxpayer())).toBeCloseTo(210001 * 0.01, 2);
     });
 });
 
@@ -519,12 +656,13 @@ describe('calculatePhiOffset — 2024-2025', () => {
         expect(TaxCalculations.calculatePhiOffset(80000, td)).toBeCloseTo(correct - 2000, 4);
     });
 
-    test('excess rebate received → offset clamped to zero (not negative)', () => {
+    test('excess rebate received → negative offset (liability, no longer clamped)', () => {
         const td = singleTaxpayer({
             phiPremiumsPaid_period1: 10000,
             phiRebateReceived: 99999,
         });
-        expect(TaxCalculations.calculatePhiOffset(80000, td)).toBe(0);
+        // 10000 * 0.24608 - 99999 = -97538.20
+        expect(TaxCalculations.calculatePhiOffset(80000, td)).toBeCloseTo(-97538.20, 2);
     });
 
     test('65to69 age bracket uses correct rates', () => {
@@ -552,6 +690,22 @@ describe('calculatePhiOffset — 2024-2025', () => {
         // under65 tier1 Period 1: 0.16405
         const td = singleTaxpayer({ phiPremiumsPaid_period1: 10000 });
         expect(TaxCalculations.calculatePhiOffset(100000, td)).toBeCloseTo(10000 * 0.16405, 4);
+    });
+
+    test('REGRESSION: fractional income at a tier boundary no longer falls back to base rate', () => {
+        // Income $113,000.50 sat in the $1 gap between tier1 (≤113,000) and
+        // tier2 (≥113,001) integer checks and wrongly got the base rebate.
+        // Floored to 113,000 → tier1 (0.16405), not base (0.24608).
+        const td = singleTaxpayer({ phiPremiumsPaid_period1: 10000 });
+        expect(TaxCalculations.calculatePhiOffset(113000.50, td)).toBeCloseTo(10000 * 0.16405, 4);
+    });
+
+    test('REGRESSION: PHI tier applies the MLS dependent-child adjustment', () => {
+        // Family, 3 children → tier minima shift by 2 × $1,500 = $3,000.
+        // Income $195,000 < shifted tier1 min $197,001 → base rate, matching
+        // calculateMLS (old code used unshifted thresholds → tier1).
+        const td = familyTaxpayer({ dependentChildren: 3, phiPremiumsPaid_period1: 10000 });
+        expect(TaxCalculations.calculatePhiOffset(195000, td)).toBeCloseTo(10000 * 0.24608, 4);
     });
 
     test('Tier 2 income (single, 2024-25): income $120,000 → tier2 rate applied', () => {
@@ -694,6 +848,36 @@ describe('calculateDepreciationForFinancialYear', () => {
     test('prime cost: purchased before FY start → full year deduction', () => {
         // Prior year purchase: purchaseDate < financialYearStart
         expect(depr(1000, 100, 5, '2023-07-01', 'prime_cost')).toBeCloseTo(200, 2);
+    });
+
+    test('REGRESSION: prime cost stops after effective life expires (was claiming forever)', () => {
+        // Purchased 2019-07-01, life 5: fully written off across FY19-20..FY23-24.
+        // FY 2024-25 claim must be 0 (old code returned 200/year indefinitely).
+        expect(depr(1000, 100, 5, '2019-07-01', 'prime_cost')).toBe(0);
+    });
+
+    test('prime cost: final year claims only the remaining value', () => {
+        // Purchased 2020-01-01 (acq FY 2019-20 had 366 days, 182 owned).
+        // Consumed by FY 2023-24: 200 × (182/366 + 4) = 899.45; remaining = 100.55
+        expect(depr(1000, 100, 5, '2020-01-01', 'prime_cost')).toBeCloseTo(100.55, 2);
+    });
+
+    test('prime cost: final-year remainder respects work percentage', () => {
+        expect(depr(1000, 50, 5, '2020-01-01', 'prime_cost')).toBeCloseTo(50.27, 2);
+    });
+
+    test('prime cost: claim matches the depreciation schedule row for the FY', () => {
+        // The displayed schedule caps at the remaining value; the claimed
+        // amount must agree with it (they previously diverged).
+        const schedule = TaxCalculations.generateDepreciationSchedule({
+            isDepreciable: true, cost: 1000, workPercentage: 100, effectiveLife: 5,
+            date: '2020-01-01', depreciationMethod: 'prime_cost',
+        });
+        // Current FY (2024-25) row is bolded, e.g. <strong>2024-25: $100.55</strong>
+        const match = schedule.match(/<strong>2024-25: \$([\d,]+\.\d{2})/);
+        expect(match).not.toBeNull();
+        const scheduleAmount = parseFloat(match[1].replace(/,/g, ''));
+        expect(depr(1000, 100, 5, '2020-01-01', 'prime_cost')).toBeCloseTo(scheduleAmount, 2);
     });
 
     test('diminishing value: year 1 at FY start → cost × (2/life)', () => {
@@ -870,12 +1054,27 @@ describe('calculateTaxableIncome', () => {
 // calculateNetTaxPayable & calculateFinalOutcome
 // ─────────────────────────────────────────────
 describe('calculateNetTaxPayable and calculateFinalOutcome', () => {
+    const offsets = (overrides = {}) => ({ lito: 0, frankingCredits: 0, phiOffset: 0, ...overrides });
+
     test('net tax = gross + medicare + MLS - offsets', () => {
-        expect(TaxCalculations.calculateNetTaxPayable(20000, 1500, 0, 700)).toBe(20800);
+        expect(TaxCalculations.calculateNetTaxPayable(20000, 1500, 0, offsets({ lito: 700 }))).toBe(20800);
     });
 
-    test('offsets exceed tax → clamped to zero (no negative tax payable)', () => {
-        expect(TaxCalculations.calculateNetTaxPayable(100, 0, 0, 5000)).toBe(0);
+    test('LITO exceeding gross tax is clamped (non-refundable)', () => {
+        expect(TaxCalculations.calculateNetTaxPayable(100, 0, 0, offsets({ lito: 5000 }))).toBe(0);
+    });
+
+    test('LITO cannot offset the Medicare levy', () => {
+        // Old code applied the full offset pool against gross + levy, giving 0
+        expect(TaxCalculations.calculateNetTaxPayable(100, 500, 0, offsets({ lito: 700 }))).toBe(500);
+    });
+
+    test('refundable franking credits drive net tax negative', () => {
+        expect(TaxCalculations.calculateNetTaxPayable(1000, 0, 0, offsets({ frankingCredits: 3000 }))).toBe(-2000);
+    });
+
+    test('negative PHI offset (over-claimed rebate) increases net tax', () => {
+        expect(TaxCalculations.calculateNetTaxPayable(1000, 0, 0, offsets({ phiOffset: -250 }))).toBe(1250);
     });
 
     test('final outcome = withheld - payable (refund scenario)', () => {
@@ -919,6 +1118,17 @@ describe('calculateTotalOffsets', () => {
         expect(result.total).toBeCloseTo(result.lito + result.frankingCredits + result.phiOffset, 5);
     });
 
+    test('negative phiOffset (over-claimed rebate) reduces the total', () => {
+        const data = {
+            ...makeAppData(),
+            taxpayerDetails: singleTaxpayer({ phiPremiumsPaid_period1: 1000, phiRebateReceived: 500 }),
+        };
+        // phiOffset = 1000 * 0.24608 - 500 = -253.92; lito = 700 at 30000
+        const result = TaxCalculations.calculateTotalOffsets(30000, data);
+        expect(result.phiOffset).toBeCloseTo(-253.92, 2);
+        expect(result.total).toBeCloseTo(700 - 253.92, 2);
+    });
+
     test('all three offset types contribute when non-zero', () => {
         // taxableIncome=30000: lito=700; frankingCredits=300; phiOffset=10000*0.24608=2460.80
         // Build appData manually to avoid makeAppData's ...overrides stomping taxpayerDetails
@@ -947,7 +1157,7 @@ describe('Integration — full tax scenarios', () => {
         const td = singleTaxpayer();
         const medicare = TaxCalculations.calculateMedicareLevy(taxableIncome, td);
         const mls = TaxCalculations.calculateMLS(taxableIncome, td);
-        const netTax = TaxCalculations.calculateNetTaxPayable(grossTax, medicare, mls, lito);
+        const netTax = TaxCalculations.calculateNetTaxPayable(grossTax, medicare, mls, { lito, frankingCredits: 0, phiOffset: 0 });
 
         // grossTax = 4288 + (80000 - 45000) * 0.30 = 14788
         expect(grossTax).toBeCloseTo(14788, 2);
@@ -974,8 +1184,8 @@ describe('Integration — full tax scenarios', () => {
         // medicare: 30000 in phase-in zone (27222 < 30000 < 34027)
         // (30000 - 27222) * 0.10 = 277.80
         expect(medicare).toBeCloseTo(277.80, 2);
-        // netTax = 1888 + 277.80 - 700 = 1465.80
-        expect(TaxCalculations.calculateNetTaxPayable(grossTax, medicare, 0, lito)).toBeCloseTo(1465.80, 2);
+        // netTax = max(0, 1888 - 700) + 277.80 = 1465.80
+        expect(TaxCalculations.calculateNetTaxPayable(grossTax, medicare, 0, { lito, frankingCredits: 0, phiOffset: 0 })).toBeCloseTo(1465.80, 2);
     });
 
     test('Scenario 3: Family, 2 children, $50k income — CRITICAL regression (no Medicare levy)', () => {
@@ -1044,46 +1254,54 @@ describe('Integration — full tax scenarios', () => {
 // constants.js: TAX_CONFIG structure validation
 // ─────────────────────────────────────────────
 describe('TAX_CONFIG structure', () => {
-    test('both years exist', () => {
+    test('all configured years exist', () => {
         expect(TAX_CONFIG['2024-2025']).toBeDefined();
         expect(TAX_CONFIG['2025-2026']).toBeDefined();
+        expect(TAX_CONFIG['2026-2027']).toBeDefined();
     });
 
     test('AVAILABLE_YEARS is sorted', () => {
-        expect(AVAILABLE_YEARS).toEqual(['2024-2025', '2025-2026']);
+        expect(AVAILABLE_YEARS).toEqual(['2024-2025', '2025-2026', '2026-2027']);
     });
 
-    test('LATEST_YEAR is 2025-2026', () => {
-        expect(LATEST_YEAR).toBe('2025-2026');
+    test('LATEST_YEAR is 2026-2027', () => {
+        expect(LATEST_YEAR).toBe('2026-2027');
     });
 
-    test.each(['2024-2025', '2025-2026'])('%s has all required keys', (year) => {
+    test.each(Object.keys(TAX_CONFIG))('%s has all required keys', (year) => {
         const cfg = TAX_CONFIG[year];
         const requiredKeys = [
             'TAX_RATES', 'LITO_MAX_OFFSET', 'LITO_THRESHOLD_1',
             'MEDICARE_LEVY_RATE', 'MEDICARE_LEVY_THRESHOLD_SINGLE',
             'MEDICARE_LEVY_THRESHOLD_FAMILY', 'MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY',
-            'MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT',
+            'MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT', 'MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER',
             'MLS_THRESHOLDS_SINGLE', 'MLS_THRESHOLDS_FAMILY',
             'PHI_REBATE_RATES_PERIODS', 'WFH_FIXED_RATE_PER_HOUR',
         ];
         requiredKeys.forEach(key => expect(cfg).toHaveProperty(key));
     });
 
-    test.each(['2024-2025', '2025-2026'])('%s has 5 tax brackets', (year) => {
+    test.each(Object.keys(TAX_CONFIG))('%s has 5 tax brackets', (year) => {
         expect(TAX_CONFIG[year].TAX_RATES).toHaveLength(5);
     });
 
-    test.each(['2024-2025', '2025-2026'])('%s has correct Medicare levy family threshold (45907)', (year) => {
-        expect(TAX_CONFIG[year].MEDICARE_LEVY_THRESHOLD_FAMILY).toBe(45907);
+    test('2026-2027 carries forward 2025-26 Medicare thresholds until the 2027 Budget', () => {
+        expect(TAX_CONFIG['2026-2027'].MEDICARE_LEVY_THRESHOLD_SINGLE).toBe(28011);
+        expect(TAX_CONFIG['2026-2027'].MEDICARE_LEVY_THRESHOLD_FAMILY).toBe(47238);
     });
 
-    test.each(['2024-2025', '2025-2026'])('%s has correct Medicare levy family upper threshold (57383)', (year) => {
-        expect(TAX_CONFIG[year].MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY).toBe(57383);
-    });
-
-    test.each(['2024-2025', '2025-2026'])('%s has correct family child adjustment (4216)', (year) => {
-        expect(TAX_CONFIG[year].MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT).toBe(4216);
+    test.each([
+        // [year, single, singleUpper, family, familyUpper, child, childUpper]
+        ['2024-2025', 27222, 34027, 45907, 57383, 4216, 5270],
+        ['2025-2026', 28011, 35013, 47238, 59047, 4338, 5423],
+    ])('%s has the correct Medicare levy low-income thresholds', (year, single, singleUpper, family, familyUpper, child, childUpper) => {
+        const cfg = TAX_CONFIG[year];
+        expect(cfg.MEDICARE_LEVY_THRESHOLD_SINGLE).toBe(single);
+        expect(cfg.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE).toBe(singleUpper);
+        expect(cfg.MEDICARE_LEVY_THRESHOLD_FAMILY).toBe(family);
+        expect(cfg.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY).toBe(familyUpper);
+        expect(cfg.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT).toBe(child);
+        expect(cfg.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER).toBe(childUpper);
     });
 
     test('2025-2026 has correct MLS single tier 1 cap (118000)', () => {
@@ -1110,6 +1328,32 @@ describe('TAX_CONFIG structure', () => {
     test('2025-2026 PHI Period 2 under65 base rate is 0.24118', () => {
         const period2 = TAX_CONFIG['2025-2026'].PHI_REBATE_RATES_PERIODS['2026-04-01_2026-06-30'];
         expect(period2.under65.base).toBeCloseTo(0.24118, 5);
+    });
+
+    test('2026-2027 has correct MLS tier caps (single 105k/123k/164k, family 210k/246k/328k)', () => {
+        const single = TAX_CONFIG['2026-2027'].MLS_THRESHOLDS_SINGLE;
+        expect(single[0].max).toBe(105000);
+        expect(single[1].max).toBe(123000);
+        expect(single[2].max).toBe(164000);
+        const family = TAX_CONFIG['2026-2027'].MLS_THRESHOLDS_FAMILY;
+        expect(family[0].max).toBe(210000);
+        expect(family[1].max).toBe(246000);
+        expect(family[2].max).toBe(328000);
+    });
+
+    test('2026-2027 has the two expected PHI rebate periods (Apr-2026 rates carried in)', () => {
+        const periods = TAX_CONFIG['2026-2027'].PHI_REBATE_RATES_PERIODS;
+        expect(Object.keys(periods).sort()).toEqual(['2026-07-01_2027-03-31', '2027-04-01_2027-06-30']);
+        expect(periods['2026-07-01_2027-03-31'].under65.base).toBeCloseTo(0.24118, 5);
+        expect(periods['2027-04-01_2027-06-30'].under65.base).toBeCloseTo(0.24118, 5);
+    });
+
+    test('2026-2027 tax table uses the 15% rate with rebased bracket bases', () => {
+        const rates = TAX_CONFIG['2026-2027'].TAX_RATES;
+        expect(rates[1].rate).toBeCloseTo(0.15, 5);
+        expect(rates[2].base).toBe(4020);
+        expect(rates[3].base).toBe(31020);
+        expect(rates[4].base).toBe(51370);
     });
 
     test('loadConstantsForYear sets window.FINANCIAL_YEAR', () => {

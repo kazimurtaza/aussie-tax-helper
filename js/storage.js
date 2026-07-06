@@ -9,6 +9,20 @@ const StorageManager = (() => {
     // 2024-2025 resolves to aussieTaxHelperData-2025
     const getStorageKey = (year) => `aussieTaxHelperData-${year.split('-')[1]}`;
 
+    // Years that actually have data in localStorage — may include years not
+    // selectable in this version (e.g. imported from a newer app version).
+    const getAllStoredYears = () => {
+        const years = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const match = (localStorage.key(i) || '').match(/^aussieTaxHelperData-(\d{4})$/);
+            if (match) {
+                const endYear = parseInt(match[1], 10);
+                years.push(`${endYear - 1}-${endYear}`);
+            }
+        }
+        return years.sort();
+    };
+
     const getDefaultData = () => ({
         userSettings: {
             currentSection: 'dashboard-section',
@@ -221,9 +235,10 @@ const StorageManager = (() => {
             if (scope === 'current') {
                 exportYearsData[window.FINANCIAL_YEAR] = currentData;
             } else {
-                // Collect all years from localStorage
+                // Collect every stored year, including ones this version can't
+                // display yet, so imported future-year data round-trips out
                 const skippedYears = [];
-                window.AVAILABLE_YEARS.forEach(year => {
+                getAllStoredYears().forEach(year => {
                     const stored = localStorage.getItem(getStorageKey(year));
                     if (stored) {
                         try { exportYearsData[year] = JSON.parse(stored); } catch (_) {
@@ -339,11 +354,13 @@ const StorageManager = (() => {
                         return;
                     }
                     // Save each year's data directly to localStorage, migrating each individually
+                    const savedYears = [];
                     yearsImported.forEach(year => {
                         const yearData = importedData.years[year];
                         if (validateImportedData(yearData)) {
                             migrateData(yearData);
                             localStorage.setItem(getStorageKey(year), JSON.stringify(yearData));
+                            savedYears.push(year);
                         }
                     });
                     // Switch to the most recent available imported year
@@ -353,6 +370,12 @@ const StorageManager = (() => {
                     saveActiveYearPreference(bestYear);
                     // Load through the full merge pipeline to ensure all default fields are present
                     callback(loadData(bestYear));
+                    // Surface years that were saved but aren't selectable in this
+                    // version (fired after the callback so this modal shows last)
+                    const unsupportedYears = savedYears.filter(y => !window.AVAILABLE_YEARS.includes(y));
+                    if (unsupportedYears.length > 0) {
+                        _notify(`Import complete. Note: data for ${unsupportedYears.join(', ')} was saved but that year isn't selectable in this version. It stays in your browser and is included in exports.`);
+                    }
                 } else if (validateImportedData(importedData)) {
                     // Legacy single-year format
                     const importedYear = importedData.userSettings?.financialYear;
