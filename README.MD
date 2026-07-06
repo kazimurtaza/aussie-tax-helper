@@ -96,9 +96,9 @@ Tests are also run automatically by GitHub Actions on every pull request and pus
 
 ## Tax Rate & Threshold Constants
 
-All core tax calculation parameters are stored in `js/constants.js` using a year-keyed configuration structure. This centralizes the key ATO rates and thresholds, making them easy to review and update annually. The application supports multiple financial years (2024-2025, 2025-2026) with automatic rate switching based on the selected year.
+All core tax calculation parameters are stored in `js/constants.js` using a year-keyed configuration structure. This centralizes the key ATO rates and thresholds, making them easy to review and update annually. The application supports multiple financial years (2024-2025, 2025-2026, 2026-2027) with automatic rate switching based on the selected year.
 
-Below are the key constants for the **2024-2025** and **2025-2026** financial years.
+Below are the key constants for the **2024-2025** baseline, with the **2025-2026** and **2026-2027** changes summarised further down.
 
 ### Income Tax Rates (2024-2025)
 These are the legislated "Stage 3" tax rates, effective from 1 July 2024.
@@ -121,11 +121,17 @@ These are the legislated "Stage 3" tax rates, effective from 1 July 2024.
 
 ### Medicare Levy
 * **Standard Rate:** `2%` of taxable income.
-* **Low-income threshold (Singles):** No levy if income is below `$27,222`.
-* **Low-income phase-in (Singles):** A reduced rate is paid for income between `$27,222` and `$34,027`.
-* **Low-income threshold (Families):** No levy if combined family income is below `$45,907` (increases by `$4,216` for each dependent child after the first).
-* **Low-income phase-in (Families):** A reduced rate is paid for combined income between `$45,907` and `$57,383`.
-*Source: Treasury Laws Amendment (More Cost of Living Relief) Act 2025 (Royal Assent 27 March 2025)*
+* **Low-income thresholds are indexed annually and stored per financial year** (see `MEDICARE_THRESHOLDS_*` in `js/constants.js`):
+
+| | 2024-25 | 2025-26 |
+| :--- | :--- | :--- |
+| Single threshold / phase-in upper | $27,222 / $34,027 | $28,011 / $35,013 |
+| Family threshold / phase-in upper | $45,907 / $57,383 | $47,238 / $59,047 |
+| Per dependent child (lower / upper) | +$4,216 / +$5,270 | +$4,338 / +$5,423 |
+
+* The family threshold increases per dependent child; the phase-in upper limit increases by 1.25× that amount per child.
+* 2026-27 thresholds are announced in the 2027 Budget — the app carries the 2025-26 values forward until then.
+*Sources: Treasury Laws Amendment (More Cost of Living Relief) Act 2025; March 2026 Federal Budget (retroactive to 1 July 2025); ATO Medicare levy reduction pages*
 
 ### Medicare Levy Surcharge (MLS)
 An additional levy for higher-income earners without private hospital cover.
@@ -137,7 +143,7 @@ An additional levy for higher-income earners without private hospital cover.
 A government contribution to help cover the cost of private health insurance. The rebate amount is income-tested and age-based.
 
 ### Work-From-Home (WFH) Fixed Rate
-* **Rate for 2024-2025 and 2025-2026:** `70 cents per hour` (confirmed unchanged). This rate covers electricity, gas, internet, phone, stationery, and computer consumables.
+* **Rate for 2024-2025 through 2026-2027:** `70 cents per hour` (ATO confirmed unchanged). This rate covers electricity, gas, internet, phone, stationery, and computer consumables.
 *Source: [ATO - Fixed rate method](https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/working-from-home-deductions/fixed-rate-method-work-from-home-expenses)*
 
 ### 2025-2026 Updates
@@ -150,7 +156,18 @@ The following ATO rates have been updated for the 2025-2026 financial year:
 * **Child Adjustment:** `$1,500` for each dependent child after the first (unchanged)
 * **Surcharge Rates:** `1%`, `1.25%`, or `1.5%` depending on the income tier (unchanged)
 
-All other 2025-2026 rates — income tax brackets, LITO, Medicare levy thresholds, and PHI rebate rates — are confirmed from official ATO sources and coded in `js/constants.js`. PHI rebate rates are updated for both 2025-26 periods (1 July 2025 – 31 March 2026 and 1 April 2026 – 30 June 2026) per Dept of Health PHI Circulars 21/25 and 12/26.
+#### Medicare Levy — 2025-2026
+* **Low-income thresholds raised** by the March 2026 Budget, retroactive to 1 July 2025: single `$28,011` (phase-in to `$35,013`), family `$47,238` (phase-in to `$59,047`), `+$4,338` per dependent child.
+
+All other 2025-2026 rates — income tax brackets, LITO, and PHI rebate rates — are confirmed from official ATO sources and coded in `js/constants.js`. PHI rebate rates are updated for both 2025-26 periods (1 July 2025 – 31 March 2026 and 1 April 2026 – 30 June 2026) per Dept of Health PHI Circulars 21/25 and 12/26.
+
+### 2026-2027 Updates
+
+* **Income tax:** the `16%` bracket rate drops to `15%` from 1 July 2026 (legislated); bracket bases rebased to `$4,020` / `$31,020` / `$51,370`.
+* **MLS thresholds (indexed):** singles `$105,000` / `$123,000` / `$164,000`; families `$210,000` / `$246,000` / `$328,000`.
+* **PHI rebate:** the 1 April 2026 rates carry into 1 July 2026 – 31 March 2027; the 1 April 2027 – 30 June 2027 period is a placeholder until the 2027 rebate adjustment factor is announced (~February 2027).
+* **Medicare low-income thresholds:** carried forward from 2025-26 pending the 2027 Budget.
+* **Not yet implemented:** the `$1,000` standard work-related expenses deduction (first claimable in 2026-27 returns) is planned as a separate feature.
 
 ## Data Storage & Security
 
@@ -160,6 +177,30 @@ All other 2025-2026 rates — income tax brackets, LITO, Medicare levy threshold
 * **Privacy:** The app does not handle or store Tax File Numbers (TFNs).
 
 ## Changelog
+
+### Version 1.7.0
+* ***Added***
+    * ***FY 2026-27 support:*** New `TAX_CONFIG` entry with the legislated 15% bracket (down from 16% from 1 July 2026), indexed MLS thresholds ($105k/$123k/$164k singles, $210k/$246k/$328k families), PHI rebate periods, and the confirmed 70c/hr WFH fixed rate. Year selector, storage keys, and default-year detection pick it up automatically.
+    * ***Test suite:*** 243 Jest tests (up from 205) covering the new year, corrected thresholds, and regressions.
+* ***Fixed***
+    * ***2025-26 Medicare levy thresholds:*** Updated per the March 2026 Budget, retroactive to 1 July 2025 (single $28,011/$35,013, family $47,238/$59,047, +$4,338 per child). The 2024-25 figures were previously applied to both years; thresholds now live in per-year config blocks.
+    * ***Family phase-in upper limit:*** The per-child adjustment on the upper phase-in threshold now scales by 1.25× the lower adjustment ($5,270 in 2024-25, $5,423 in 2025-26). Families with children inside the phase-in band were previously overcharged the flat 2% levy.
+    * ***PHI rebate tiering:*** Now shares the MLS tier logic — the dependent-child threshold adjustment applies, and fractional incomes at tier boundaries no longer fall back to the base (most generous) rebate rate.
+    * ***Refundable offsets:*** LITO no longer offsets the Medicare levy (non-refundable, income tax only); franking credits and the PHI offset are fully refundable and can increase the refund. An over-claimed PHI rebate is now counted as a liability instead of being ignored.
+    * ***Prime-cost depreciation:*** Stops once an asset is fully written off — prior-year assets no longer generate deductions forever, and the claimed amount now matches the displayed schedule.
+    * ***Work-use percentage:*** An explicit 0% is preserved instead of being coerced to 100%.
+* ***Improved***
+    * ***Export/import round-trip:*** Export All Years includes stored data for years this version can't display yet, and import notifies when such a year is saved.
+    * ***Constants hygiene:*** Tax-free threshold derived from the active year's bracket table; Medicare exemption pro-rata uses actual days in the financial year; stale `window.TAX_RATES_2025` global renamed to `window.TAX_RATES`.
+
+### Version 1.6.0
+* ***Fixed***
+    * ***Leap-year depreciation:*** Pro-rata calculations use actual days in the financial year (366 for leap FYs) instead of a hardcoded 365.
+    * ***XSS hardening:*** User-supplied text in tables is HTML-escaped; inline `onclick` handlers replaced with `addEventListener`.
+    * ***Robustness:*** `calculatePhiOffset` null guard, CSV import duplicate-date skip, internet work % clamped to 0–100, storage migration guard for malformed data.
+* ***Improved***
+    * ***Import pipeline:*** Per-year migration and full merge pipeline on import; legacy single-year imports validate the financial year; export warns about corrupted years; fractional work percentages preserved.
+* ***Chore:*** Jest upgraded from v29 to v30; 205-test suite.
 
 ### Version 1.5.4
 * ***Fixed***
