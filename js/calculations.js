@@ -185,9 +185,9 @@ const TaxCalculations = (() => {
         let upperThreshold = window.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE;
 
         if (taxpayerDetails.filingStatus === 'family') {
-            const childAdjustment = (taxpayerDetails.dependentChildren || 0) * window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT;
-            threshold = window.MEDICARE_LEVY_THRESHOLD_FAMILY + childAdjustment;
-            upperThreshold = window.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY + childAdjustment;
+            const children = taxpayerDetails.dependentChildren || 0;
+            threshold = window.MEDICARE_LEVY_THRESHOLD_FAMILY + children * window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT;
+            upperThreshold = window.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY + children * window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER;
         }
 
         let fullYearLevy = 0;

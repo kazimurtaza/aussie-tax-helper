@@ -299,21 +299,67 @@ describe('calculateMedicareLevy — family (CRITICAL: fixed family thresholds)',
             // Correct: threshold = 45907 → 43000 < 45907 → 0
             expect(TaxCalculations.calculateMedicareLevy(43000, familyTaxpayer())).toBe(0);
         });
+
+        test('REGRESSION: family, 2 children, $66,000 → phase-in, not flat 2% (upper scales by $5,270/child)', () => {
+            // Lower = 45907 + 2×4216 = 54339; upper = 57383 + 2×5270 = 67923
+            // Old (wrong) upper = 57383 + 2×4216 = 65815 → flat 2% = 1320.00
+            // Correct: (66000 - 54339) * 0.10 = 1166.10
+            expect(TaxCalculations.calculateMedicareLevy(66000, familyTaxpayer({ dependentChildren: 2 }))).toBeCloseTo(1166.10, 2);
+        });
     });
 
-    describe('2025-2026 (same family thresholds)', () => {
+    describe('2025-2026 (thresholds raised by the March 2026 Budget)', () => {
         beforeEach(() => loadConstantsForYear('2025-2026'));
 
-        test('family thresholds are identical to 2024-25', () => {
+        test('family thresholds differ from 2024-25', () => {
             loadConstantsForYear('2024-2025');
             const levy2425 = TaxCalculations.calculateMedicareLevy(50000, familyTaxpayer());
             loadConstantsForYear('2025-2026');
             const levy2526 = TaxCalculations.calculateMedicareLevy(50000, familyTaxpayer());
-            expect(levy2526).toBe(levy2425);
+            // 2024-25: (50000 - 45907) * 0.10 = 409.30; 2025-26: (50000 - 47238) * 0.10 = 276.20
+            expect(levy2425).toBeCloseTo(409.30, 2);
+            expect(levy2526).toBeCloseTo(276.20, 2);
         });
 
-        test('family, 0 children: income $45,907 → zero', () => {
-            expect(TaxCalculations.calculateMedicareLevy(45907, familyTaxpayer())).toBe(0);
+        test('single: income at threshold $28,011 → zero levy', () => {
+            expect(TaxCalculations.calculateMedicareLevy(28011, singleTaxpayer())).toBe(0);
+        });
+
+        test('single: income $28,012 → phase-in starts', () => {
+            expect(TaxCalculations.calculateMedicareLevy(28012, singleTaxpayer())).toBeCloseTo(0.10, 5);
+        });
+
+        test('single: income $35,013 (top of phase-in) → $700.20', () => {
+            expect(TaxCalculations.calculateMedicareLevy(35013, singleTaxpayer())).toBeCloseTo(700.20, 2);
+        });
+
+        test('single: income $35,014 → full levy zone (2%) = $700.28', () => {
+            expect(TaxCalculations.calculateMedicareLevy(35014, singleTaxpayer())).toBeCloseTo(700.28, 2);
+        });
+
+        test('family, 0 children: income at threshold $47,238 → zero levy', () => {
+            expect(TaxCalculations.calculateMedicareLevy(47238, familyTaxpayer())).toBe(0);
+        });
+
+        test('family, 0 children: income $59,047 (top of phase-in) → $1,180.90', () => {
+            expect(TaxCalculations.calculateMedicareLevy(59047, familyTaxpayer())).toBeCloseTo(1180.90, 2);
+        });
+
+        test('family, 0 children: income $59,048 → full levy zone (2%) = $1,180.96', () => {
+            expect(TaxCalculations.calculateMedicareLevy(59048, familyTaxpayer())).toBeCloseTo(1180.96, 2);
+        });
+
+        test('family, 2 children: threshold = $47,238 + 2×$4,338 = $55,914', () => {
+            expect(TaxCalculations.calculateMedicareLevy(55914, familyTaxpayer({ dependentChildren: 2 }))).toBe(0);
+        });
+
+        test('family, 2 children: income $60,000 → phase-in = $408.60', () => {
+            // Upper = 59047 + 2×5423 = 69893, so 60000 is inside the phase-in band
+            expect(TaxCalculations.calculateMedicareLevy(60000, familyTaxpayer({ dependentChildren: 2 }))).toBeCloseTo(408.60, 2);
+        });
+
+        test('family, 2 children: income $69,894 → full levy zone (2%)', () => {
+            expect(TaxCalculations.calculateMedicareLevy(69894, familyTaxpayer({ dependentChildren: 2 }))).toBeCloseTo(1397.88, 2);
         });
     });
 });
@@ -1063,7 +1109,7 @@ describe('TAX_CONFIG structure', () => {
             'TAX_RATES', 'LITO_MAX_OFFSET', 'LITO_THRESHOLD_1',
             'MEDICARE_LEVY_RATE', 'MEDICARE_LEVY_THRESHOLD_SINGLE',
             'MEDICARE_LEVY_THRESHOLD_FAMILY', 'MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY',
-            'MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT',
+            'MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT', 'MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER',
             'MLS_THRESHOLDS_SINGLE', 'MLS_THRESHOLDS_FAMILY',
             'PHI_REBATE_RATES_PERIODS', 'WFH_FIXED_RATE_PER_HOUR',
         ];
@@ -1074,16 +1120,18 @@ describe('TAX_CONFIG structure', () => {
         expect(TAX_CONFIG[year].TAX_RATES).toHaveLength(5);
     });
 
-    test.each(['2024-2025', '2025-2026'])('%s has correct Medicare levy family threshold (45907)', (year) => {
-        expect(TAX_CONFIG[year].MEDICARE_LEVY_THRESHOLD_FAMILY).toBe(45907);
-    });
-
-    test.each(['2024-2025', '2025-2026'])('%s has correct Medicare levy family upper threshold (57383)', (year) => {
-        expect(TAX_CONFIG[year].MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY).toBe(57383);
-    });
-
-    test.each(['2024-2025', '2025-2026'])('%s has correct family child adjustment (4216)', (year) => {
-        expect(TAX_CONFIG[year].MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT).toBe(4216);
+    test.each([
+        // [year, single, singleUpper, family, familyUpper, child, childUpper]
+        ['2024-2025', 27222, 34027, 45907, 57383, 4216, 5270],
+        ['2025-2026', 28011, 35013, 47238, 59047, 4338, 5423],
+    ])('%s has the correct Medicare levy low-income thresholds', (year, single, singleUpper, family, familyUpper, child, childUpper) => {
+        const cfg = TAX_CONFIG[year];
+        expect(cfg.MEDICARE_LEVY_THRESHOLD_SINGLE).toBe(single);
+        expect(cfg.MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE).toBe(singleUpper);
+        expect(cfg.MEDICARE_LEVY_THRESHOLD_FAMILY).toBe(family);
+        expect(cfg.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY).toBe(familyUpper);
+        expect(cfg.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT).toBe(child);
+        expect(cfg.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER).toBe(childUpper);
     });
 
     test('2025-2026 has correct MLS single tier 1 cap (118000)', () => {

@@ -16,22 +16,39 @@ const SHARED_TAX_CONFIG = {
     LITO_THRESHOLD_3: 66667,
     LITO_REDUCTION_RATE_1: 0.05,
     LITO_REDUCTION_RATE_2: 0.015,
-    // Medicare Levy: rate and thresholds confirmed unchanged
-    // Family thresholds: Treasury Laws Amendment (More Cost of Living Relief) Act 2025
     MEDICARE_LEVY_RATE: 0.02,
+    MLS_CHILD_ADJUSTMENT: 1500,
+    WFH_FIXED_RATE_PER_HOUR: 0.70
+};
+
+// Medicare levy low-income thresholds are indexed annually (announced in the
+// Budget, retroactive to 1 July). The upper phase-in child adjustment is the
+// lower adjustment × 1.25, matching the 8% shade-in band.
+const MEDICARE_THRESHOLDS_2024_25 = {
     MEDICARE_LEVY_THRESHOLD_SINGLE: 27222,
     MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE: 34027,
     MEDICARE_LEVY_THRESHOLD_FAMILY: 45907,
     MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY: 57383,
     MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT: 4216,
-    MLS_CHILD_ADJUSTMENT: 1500,
-    WFH_FIXED_RATE_PER_HOUR: 0.70
+    MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER: 5270
+};
+
+// March 2026 Budget, retroactive to 1 July 2025 — Source: ATO Medicare levy
+// reduction for low-income earners page
+const MEDICARE_THRESHOLDS_2025_26 = {
+    MEDICARE_LEVY_THRESHOLD_SINGLE: 28011,
+    MEDICARE_LEVY_PHASE_IN_UPPER_SINGLE: 35013,
+    MEDICARE_LEVY_THRESHOLD_FAMILY: 47238,
+    MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY: 59047,
+    MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT: 4338,
+    MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER: 5423
 };
 
 // Year-keyed tax configuration
 const TAX_CONFIG = {
     "2024-2025": {
         ...SHARED_TAX_CONFIG,
+        ...MEDICARE_THRESHOLDS_2024_25,
         // MLS thresholds for 2024-25
         MLS_THRESHOLDS_SINGLE: [
             { min: 0, max: 97000, rate: 0 },
@@ -60,6 +77,7 @@ const TAX_CONFIG = {
     },
     "2025-2026": {
         ...SHARED_TAX_CONFIG,
+        ...MEDICARE_THRESHOLDS_2025_26,
         // MLS thresholds updated for 2025-26 — Source: ATO MLS income thresholds page
         MLS_THRESHOLDS_SINGLE: [
             { min: 0, max: 101000, rate: 0 },
@@ -116,6 +134,7 @@ const loadConstantsForYear = (year) => {
     window.MEDICARE_LEVY_THRESHOLD_FAMILY = c.MEDICARE_LEVY_THRESHOLD_FAMILY;
     window.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY = c.MEDICARE_LEVY_PHASE_IN_UPPER_FAMILY;
     window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT = c.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT;
+    window.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER = c.MEDICARE_LEVY_FAMILY_CHILD_ADJUSTMENT_UPPER;
     window.MLS_THRESHOLDS_SINGLE = c.MLS_THRESHOLDS_SINGLE;
     window.MLS_THRESHOLDS_FAMILY = c.MLS_THRESHOLDS_FAMILY;
     window.MLS_CHILD_ADJUSTMENT = c.MLS_CHILD_ADJUSTMENT;
