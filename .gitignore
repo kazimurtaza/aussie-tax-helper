@@ -2,3 +2,6 @@ real_data.json
 coverage/
 node_modules/
 personal-data/
+
+# Claude Code
+.claude/
