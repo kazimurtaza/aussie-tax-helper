@@ -499,7 +499,7 @@ const UIManager = (() => {
 
         const offsets = TaxCalculations.calculateTotalOffsets(taxableIncome, appData);
 
-        const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, mls, offsets.total);
+        const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, mls, offsets);
         const finalOutcome = TaxCalculations.calculateFinalOutcome(totalTaxWithheld, netTaxPayable);
 
         const outcomeText = finalOutcome >= 0 ? `${formatCurrency(finalOutcome)} Refund` : `${formatCurrency(Math.abs(finalOutcome))} Payable`;

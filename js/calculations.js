@@ -270,9 +270,9 @@ const TaxCalculations = (() => {
         const correctRebate2 = (parseFloat(phiPremiumsPaid_period2) || 0) * rebateRatePeriod2;
 
         const totalCorrectRebate = correctRebate1 + correctRebate2;
-        const offset = totalCorrectRebate - (parseFloat(phiRebateReceived) || 0);
-
-        return Math.max(0, offset);
+        // May be negative when more rebate was received than the entitlement —
+        // that liability flows through as a negative offset.
+        return totalCorrectRebate - (parseFloat(phiRebateReceived) || 0);
     };
 
     const calculateTotalOffsets = (taxableIncome, appData) => {
@@ -282,8 +282,12 @@ const TaxCalculations = (() => {
         return { lito, frankingCredits, phiOffset, total: lito + frankingCredits + phiOffset };
     };
 
-    const calculateNetTaxPayable = (grossTax, medicareLevy, mls, totalOffsets) => {
-        return Math.max(0, grossTax + medicareLevy + mls - totalOffsets);
+    const calculateNetTaxPayable = (grossTax, medicareLevy, mls, offsets) => {
+        // LITO is non-refundable and offsets income tax only (not the levy or
+        // MLS). Franking credits and the PHI offset are refundable, so the
+        // result can go negative — a larger refund in calculateFinalOutcome.
+        return Math.max(0, grossTax - offsets.lito)
+            + medicareLevy + mls - offsets.frankingCredits - offsets.phiOffset;
     };
 
     const calculateFinalOutcome = (totalTaxWithheld, netTaxPayable) => {

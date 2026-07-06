@@ -656,12 +656,13 @@ describe('calculatePhiOffset — 2024-2025', () => {
         expect(TaxCalculations.calculatePhiOffset(80000, td)).toBeCloseTo(correct - 2000, 4);
     });
 
-    test('excess rebate received → offset clamped to zero (not negative)', () => {
+    test('excess rebate received → negative offset (liability, no longer clamped)', () => {
         const td = singleTaxpayer({
             phiPremiumsPaid_period1: 10000,
             phiRebateReceived: 99999,
         });
-        expect(TaxCalculations.calculatePhiOffset(80000, td)).toBe(0);
+        // 10000 * 0.24608 - 99999 = -97538.20
+        expect(TaxCalculations.calculatePhiOffset(80000, td)).toBeCloseTo(-97538.20, 2);
     });
 
     test('65to69 age bracket uses correct rates', () => {
@@ -1023,12 +1024,27 @@ describe('calculateTaxableIncome', () => {
 // calculateNetTaxPayable & calculateFinalOutcome
 // ─────────────────────────────────────────────
 describe('calculateNetTaxPayable and calculateFinalOutcome', () => {
+    const offsets = (overrides = {}) => ({ lito: 0, frankingCredits: 0, phiOffset: 0, ...overrides });
+
     test('net tax = gross + medicare + MLS - offsets', () => {
-        expect(TaxCalculations.calculateNetTaxPayable(20000, 1500, 0, 700)).toBe(20800);
+        expect(TaxCalculations.calculateNetTaxPayable(20000, 1500, 0, offsets({ lito: 700 }))).toBe(20800);
     });
 
-    test('offsets exceed tax → clamped to zero (no negative tax payable)', () => {
-        expect(TaxCalculations.calculateNetTaxPayable(100, 0, 0, 5000)).toBe(0);
+    test('LITO exceeding gross tax is clamped (non-refundable)', () => {
+        expect(TaxCalculations.calculateNetTaxPayable(100, 0, 0, offsets({ lito: 5000 }))).toBe(0);
+    });
+
+    test('LITO cannot offset the Medicare levy', () => {
+        // Old code applied the full offset pool against gross + levy, giving 0
+        expect(TaxCalculations.calculateNetTaxPayable(100, 500, 0, offsets({ lito: 700 }))).toBe(500);
+    });
+
+    test('refundable franking credits drive net tax negative', () => {
+        expect(TaxCalculations.calculateNetTaxPayable(1000, 0, 0, offsets({ frankingCredits: 3000 }))).toBe(-2000);
+    });
+
+    test('negative PHI offset (over-claimed rebate) increases net tax', () => {
+        expect(TaxCalculations.calculateNetTaxPayable(1000, 0, 0, offsets({ phiOffset: -250 }))).toBe(1250);
     });
 
     test('final outcome = withheld - payable (refund scenario)', () => {
@@ -1072,6 +1088,17 @@ describe('calculateTotalOffsets', () => {
         expect(result.total).toBeCloseTo(result.lito + result.frankingCredits + result.phiOffset, 5);
     });
 
+    test('negative phiOffset (over-claimed rebate) reduces the total', () => {
+        const data = {
+            ...makeAppData(),
+            taxpayerDetails: singleTaxpayer({ phiPremiumsPaid_period1: 1000, phiRebateReceived: 500 }),
+        };
+        // phiOffset = 1000 * 0.24608 - 500 = -253.92; lito = 700 at 30000
+        const result = TaxCalculations.calculateTotalOffsets(30000, data);
+        expect(result.phiOffset).toBeCloseTo(-253.92, 2);
+        expect(result.total).toBeCloseTo(700 - 253.92, 2);
+    });
+
     test('all three offset types contribute when non-zero', () => {
         // taxableIncome=30000: lito=700; frankingCredits=300; phiOffset=10000*0.24608=2460.80
         // Build appData manually to avoid makeAppData's ...overrides stomping taxpayerDetails
@@ -1100,7 +1127,7 @@ describe('Integration — full tax scenarios', () => {
         const td = singleTaxpayer();
         const medicare = TaxCalculations.calculateMedicareLevy(taxableIncome, td);
         const mls = TaxCalculations.calculateMLS(taxableIncome, td);
-        const netTax = TaxCalculations.calculateNetTaxPayable(grossTax, medicare, mls, lito);
+        const netTax = TaxCalculations.calculateNetTaxPayable(grossTax, medicare, mls, { lito, frankingCredits: 0, phiOffset: 0 });
 
         // grossTax = 4288 + (80000 - 45000) * 0.30 = 14788
         expect(grossTax).toBeCloseTo(14788, 2);
@@ -1127,8 +1154,8 @@ describe('Integration — full tax scenarios', () => {
         // medicare: 30000 in phase-in zone (27222 < 30000 < 34027)
         // (30000 - 27222) * 0.10 = 277.80
         expect(medicare).toBeCloseTo(277.80, 2);
-        // netTax = 1888 + 277.80 - 700 = 1465.80
-        expect(TaxCalculations.calculateNetTaxPayable(grossTax, medicare, 0, lito)).toBeCloseTo(1465.80, 2);
+        // netTax = max(0, 1888 - 700) + 277.80 = 1465.80
+        expect(TaxCalculations.calculateNetTaxPayable(grossTax, medicare, 0, { lito, frankingCredits: 0, phiOffset: 0 })).toBeCloseTo(1465.80, 2);
     });
 
     test('Scenario 3: Family, 2 children, $50k income — CRITICAL regression (no Medicare levy)', () => {
