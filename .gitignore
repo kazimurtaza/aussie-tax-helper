@@ -3,5 +3,12 @@ coverage/
 node_modules/
 personal-data/
 
+# Personal tax-data backups — contains private financial data. NEVER commit.
+/backups/
+/drive-download-*.zip
+/tax_data_*.json
+/tax_data_*.csv
+/tax_data_*.xlsx
+
 # Claude Code
 .claude/

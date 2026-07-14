@@ -274,7 +274,9 @@ const StorageManager = (() => {
                 };
 
                 const buildYearCsv = (data, year) => {
-                    let s = `"=== Financial Year: ${year} ==="\n\n`;
+                    // Banner must not start with '=': Excel treats a leading '=' as a formula
+                    // when opening a CSV, which mangles the year header (#NAME?/formula error).
+                    let s = `"Financial Year: ${year}"\n\n`;
                     s += `"Taxpayer Details"\n${arrayToCsv(
                         [data.taxpayerDetails],
                         ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid (Jul-Mar)', 'PHI Premiums Paid (Apr-Jun)', 'PHI Rebate Received'],
