@@ -178,6 +178,23 @@ All other 2025-2026 rates — income tax brackets, LITO, and PHI rebate rates �
 
 ## Changelog
 
+### Version 1.9.0
+* ***Added***
+    * ***Occupancy expenses:*** Each WFH property period can record rent or mortgage interest, apportioned by the existing floor-area ratio into the actual-cost deduction. Opt-in field with an ATO caution — occupancy costs are only deductible for employees in limited circumstances.
+    * ***Identical-assets review:*** The ATO excludes an asset from the ≤$300 immediate deduction when it is one of a number of identical or substantially identical assets started to hold in the year that together cost more than $300. The app now detects such groups across both expense lists, shows an amber review card on the summary page (included in the printable report), and flags them in CSV and JSON exports. Detection only — nothing is reclassified.
+    * ***Effective-life guidance:*** All three effective-life inputs list the ATO's common determinations (computers and computer equipment 4 years; laptops, tablets and other portable computers 2 years; mainframe and network equipment 5 years) with a link to the ATO page.
+* ***Fixed***
+    * ***Prior-year items claimed again every year:*** Immediate (non-depreciable) deductions had no financial-year start bound — a $1,000 item dated 2024-07-01 claimed in full in FY 2024-25, again in 2025-26, and again in 2026-27. Immediate claims are now confined to the acquisition financial year; depreciable items keep spanning years via the depreciation schedule. WFH assets additionally gained the missing upper bound (future-dated items no longer claim early).
+    * ***Depreciation schedule at 0% work-use:*** An asset saved with an explicit 0% work-use claimed $0 but rendered a schedule as though it were 100%. The schedule and the claim now agree.
+    * ***Depreciable work-% fallback:*** A depreciable item saved without a work-use percentage silently claimed 0% instead of the documented fallback (100% for WFH assets). Both deduction branches now share one work-% normalisation rule (explicit 0 survives, blank/invalid takes the fallback, values clamped to 0–100) with the form boundary.
+    * ***Offsets reconciliation:*** "Total Offsets" summed the LITO entitlement, but LITO is non-refundable and capped at gross income tax — the summary rows didn't add up to net tax. LITO is now shown as applied, and gross + Medicare + MLS − total offsets equals net tax payable exactly.
+    * ***Negative net tax displayed as $0:*** The screen clamped a negative net tax payable while the export carried the true value — the same label showed two numbers. Both now show the true negative (refundable offsets exceeding tax increase the refund).
+    * ***Negative PHI offset styled as a benefit:*** An over-claimed private health insurance rebate is a liability but rendered green. It now renders red with an "(amount owing)" label, as does a negative offset total.
+    * ***Malformed dates crash:*** An expense without a valid date threw and broke the whole summary; such items now contribute $0.
+* ***Improved***
+    * ***One depreciation engine:*** The claim calculation and the displayed schedule now share a single implementation of the decline-in-value maths, verified behaviour-preserving by exhaustive parity (720 scenarios × 3 years, exact match; schedule strings byte-identical) and a 30-case agreement test matrix.
+    * ***Shared year/predicate helpers:*** `dateInFinancialYear` bounds item dates identically in totals and CSV exports; `withYearConstants` swaps year tax constants and restores them safely during export; storage keys use one parse/format pair. 324 Jest tests (up from 250).
+
 ### Version 1.8.0
 * ***Added***
     * ***Calculated Tax Summary in exports:*** Both CSV and JSON exports now include the app's computed figures per financial year — assessable income, tax withheld, deduction totals (general / WFH / super), taxable income, gross tax, Medicare levy, MLS, each offset, net tax payable, and the estimated refund or amount owing. Each year's summary is computed under that year's tax constants. CSV places it at the top of each year block; JSON carries a `calculatedSummaries` object (ignored on import and regenerated from raw data).
@@ -337,20 +354,23 @@ All other 2025-2026 rates — income tax brackets, LITO, and PHI rebate rates �
 
 ### Adding a New Financial Year
 
-To add support for a new financial year (e.g., 2026-2027):
+To add support for a new financial year (e.g., 2027-2028), add one complete entry to `TAX_CONFIG` in `js/constants.js`:
 
-1. **Update `js/constants.js`:** Add a new entry to the `TAX_CONFIG` object with the year as the key:
-   ```javascript
-   "2026-2027": {
-       TAX_RATES: [...],
-       LITO_MAX_OFFSET: ...,
-       // ... other constants
-   }
-   ```
+```javascript
+"2027-2028": {
+    ...SHARED_TAX_CONFIG,                        // LITO, Medicare levy rate, MLS child adjustment, WFH fixed rate
+    ...MEDICARE_THRESHOLDS_2027_28,              // add this const if the year's Medicare thresholds changed
+    TAX_RATES: TAX_RATES_FROM_2026_27,           // reference a TAX_RATES_* bracket table
+    MLS_THRESHOLDS_SINGLE: [...],                // 4 tiers, last with max: Infinity
+    MLS_THRESHOLDS_FAMILY: [...],
+    PHI_REBATE_RATES_PERIODS: {                  // exactly two period keys
+        "2027-07-01_2028-03-31": { under65: {...}, '65to69': {...}, '70plus': {...} },
+        "2028-04-01_2028-06-30": { under65: {...}, '65to69': {...}, '70plus': {...} },
+    },
+},
+```
 
-2. **No other changes needed:** The `AVAILABLE_YEARS` array is auto-generated from `TAX_CONFIG` keys, and all UI components automatically adapt to the new year.
-
-3. **PHI Period Labels:** Ensure the `PHI_REBATE_RATES_PERIODS` keys use the format `YYYY-MM-DD_YYYY-MM-DD` for correct label display.
+The entry must include the `TAX_RATES` reference and a Medicare threshold spread — without them `window.TAX_RATES` is `undefined` and `calculateGrossTax` throws. `PHI_REBATE_RATES_PERIODS` keys must use the format `YYYY-MM-DD_YYYY-MM-DD` for correct label display. `AVAILABLE_YEARS`, the year selector, storage keys and default-year detection all pick up the new entry automatically; no other files need changes.
 
 ## Disclaimer
 

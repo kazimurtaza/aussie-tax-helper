@@ -643,6 +643,18 @@
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
                     <div>
+                        <h4 class="font-semibold">Version 1.9.0</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-green-600">Added:</strong> Occupancy expenses (rent or mortgage interest) per WFH property period, apportioned by floor area — opt-in, with a caution that they're only deductible for employees in limited circumstances.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> ATO identical-assets review. When identical low-value items acquired in the year together cost more than $300 (e.g. 8 RAM modules at $224), the summary shows an amber review card and exports flag the group — the immediate deduction may not apply. Detection only; nothing is reclassified.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> ATO effective-life guidance beside every effective-life input (computers 4 yrs, laptops/tablets 2 yrs, network equipment 5 yrs) with a link to the ATO determination.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Prior-year items are no longer claimed again every financial year — immediate deductions are now confined to the financial year of purchase. This was silently inflating deductions year after year.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> The depreciation schedule for a 0% work-use asset now shows $0.00 instead of a full-cost schedule, and depreciable items with a missing work-use percentage take the documented fallback instead of 0%.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> The summary's Total Offsets now reconciles with net tax (LITO shown as applied, capped at gross tax), net tax payable displays the true negative when refundable offsets exceed tax, and a negative PHI rebate offset renders as an amount owing rather than a green benefit.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> Malformed expense dates no longer crash the summary; the depreciation claim and displayed schedule now share one calculation engine; year-constant swapping in exports restores state safely. Test suite grown to 324 tests.</li>
+                        </ul>
+                    </div>
+                    <div>
                         <h4 class="font-semibold">Version 1.8.0</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
                             <li><strong class="font-medium text-green-600">Added:</strong> Exports now include a per-year <em>Calculated Tax Summary</em> for your accountant — assessable income, deductions breakdown, taxable income, gross tax, Medicare levy, MLS, offsets, net tax, and the estimated refund/amount owing. CSV shows it at the top of each year; JSON carries it in a <code>calculatedSummaries</code> block.</li>

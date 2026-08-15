@@ -31,7 +31,7 @@ js/
   ui.js                # UIManager IIFE -- DOM manipulation, modals, form rendering
   app.js               # App IIFE -- event wiring, orchestration, state management
 tests/
-  calculations.test.js # 205 Jest tests (>90% coverage on calculations.js + constants.js)
+  calculations.test.js # 324 Jest tests (>90% coverage on calculations.js + constants.js)
 .github/workflows/
   test.yml             # CI: runs tests on PRs and non-main pushes
   static.yml           # CD: tests then deploys to GitHub Pages on main push
@@ -39,7 +39,7 @@ tests/
 
 **Data flow:** `constants.js` sets `window.*` globals -> `calculations.js` reads them -> `app.js` calls `StorageManager.loadData()` -> `UIManager.refreshUI()` -> user interacts -> `app.js` updates state -> `StorageManager.saveData()`.
 
-**Multi-year support:** Storage keys are `aussieTaxHelperData-{endYear}` (e.g. `aussieTaxHelperData-2025` for FY 2024-25). `loadConstantsForYear(year)` swaps all window globals. Adding a new FY only requires adding a key to `TAX_CONFIG` in `constants.js`.
+**Multi-year support:** Storage keys are `aussieTaxHelperData-{endYear}` (e.g. `aussieTaxHelperData-2025` for FY 2024-25). `loadConstantsForYear(year)` swaps all window globals; `withYearConstants(year, fn)` does the same and restores them afterwards (used by the export path). Adding a new FY requires a complete `TAX_CONFIG` entry in `constants.js` (see "Adding a new financial year" below) — no other files need changes.
 
 ## Conventions
 - **Module pattern:** Each JS file is an IIFE exposing a single global object (`TaxCalculations`, `StorageManager`, `UIManager`, `App`). No ES modules, no import/export.
@@ -63,4 +63,4 @@ tests/
 - **Feature branches:** Tests run on every PR and non-main push via `test.yml`.
 - **PRs:** Must pass tests before merge (deploy workflow gates on test job).
 - **Version bumps:** Manual update of version in `package.json` and changelog in `index.html` sidebar.
-- **Adding a new financial year:** Add a new key to `TAX_CONFIG` in `js/constants.js`. No other files need changes -- `AVAILABLE_YEARS` is auto-generated.
+- **Adding a new financial year:** Add a new key to `TAX_CONFIG` in `js/constants.js`. The entry is not just `SHARED_TAX_CONFIG` -- it must also reference a `TAX_RATES_*` bracket table (`TAX_RATES:` key), spread a `MEDICARE_THRESHOLDS_YYYY_YY` const (add one if the year's Medicare thresholds changed), and define `MLS_THRESHOLDS_SINGLE`/`MLS_THRESHOLDS_FAMILY` arrays plus `PHI_REBATE_RATES_PERIODS` with exactly two period keys (`1 Jul -> 31 Mar`, `1 Apr -> 30 Jun`). Without the `TAX_RATES` reference and Medicare spread, `window.TAX_RATES` is `undefined` and `calculateGrossTax` throws. `AVAILABLE_YEARS` is auto-generated; no other files need changes.
