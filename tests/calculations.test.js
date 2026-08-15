@@ -1318,6 +1318,11 @@ describe('calculateYearSummary', () => {
         const sFrank = TaxCalculations.calculateYearSummary(frankingHeavy);
         expect(sFrank.grossTax + sFrank.medicareLevy + sFrank.mls - sFrank.offsets.total)
             .toBeCloseTo(sFrank.netTaxPayable, 2);
+        // Net tax can legitimately be negative (refundable offsets exceeding
+        // tax); the summary must carry the true negative for the UI and the
+        // exports to display, not a clamped zero.
+        expect(sFrank.netTaxPayable).toBeLessThan(0);
+        expect(sFrank.finalOutcome).toBeCloseTo(2000 - sFrank.netTaxPayable, 2);
     });
 });
 

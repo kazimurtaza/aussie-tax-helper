@@ -525,7 +525,11 @@ const UIManager = (() => {
         document.getElementById('summary-lito-offset-row').style.display = offsets.lito > 0 ? 'flex' : 'none';
         document.getElementById('summary-franking-credits-offset').textContent = formatCurrency(offsets.frankingCredits);
         document.getElementById('summary-phi-offset').textContent = formatCurrency(offsets.phiOffset);
-        document.getElementById('summary-net-tax').textContent = formatCurrency(netTaxPayable < 0 ? 0 : netTaxPayable);
+        // A negative net tax is real: refundable offsets (franking credits,
+        // PHI offset) exceeding tax increase the refund. Snap sub-cent float
+        // residue to 0 so it doesn't render as "-$0.00".
+        const netTaxShown = Math.abs(netTaxPayable) < 0.005 ? 0 : netTaxPayable;
+        document.getElementById('summary-net-tax').textContent = formatCurrency(netTaxShown);
         document.getElementById('summary-tax-withheld').textContent = formatCurrency(totalTaxWithheld);
         document.getElementById('summary-final-outcome').textContent = outcomeText;
     };
