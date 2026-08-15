@@ -48,76 +48,114 @@ const TaxCalculations = (() => {
         return isNaN(date.getTime()) ? false : date >= bounds.start && date <= bounds.end;
     };
 
-    const calculateDepreciationForFinancialYear = (cost, workPercentage, effectiveLifeYears, purchaseDateString, method = 'prime_cost') => {
+    // ── Depreciation engine ────────────────────────────────────────────────
+    // One implementation of the decline-in-value maths, consumed by both the
+    // claim path (calculateDepreciationForFinancialYear) and the display path
+    // (generateDepreciationSchedule) so the two cannot drift. The claim for a
+    // given FY is always the engine's row for that FY; the schedule simply
+    // walks the engine's rows from the acquisition year.
+
+    // Parse and validate an asset into an engine context, or null when the
+    // purchase date can't be parsed.
+    const parseDepreciableAsset = (cost, workPercentage, effectiveLifeYears, purchaseDateString, method) => {
         const numCost = parseFloat(cost || 0);
-        const numEffectiveLife = parseInt(effectiveLifeYears || 0);
-        const numWorkPercentage = parseFloat(workPercentage || 0);
-
-        if (numCost <= 0) return 0;
-        
-        if (!effectiveLifeYears || effectiveLifeYears <= 0) {
-             return numCost * (numWorkPercentage / 100);
-        }
-
-        if (!purchaseDateString || typeof purchaseDateString !== 'string') return 0;
+        const life = parseInt(effectiveLifeYears || 0);
+        const workPct = parseFloat(workPercentage || 0);
+        if (!purchaseDateString || typeof purchaseDateString !== 'string') return null;
         // Parse as local time to stay consistent with FY boundary dates (also local).
         const [py, pm, pd] = purchaseDateString.split('-').map(Number);
         const purchaseDate = new Date(py, pm - 1, pd);
-        if (isNaN(purchaseDate.getTime())) return 0;
-
-        const yearStart = parseInt(window.FINANCIAL_YEAR.split('-')[0]);
-        const financialYearStart = new Date(yearStart, 6, 1);
-        const financialYearEnd = new Date(yearStart + 1, 5, 30);
-
-        if (purchaseDate > financialYearEnd) return 0;
-
-        let openingValue = numCost;
+        if (isNaN(purchaseDate.getTime())) return null;
 
         // Determine which Australian FY the asset was acquired in (FY starts Jul 1).
         // Month >= 6 means Jul-Dec: acquisition FY starts in the purchase calendar year.
         // Month < 6 means Jan-Jun: acquisition FY started the previous calendar year.
         const purchaseMonth = purchaseDate.getMonth();
         const acqFYStartYear = purchaseMonth >= 6 ? purchaseDate.getFullYear() : purchaseDate.getFullYear() - 1;
+
+        return {
+            numCost,
+            life,
+            workPct,
+            isDV: method === 'diminishing_value',
+            purchaseDate,
+            acqFYStartYear,
+        };
+    };
+
+    // Work-share deduction for ONE financial year (identified by its start
+    // year) of a parsed asset. Walks from the acquisition year, so a
+    // far-past purchase still resolves correctly. Returns null for FYs the
+    // asset doesn't cover (before acquisition, or not yet purchased).
+    const depreciationRowForFY = (ctx, targetFYStartYear) => {
+        const { numCost, life, workPct, isDV, purchaseDate, acqFYStartYear } = ctx;
+        const fyStart = new Date(targetFYStartYear, 6, 1);
+        const fyEnd = new Date(targetFYStartYear + 1, 5, 30);
+        if (purchaseDate > fyEnd || targetFYStartYear < acqFYStartYear) return null;
+
+        // Pro-rata for the acquisition FY: days owned out of the FY's actual
+        // length (366 in leap years).
         const acqFYEnd = new Date(acqFYStartYear + 1, 5, 30);
-        const acqDaysOwned = Math.floor((acqFYEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
-        const acqFraction = Math.min(1, acqDaysOwned / daysInFY(acqFYStartYear));
+        const acqDaysOwned = Math.floor((acqFYEnd - purchaseDate) / 86400000) + 1;
+        const acqFYDays = daysInFY(acqFYStartYear);
+        const acqFraction = Math.min(1, acqDaysOwned / acqFYDays);
+        const isAcqYear = targetFYStartYear === acqFYStartYear;
 
-        if (method === 'diminishing_value' && purchaseDate < financialYearStart) {
-            // Pro-rate the acquisition year deduction, then apply full DV for each subsequent FY.
-            const acqAnnualDepr = numEffectiveLife <= 1 ? openingValue : openingValue * (2 / numEffectiveLife);
-            openingValue = Math.max(0, openingValue - acqAnnualDepr * acqFraction);
+        const annualAt = (value) => (life <= 1 ? value : value * (2 / life));
 
-            const completeFYs = yearStart - (acqFYStartYear + 1);
-            for (let i = 0; i < completeFYs; i++) {
-                const deprAmt = numEffectiveLife <= 1 ? openingValue : openingValue * (2 / numEffectiveLife);
-                openingValue = Math.max(0, openingValue - deprAmt);
+        // Opening value at the start of the target FY. The full value (not
+        // the work share) is consumed each year.
+        let openingValueBefore;
+        if (isDV) {
+            openingValueBefore = numCost;
+            if (!isAcqYear) {
+                // DV: pro-rate the acquisition year, then full DV for each
+                // complete FY since.
+                openingValueBefore = Math.max(0, openingValueBefore - annualAt(numCost) * acqFraction);
+                const completeFYs = targetFYStartYear - (acqFYStartYear + 1);
+                for (let i = 0; i < completeFYs; i++) {
+                    openingValueBefore = Math.max(0, openingValueBefore - annualAt(openingValueBefore));
+                }
             }
-        }
-
-        let annualDepreciation;
-        if (method === 'diminishing_value') {
-            annualDepreciation = (numEffectiveLife <= 1) ? openingValue : openingValue * (2 / numEffectiveLife);
         } else {
-            annualDepreciation = numCost / numEffectiveLife;
-            if (purchaseDate < financialYearStart) {
-                // Prime cost ends once the asset is fully written off: cap this
-                // year's claim at the value remaining after the pro-rated
-                // acquisition year and each complete FY since.
-                const completeFYs = yearStart - (acqFYStartYear + 1);
-                const remainingValue = Math.max(0, numCost - annualDepreciation * (acqFraction + completeFYs));
-                annualDepreciation = Math.min(annualDepreciation, remainingValue);
-            }
+            // PC: flat rate from cost; the acquisition year counts pro-rata.
+            const consumedBefore = (numCost / life)
+                * (isAcqYear ? 0 : acqFraction + (targetFYStartYear - acqFYStartYear - 1));
+            openingValueBefore = Math.max(0, numCost - consumedBefore);
         }
 
-        const workRelatedDepreciation = annualDepreciation * (numWorkPercentage / 100);
+        // This year's claim is capped at the value remaining (prime cost
+        // ends once the asset is fully written off). For DV the cap is a
+        // no-op (the rate never exceeds the opening value) but applying it
+        // uniformly keeps one code path.
+        const annual = isDV ? annualAt(openingValueBefore) : numCost / life;
+        const capped = Math.min(annual, openingValueBefore);
+        const proRata = isAcqYear ? Math.max(0, acqFraction) : 1;
 
-        if (purchaseDate >= financialYearStart && purchaseDate <= financialYearEnd) {
-            const daysOwned = Math.floor((financialYearEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
-            const proRataFactor = Math.max(0, daysOwned / daysInFY(yearStart));
-            return workRelatedDepreciation * proRataFactor;
+        return {
+            amount: capped * (workPct / 100) * proRata,
+            daysOwned: isAcqYear ? acqDaysOwned : null,
+            fyDays: isAcqYear ? acqFYDays : null,
+            remainingValueAfter: Math.max(0, openingValueBefore - annual * proRata),
+        };
+    };
+
+    const calculateDepreciationForFinancialYear = (cost, workPercentage, effectiveLifeYears, purchaseDateString, method = 'prime_cost') => {
+        const numCost = parseFloat(cost || 0);
+        if (numCost <= 0) return 0;
+
+        if (!effectiveLifeYears || effectiveLifeYears <= 0) {
+            // No schedule to depreciate over — immediate write-off of the
+            // work-related portion (handled by callers as a non-depreciable item).
+            return numCost * (parseFloat(workPercentage || 0) / 100);
         }
-        
-        return workRelatedDepreciation;
+
+        const ctx = parseDepreciableAsset(numCost, workPercentage, effectiveLifeYears, purchaseDateString, method);
+        if (!ctx) return 0;
+
+        const bounds = fyBounds(window.FINANCIAL_YEAR);
+        const row = depreciationRowForFY(ctx, bounds.startYear);
+        return row ? row.amount : 0;
     };
 
     // Single work-use-% rule for both the calculation layer and the form
@@ -442,53 +480,40 @@ const TaxCalculations = (() => {
             return 'Immediate';
         }
 
-        const schedule = [];
-        let openingValue = parseFloat(asset.cost);
-        const workPct = normaliseWorkPct(asset.workPercentage, 100) / 100;
         const life = parseInt(asset.effectiveLife);
         const isDV = asset.depreciationMethod === 'diminishing_value';
-        if (!asset.date || typeof asset.date !== 'string') return 'Invalid date';
-        const [ay, am, ad] = asset.date.split('-').map(Number);
-        const purchaseDate = new Date(ay, am - 1, ad);
-        if (isNaN(purchaseDate.getTime())) return 'Invalid date';
-        const purchaseMonth = purchaseDate.getMonth();
+        const ctx = parseDepreciableAsset(
+            parseFloat(asset.cost),
+            normaliseWorkPct(asset.workPercentage, 100),
+            life, asset.date, asset.depreciationMethod,
+        );
+        if (!ctx) return 'Invalid date';
         const fmt = (v) => (v || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
 
-        // Acquisition FY: Jul-Dec purchases fall in the same calendar year's FY start.
-        const acqFYStartYear = purchaseMonth >= 6 ? purchaseDate.getFullYear() : purchaseDate.getFullYear() - 1;
-        const currentFYStartYear = parseInt(window.FINANCIAL_YEAR.split('-')[0]);
+        const currentFYStartYear = fyBounds(window.FINANCIAL_YEAR).startYear;
 
         // DV (life > 1) always has a residual after effective life — cap at life iterations (ATO practice).
         // PC and DV life=1 can have a partial-year residual, so allow one extra iteration.
         const maxIter = (!isDV || life <= 1) ? life + 1 : life;
 
-        for (let i = 0; i < maxIter && openingValue > 0.005; i++) {
-            const fyStartYear = acqFYStartYear + i;
+        const schedule = [];
+        let remainingValue = ctx.numCost;
+        for (let i = 0; i < maxIter && remainingValue > 0.005; i++) {
+            const fyStartYear = ctx.acqFYStartYear + i;
+            const row = depreciationRowForFY(ctx, fyStartYear);
+            if (!row) break;
+
             const fyLabel = `${fyStartYear}-${String(fyStartYear + 1).slice(-2)}`;
             const isCurrent = fyStartYear === currentFYStartYear;
 
-            const annualDepr = isDV
-                ? (life <= 1 ? openingValue : openingValue * (2 / life))
-                : parseFloat(asset.cost) / life;
-
-            let proRataFactor = 1;
             let proRataNote = '';
-
-            if (i === 0) {
-                const acqFYEnd = new Date(acqFYStartYear + 1, 5, 30);
-                const daysOwned = Math.floor((acqFYEnd - purchaseDate) / (1000 * 60 * 60 * 24)) + 1;
-                const acqFYDays = daysInFY(acqFYStartYear);
-                if (daysOwned < acqFYDays) {
-                    proRataFactor = daysOwned / acqFYDays;
-                    const dvRate = isDV ? ` · ${life <= 1 ? 100 : Math.round(200 / life)}% DV/yr` : ` · ${Math.round(100 / life)}% PC/yr`;
-                    proRataNote = ` <span style="opacity:0.55;font-size:0.8em">(${daysOwned}/${acqFYDays} days${dvRate})</span>`;
-                }
+            if (row.daysOwned !== null && row.daysOwned < row.fyDays) {
+                const dvRate = isDV ? ` · ${life <= 1 ? 100 : Math.round(200 / life)}% DV/yr` : ` · ${Math.round(100 / life)}% PC/yr`;
+                proRataNote = ` <span style="opacity:0.55;font-size:0.8em">(${row.daysOwned}/${row.fyDays} days${dvRate})</span>`;
             }
 
-            const deduction = Math.min(annualDepr * workPct * proRataFactor, openingValue * workPct);
-            openingValue = Math.max(0, openingValue - annualDepr * proRataFactor);
-
-            const amountStr = `${fyLabel}: ${fmt(deduction)}${proRataNote}`;
+            remainingValue = row.remainingValueAfter;
+            const amountStr = `${fyLabel}: ${fmt(row.amount)}${proRataNote}`;
             schedule.push(isCurrent ? `<strong>${amountStr}</strong>` : amountStr);
         }
 
