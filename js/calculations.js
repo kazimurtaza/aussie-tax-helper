@@ -20,6 +20,34 @@ const TaxCalculations = (() => {
         return Math.floor((fyEnd - fyStart) / 86400000) + 1;
     };
 
+    // Bounds of an Australian financial year label ("2024-2025" -> 1 Jul 2024
+    // .. 30 Jun 2025), or null when the label can't be parsed.
+    const fyBounds = (financialYear) => {
+        const startYear = parseInt(String(financialYear).split('-')[0], 10);
+        return Number.isNaN(startYear) ? null : {
+            startYear,
+            start: new Date(startYear, 6, 1),
+            end: new Date(startYear + 1, 5, 30),
+        };
+    };
+
+    // True when a YYYY-MM-DD date string falls inside the financial year
+    // [1 Jul .. 30 Jun]. Malformed, missing, or out-of-range month/day values
+    // are excluded rather than throwing — callers treat an unparseable date
+    // as "not claimable this FY". Shared by the deduction totals and the
+    // CSV export so both bound items identically.
+    const dateInFinancialYear = (dateStr, financialYear = window.FINANCIAL_YEAR) => {
+        if (!dateStr || typeof dateStr !== 'string') return false;
+        const parts = dateStr.split('-').map(Number);
+        if (parts.length !== 3 || parts.some(n => !Number.isInteger(n))) return false;
+        const [y, m, d] = parts;
+        if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+        const bounds = fyBounds(financialYear);
+        if (!bounds) return false;
+        const date = new Date(y, m - 1, d);
+        return isNaN(date.getTime()) ? false : date >= bounds.start && date <= bounds.end;
+    };
+
     const calculateDepreciationForFinancialYear = (cost, workPercentage, effectiveLifeYears, purchaseDateString, method = 'prime_cost') => {
         const numCost = parseFloat(cost || 0);
         const numEffectiveLife = parseInt(effectiveLifeYears || 0);
@@ -112,13 +140,13 @@ const TaxCalculations = (() => {
         return parseFloat(item.cost || 0) * (workPct / 100);
     };
 
+    // Immediate (non-depreciable) claims are confined to the FY the item was
+    // acquired in — without the FY-start bound a $1,000 item dated 2024-07-01
+    // claimed in full again in every later year. Depreciable items span years
+    // legitimately via the depreciation engine and are not filtered here.
     const calculateTotalGeneralDeductions = (generalExpenses) => {
-        const financialYearEnd = new Date(parseInt(window.FINANCIAL_YEAR.split('-')[1]), 5, 30);
-        return generalExpenses
-            .filter(exp => {
-                const [ey, em, ed] = exp.date.split('-').map(Number);
-                return new Date(ey, em - 1, ed) <= financialYearEnd;
-            })
+        return (generalExpenses || [])
+            .filter(exp => exp.isDepreciable || dateInFinancialYear(exp.date))
             .reduce((total, exp) => total + calculateItemDeduction(exp, 0), 0);
     };
 
@@ -138,7 +166,9 @@ const TaxCalculations = (() => {
 
     const calculateWfhAssetsDeduction = (assets) => {
         if (!assets || assets.length === 0) return 0;
-        return assets.reduce((total, asset) => total + calculateItemDeduction(asset, 100), 0);
+        return assets
+            .filter(asset => asset.isDepreciable || dateInFinancialYear(asset.date))
+            .reduce((total, asset) => total + calculateItemDeduction(asset, 100), 0);
     };
 
     const calculateWfhActualCostDeduction = (details) => {
@@ -429,6 +459,7 @@ const TaxCalculations = (() => {
         calculateYearSummary,
         calculateItemDeduction,
         normaliseWorkPct,
+        dateInFinancialYear,
         calculateDepreciationForFinancialYear,
         calculateWfhActualCostDeduction,
         calculateWfhRunningExpensesDeduction,

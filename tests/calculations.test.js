@@ -1641,6 +1641,126 @@ describe('calculateTotalGeneralDeductions — depreciable expense path', () => {
 });
 
 // ─────────────────────────────────────────────
+// Immediate deductions are confined to the acquisition FY
+// ─────────────────────────────────────────────
+describe('immediate deductions are confined to the acquisition FY', () => {
+    // FY label -> [start, end, day before start, day after end]
+    const FY_BOUNDS = {
+        '2024-2025': ['2024-07-01', '2025-06-30', '2024-06-30', '2025-07-01'],
+        '2025-2026': ['2025-07-01', '2026-06-30', '2025-06-30', '2026-07-01'],
+        '2026-2027': ['2026-07-01', '2027-06-30', '2026-06-30', '2027-07-01'],
+    };
+
+    describe.each(Object.keys(TAX_CONFIG))('%s — general expenses', (year) => {
+        beforeEach(() => loadConstantsForYear(year));
+        const [fyStart, fyEnd, beforeStart, afterEnd] = FY_BOUNDS[year];
+
+        test('non-depreciable expense claimed only inside the FY window', () => {
+            // Previously any date <= FY end claimed in full, so a prior-year
+            // item re-claimed in every later financial year.
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: fyStart }]
+            )).toBeCloseTo(1000, 2);
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: fyEnd }]
+            )).toBeCloseTo(1000, 2);
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: beforeStart }]
+            )).toBe(0);
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: afterEnd }]
+            )).toBe(0);
+        });
+
+        test('depreciable expense from a prior FY still claims (spans years)', () => {
+            // Depreciation legitimately continues after the acquisition year.
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 5, date: '2024-07-01', depreciationMethod: 'prime_cost' }]
+            )).toBeCloseTo(200, 2);
+        });
+    });
+
+    describe.each(Object.keys(TAX_CONFIG))('%s — WFH assets', (year) => {
+        beforeEach(() => loadConstantsForYear(year));
+        const [fyStart, fyEnd, beforeStart, afterEnd] = FY_BOUNDS[year];
+
+        test('non-depreciable WFH asset claimed only inside the FY window', () => {
+            // The WFH asset path previously had no date filter at all.
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: fyStart }]
+            )).toBeCloseTo(1000, 2);
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: fyEnd }]
+            )).toBeCloseTo(1000, 2);
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: beforeStart }]
+            )).toBe(0);
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: afterEnd }]
+            )).toBe(0);
+        });
+
+        test('depreciable WFH asset from a prior FY still claims (spans years)', () => {
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 5, date: '2024-07-01', depreciationMethod: 'prime_cost' }]
+            )).toBeCloseTo(200, 2);
+        });
+    });
+
+    describe('mixed and malformed cases (2024-2025)', () => {
+        beforeEach(() => loadConstantsForYear('2024-2025'));
+
+        test('mixed list: only in-FY immediate and prior-year depreciable count', () => {
+            const expenses = [
+                { cost: 1000, workPercentage: 100, isDepreciable: false, date: '2023-06-01' },  // prior-year immediate -> 0
+                { cost: 500, workPercentage: 100, isDepreciable: false, date: '2024-10-01' },   // in-FY immediate -> 500
+                { cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 5, date: '2023-07-01', depreciationMethod: 'prime_cost' }, // prior-year depreciable -> 200
+            ];
+            expect(TaxCalculations.calculateTotalGeneralDeductions(expenses)).toBeCloseTo(700, 2);
+        });
+
+        test('missing or malformed dates contribute 0 without throwing', () => {
+            expect(() => TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false }]
+            )).not.toThrow();
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false }]
+            )).toBe(0);
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: 'not-a-date' }]
+            )).toBe(0);
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: '2024-13-45' }]
+            )).toBe(0);
+        });
+    });
+});
+
+// ─────────────────────────────────────────────
+// dateInFinancialYear (shared FY predicate)
+// ─────────────────────────────────────────────
+describe('dateInFinancialYear', () => {
+    test('bounds are inclusive at both FY start and FY end', () => {
+        expect(TaxCalculations.dateInFinancialYear('2024-07-01', '2024-2025')).toBe(true);
+        expect(TaxCalculations.dateInFinancialYear('2025-06-30', '2024-2025')).toBe(true);
+        expect(TaxCalculations.dateInFinancialYear('2024-06-30', '2024-2025')).toBe(false);
+        expect(TaxCalculations.dateInFinancialYear('2025-07-01', '2024-2025')).toBe(false);
+    });
+
+    test('defaults to the active financial year', () => {
+        loadConstantsForYear('2025-2026');
+        expect(TaxCalculations.dateInFinancialYear('2025-10-15')).toBe(true);
+        expect(TaxCalculations.dateInFinancialYear('2024-10-15')).toBe(false);
+    });
+
+    test('malformed and out-of-range dates are excluded, not thrown on', () => {
+        [null, undefined, '', 'not-a-date', '2024-13-01', '2024-00-10', '2024-01-32', '2024/01/05', 42].forEach(bad => {
+            expect(TaxCalculations.dateInFinancialYear(bad, '2024-2025')).toBe(false);
+        });
+    });
+});
+
+// ─────────────────────────────────────────────
 // calculateWfhAssetsDeduction — depreciable WFH assets (lines 100-105)
 // ─────────────────────────────────────────────
 describe('calculateWfhAssetsDeduction — depreciable assets', () => {

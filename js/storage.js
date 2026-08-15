@@ -296,18 +296,16 @@ const StorageManager = (() => {
 
                 const buildYearCsv = (data, year, summary) => {
                     const money = (v) => (Math.round(((v || 0) + Number.EPSILON) * 100) / 100).toFixed(2);
-                    // Per-item deduction as claimed this FY (general expenses are
-                    // date-filtered the same way calculateTotalGeneralDeductions is)
-                    const fyEnd = new Date(parseInt(year.split('-')[1]), 5, 30);
-                    const inFY = (dateStr) => {
-                        if (!dateStr || typeof dateStr !== 'string') return false;
-                        const [dy, dm, dd] = dateStr.split('-').map(Number);
-                        return new Date(dy, dm - 1, dd) <= fyEnd;
-                    };
-                    const withDeduction = (items, fallbackPct, dateFiltered) => summary
+                    // Per-item deduction as claimed this FY, bounded exactly like
+                    // the deduction totals: immediate items only in their
+                    // acquisition FY, depreciable items via the engine.
+                    const withDeduction = (items, fallbackPct) => summary
                         ? (items || []).map(item => ({
                             ...item,
-                            deductionThisFY: money((!dateFiltered || inFY(item.date)) ? TaxCalculations.calculateItemDeduction(item, fallbackPct) : 0),
+                            deductionThisFY: money(
+                                item.isDepreciable || TaxCalculations.dateInFinancialYear(item.date, year)
+                                    ? TaxCalculations.calculateItemDeduction(item, fallbackPct)
+                                    : 0),
                         }))
                         : (items || []);
 
@@ -351,7 +349,7 @@ const StorageManager = (() => {
                         ['bankInterest', 'dividendsUnfranked', 'dividendsFranked', 'frankingCredits', 'netCapitalGains']
                     )}\n\n`;
                     s += `"General Expenses"\n${arrayToCsv(
-                        withDeduction(data.generalExpenses, 0, true),
+                        withDeduction(data.generalExpenses, 0),
                         ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
                         ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
                     )}\n\n`;
@@ -364,7 +362,7 @@ const StorageManager = (() => {
                         ['description', 'fromDate', 'toDate', 'officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
                     )}\n\n`;
                     s += `"WFH Actual Cost - Assets"\n${arrayToCsv(
-                        withDeduction(data.wfh.actualCostDetails.assets, 100, false),
+                        withDeduction(data.wfh.actualCostDetails.assets, 100),
                         ['Description', 'Date', 'Cost', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
                         ['description', 'date', 'cost', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
                     )}\n\n`;
