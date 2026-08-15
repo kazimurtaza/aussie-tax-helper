@@ -307,14 +307,14 @@ const StorageManager = (() => {
                     const money = (v) => (Math.round(((v || 0) + Number.EPSILON) * 100) / 100).toFixed(2);
                     // Per-item deduction as claimed this FY, bounded exactly like
                     // the deduction totals: immediate items only in their
-                    // acquisition FY, depreciable items via the engine.
+                    // acquisition FY, depreciable items via the engine. The
+                    // explicit year matters — buildYearCsv may run while the
+                    // ACTIVE year's globals are loaded (see exportData), so the
+                    // gate must not read window.FINANCIAL_YEAR implicitly.
                     const withDeduction = (items, fallbackPct) => summary
                         ? (items || []).map(item => ({
                             ...item,
-                            deductionThisFY: money(
-                                item.isDepreciable || TaxCalculations.dateInFinancialYear(item.date, year)
-                                    ? TaxCalculations.calculateItemDeduction(item, fallbackPct)
-                                    : 0),
+                            deductionThisFY: money(TaxCalculations.calculateItemDeductionThisFY(item, fallbackPct, year)),
                         }))
                         : (items || []);
 
@@ -393,7 +393,14 @@ const StorageManager = (() => {
                     return s;
                 };
 
-                dataStr = Object.entries(exportYearsData).map(([yr, d]) => buildYearCsv(d, yr, computeYearSummary(yr, d))).join('\n');
+                // Each year's CSV — including the per-item depreciable
+                // deductions — must be computed under THAT year's
+                // constants; withYearConstants swaps and restores per year
+                // (computeYearSummary alone restored too early, leaving
+                // buildYearCsv under the active year's globals).
+                dataStr = Object.entries(exportYearsData).map(([yr, d]) =>
+                    window.withYearConstants(yr, () => buildYearCsv(d, yr, computeYearSummary(yr, d)))
+                ).join('\n');
                 blobType = 'text/csv;charset=utf-8;';
                 fileExtension = 'csv';
             }
