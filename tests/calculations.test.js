@@ -1168,6 +1168,47 @@ describe('calculateItemDeduction', () => {
         const item = { cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 5, date: '2024-07-01', depreciationMethod: 'prime_cost' };
         expect(TaxCalculations.calculateItemDeduction(item)).toBeCloseTo(200, 2);
     });
+
+    test('depreciable item with missing work% takes the fallback (not 0)', () => {
+        // The depreciable branch previously forwarded workPercentage straight
+        // through, so a missing value became 0% instead of the fallback.
+        expect(TaxCalculations.calculateItemDeduction(
+            { cost: 1000, isDepreciable: true, effectiveLife: 0, date: '2024-07-01' }, 100)
+        ).toBeCloseTo(1000, 2);
+        expect(TaxCalculations.calculateItemDeduction(
+            { cost: 1000, isDepreciable: true, effectiveLife: 5, date: '2024-07-01', depreciationMethod: 'prime_cost' }, 100)
+        ).toBeCloseTo(200, 2);
+    });
+
+    test('depreciable item honours an explicit 0% work-use', () => {
+        expect(TaxCalculations.calculateItemDeduction(
+            { cost: 1000, workPercentage: 0, isDepreciable: true, effectiveLife: 5, date: '2024-07-01', depreciationMethod: 'prime_cost' }, 100)
+        ).toBe(0);
+    });
+});
+
+// ─────────────────────────────────────────────
+// normaliseWorkPct (shared work-% rule)
+// ─────────────────────────────────────────────
+describe('normaliseWorkPct', () => {
+    test('explicit 0 survives', () => {
+        expect(TaxCalculations.normaliseWorkPct(0, 100)).toBe(0);
+        expect(TaxCalculations.normaliseWorkPct('0', 100)).toBe(0);
+    });
+
+    test('blank, whitespace, non-numeric and missing values take the fallback', () => {
+        ['', '  ', 'abc', null, undefined].forEach(raw => {
+            expect(TaxCalculations.normaliseWorkPct(raw, 100)).toBe(100);
+            expect(TaxCalculations.normaliseWorkPct(raw, 0)).toBe(0);
+        });
+    });
+
+    test('numeric values pass through, clamped to 0-100', () => {
+        expect(TaxCalculations.normaliseWorkPct(50)).toBe(50);
+        expect(TaxCalculations.normaliseWorkPct('75.5')).toBe(75.5);
+        expect(TaxCalculations.normaliseWorkPct(150)).toBe(100);
+        expect(TaxCalculations.normaliseWorkPct(-5, 100)).toBe(0);
+    });
 });
 
 // ─────────────────────────────────────────────

@@ -92,16 +92,23 @@ const TaxCalculations = (() => {
         return workRelatedDepreciation;
     };
 
+    // Single work-use-% rule for both the calculation layer and the form
+    // boundary: an explicit 0 survives, blank/invalid input takes the
+    // caller's fallback (0 for general expenses, 100 for WFH assets), and
+    // anything numeric is clamped to 0-100.
+    const normaliseWorkPct = (raw, fallback = 0) => {
+        const parsed = parseFloat(raw);
+        return Number.isNaN(parsed) ? fallback : Math.min(100, Math.max(0, parsed));
+    };
+
     // Deduction for a single expense/asset in the active FY. Non-depreciable
     // items claim cost x work%; depreciable items go through the depreciation
-    // engine. An explicit 0% work-use is honoured; only a missing value takes
-    // the fallback (0 for general expenses, 100 for WFH assets).
+    // engine. Both branches share the work-% fallback rule.
     const calculateItemDeduction = (item, fallbackWorkPct = 0) => {
+        const workPct = normaliseWorkPct(item.workPercentage, fallbackWorkPct);
         if (item.isDepreciable) {
-            return calculateDepreciationForFinancialYear(item.cost, item.workPercentage, item.effectiveLife, item.date, item.depreciationMethod);
+            return calculateDepreciationForFinancialYear(item.cost, workPct, item.effectiveLife, item.date, item.depreciationMethod);
         }
-        const raw = item.workPercentage;
-        const workPct = (raw === undefined || raw === null || raw === '') ? fallbackWorkPct : (parseFloat(raw) || 0);
         return parseFloat(item.cost || 0) * (workPct / 100);
     };
 
@@ -421,6 +428,7 @@ const TaxCalculations = (() => {
         calculateFinalOutcome,
         calculateYearSummary,
         calculateItemDeduction,
+        normaliseWorkPct,
         calculateDepreciationForFinancialYear,
         calculateWfhActualCostDeduction,
         calculateWfhRunningExpensesDeduction,

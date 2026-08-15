@@ -50,8 +50,10 @@ const App = (() => {
     // Sanitise numeric form inputs at the boundary — prevent negatives bypassing browser validation.
     const clampNum = (value, min = 0, max = Infinity) => Math.min(max, Math.max(min, parseFloat(value) || 0));
     const clampPct = (value) => clampNum(value, 0, 100);
-    // Work-use %: keep an explicit 0, but default blank/invalid input to the fallback.
-    const clampPctOr = (value, fallback) => Number.isNaN(parseFloat(value)) ? fallback : clampPct(value);
+    // Work-use % shares the calculation layer's rule (explicit 0 survives,
+    // blank/invalid takes the fallback) so stored values always normalise the
+    // same way on both paths.
+    const clampPctOr = (value, fallback) => TaxCalculations.normaliseWorkPct(value, fallback);
 
     const saveAndRefresh = () => {
         StorageManager.saveData(appData);
