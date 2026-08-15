@@ -50,8 +50,10 @@ const App = (() => {
     // Sanitise numeric form inputs at the boundary — prevent negatives bypassing browser validation.
     const clampNum = (value, min = 0, max = Infinity) => Math.min(max, Math.max(min, parseFloat(value) || 0));
     const clampPct = (value) => clampNum(value, 0, 100);
-    // Work-use %: keep an explicit 0, but default blank/invalid input to the fallback.
-    const clampPctOr = (value, fallback) => Number.isNaN(parseFloat(value)) ? fallback : clampPct(value);
+    // Work-use % shares the calculation layer's rule (explicit 0 survives,
+    // blank/invalid takes the fallback) so stored values always normalise the
+    // same way on both paths.
+    const clampPctOr = (value, fallback) => TaxCalculations.normaliseWorkPct(value, fallback);
 
     const saveAndRefresh = () => {
         StorageManager.saveData(appData);
@@ -261,8 +263,11 @@ const App = (() => {
         e.preventDefault();
         const form = e.target;
         const isDepreciable = form['expense-is-depreciable'].checked;
-        if (isDepreciable && !form['expense-effective-life'].value) {
-            UIManager.showNotification("Please enter an effective life for depreciable assets.");
+        // Guard the parsed value, not the raw string: a literal 0 or a blank
+        // previously passed the truthiness check and stored life 0, which
+        // re-claimed full cost every year.
+        if (isDepreciable && clampNum(form['expense-effective-life'].value) <= 0) {
+            UIManager.showNotification("Please enter an effective life (in years, 1 or more) for depreciable assets.");
             return;
         }
         const newExpense = {
@@ -302,6 +307,12 @@ const App = (() => {
         const expenseIndex = appData.generalExpenses.findIndex(exp => exp.id === id);
         if (expenseIndex !== -1) {
             const isDepreciable = form['edit-expense-is-depreciable'].checked;
+            // Same guard as the add form: a depreciable edit needs a life >= 1
+            // or the item silently becomes an every-year immediate write-off.
+            if (isDepreciable && clampNum(form['edit-expense-effective-life'].value) <= 0) {
+                UIManager.showNotification("Please enter an effective life (in years, 1 or more) for depreciable assets.");
+                return;
+            }
             appData.generalExpenses[expenseIndex] = {
                 id: id,
                 description: form['edit-expense-description'].value.trim(),
@@ -392,6 +403,7 @@ const App = (() => {
             totalHomeArea: parseFloat(document.getElementById('wfh-property-total-home-area').value) || 0,
             electricityCost: parseFloat(document.getElementById('wfh-property-electricity').value) || 0,
             gasCost: parseFloat(document.getElementById('wfh-property-gas').value) || 0,
+            occupancyCost: parseFloat(document.getElementById('wfh-property-occupancy').value) || 0,
             internetCost: parseFloat(document.getElementById('wfh-property-internet').value) || 0,
             internetWorkPercent: clampPct(document.getElementById('wfh-property-internet-work-pct').value),
             phoneCost: parseFloat(document.getElementById('wfh-property-phone').value) || 0,

@@ -193,6 +193,25 @@ const loadConstantsForYear = (year) => {
     window.FINANCIAL_YEAR = year;
 };
 
+// Run fn under a different year's window globals, restoring the previous
+// values afterwards — even if fn throws. Keys are derived from TAX_CONFIG so
+// a newly added constant is snapshotted automatically. Snapshotting (rather
+// than re-calling loadConstantsForYear with the previous year) also restores
+// correctly if a global was ever set to a value outside TAX_CONFIG.
+const withYearConstants = (year, fn) => {
+    const config = TAX_CONFIG[year];
+    if (!config) return fn();
+    const keys = [...Object.keys(config), 'FINANCIAL_YEAR'];
+    const snapshot = {};
+    keys.forEach(k => { snapshot[k] = window[k]; });
+    loadConstantsForYear(year);
+    try {
+        return fn();
+    } finally {
+        keys.forEach(k => { window[k] = snapshot[k]; });
+    }
+};
+
 // Boot with latest year as safe default
 loadConstantsForYear(LATEST_YEAR);
 
@@ -201,3 +220,4 @@ window.TAX_CONFIG = TAX_CONFIG;
 window.AVAILABLE_YEARS = AVAILABLE_YEARS;
 window.LATEST_YEAR = LATEST_YEAR;
 window.loadConstantsForYear = loadConstantsForYear;
+window.withYearConstants = withYearConstants;

@@ -402,8 +402,12 @@
                         <div id="depreciation-fields" class="hidden mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label for="expense-effective-life" class="block text-sm font-medium text-gray-700">Effective Life (Years):</label>
-                                <input type="number" id="expense-effective-life" name="expense-effective-life" step="1" min="0">
-                                <p class="tooltip-text mt-1">Check ATO guidelines for standard effective life of assets.</p>
+                                <input type="number" id="expense-effective-life" name="expense-effective-life" step="1" min="1">
+                                <p class="tooltip-text mt-1">
+                                    Common ATO effective lives: computers &amp; computer equipment 4 years; laptops, tablets &amp; other portable computers 2 years;
+                                    mainframe &amp; network equipment 5 years. See the
+                                    <a href="https://www.ato.gov.au/businesses-and-organisations/income-deductions-and-concessions/depreciation-and-capital-expenses-and-allowances/general-depreciation-rules-capital-allowances/effective-life-of-an-asset" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">ATO effective-life determination</a>.
+                                </p>
                             </div>
                             <div>
                                 <label for="depreciation-method" class="block text-sm font-medium text-gray-700">Depreciation Method:</label>
@@ -555,6 +559,15 @@
 
             <section id="summary-section" class="app-section bg-white p-6 rounded-lg shadow-lg">
                 <h2 class="text-2xl font-semibold mb-4 text-blue-800">Tax Estimation Summary (<span class="financialYearDisplay"></span>)</h2>
+                <div id="identical-assets-warning" class="hidden mb-4 p-4 rounded-lg border border-amber-300 bg-amber-50">
+                    <h3 class="text-sm font-semibold text-amber-800 mb-1">Review: identical low-value assets</h3>
+                    <ul id="identical-assets-warning-list" class="list-disc pl-5 text-sm text-amber-900 space-y-1"></ul>
+                    <p class="text-xs text-amber-800 mt-2">
+                        The ATO tests the $300 immediate-deduction threshold on the <em>combined</em> cost of identical or substantially identical assets
+                        you started to hold this income year — these items may need to be depreciated instead of claimed in full. Assets bought as a set
+                        (e.g. a desk and chair marketed together) can also lose the immediate deduction. This is a warning only; nothing has been changed.
+                    </p>
+                </div>
                 <div class="summary-grid space-y-2 text-gray-700 text-lg">
                     <div class="summary-item flex justify-between py-2 border-b">
                         <span>Total Assessable Income:</span>
@@ -597,7 +610,7 @@
                         <strong id="summary-tax-offsets" class="text-green-500">$0.00</strong>
                     </div>
                     <div id="summary-lito-offset-row" class="summary-item sub-item flex justify-between py-1 pl-6 text-base text-gray-600">
-                        <span>- LITO:</span>
+                        <span>- LITO (applied):</span>
                         <span id="summary-lito-offset" class="text-green-500">$0.00</span>
                     </div>
                     <div class="summary-item sub-item flex justify-between py-1 pl-6 text-base text-gray-600">
@@ -605,7 +618,7 @@
                         <span id="summary-franking-credits-offset" class="text-green-500">$0.00</span>
                     </div>
                     <div class="summary-item sub-item flex justify-between py-1 pl-6 text-base text-gray-600 border-b pb-2">
-                        <span>- Private Health Insurance:</span>
+                        <span id="summary-phi-offset-label">- Private Health Insurance:</span>
                         <span id="summary-phi-offset" class="text-green-500">$0.00</span>
                     </div>
                     <div class="summary-item flex justify-between py-2 border-b font-semibold">
@@ -629,6 +642,27 @@
             <div class="bg-white p-6 rounded-lg shadow-lg">
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
+                    <div>
+                        <h4 class="font-semibold">Version 1.9.0</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-green-600">Added:</strong> Occupancy expenses (rent or mortgage interest) per WFH property period, apportioned by floor area — opt-in, with a caution that they're only deductible for employees in limited circumstances.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> ATO identical-assets review. When identical low-value items acquired in the year together cost more than $300 (e.g. 8 RAM modules at $224), the summary shows an amber review card and exports flag the group — the immediate deduction may not apply. Detection only; nothing is reclassified.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> ATO effective-life guidance beside every effective-life input (computers 4 yrs, laptops/tablets 2 yrs, network equipment 5 yrs) with a link to the ATO determination.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> Prior-year items are no longer claimed again every financial year — immediate deductions (including depreciable-flagged items with a missing or zero effective life) are confined to the financial year of purchase, and on-screen table rows, CSV per-item rows and the totals now all apply the same rule. This was silently inflating deductions year after year.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> The depreciation schedule for a 0% work-use asset now shows $0.00 instead of a full-cost schedule, and depreciable items with a missing work-use percentage take the documented fallback instead of 0%.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> The summary's Total Offsets now reconciles with net tax (LITO shown as applied, capped at gross tax), net tax payable displays the true negative when refundable offsets exceed tax, and a negative PHI rebate offset renders as an amount owing rather than a green benefit.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> Malformed or impossible expense dates (e.g. 31 June) no longer crash the summary or roll into the wrong year; CSV cells are guarded against spreadsheet formula injection; the depreciation claim and displayed schedule share one calculation engine; each exported year's CSV is computed under that year's rates. Test suite grown to 332 tests.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold">Version 1.8.0</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-green-600">Added:</strong> Exports now include a per-year <em>Calculated Tax Summary</em> for your accountant — assessable income, deductions breakdown, taxable income, gross tax, Medicare levy, MLS, offsets, net tax, and the estimated refund/amount owing. CSV shows it at the top of each year; JSON carries it in a <code>calculatedSummaries</code> block.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> CSV expense and WFH-asset rows include a "Deduction This FY" column — for depreciable assets this is the actual claimable depreciation, not the purchase cost.</li>
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> A WFH asset saved with an explicit 0% work-use is no longer treated as 100% in the deduction calculation.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> Summary page and exports now share one calculation path (<code>calculateYearSummary</code>), so exported figures always match what the app displays. Test suite grown to 250 tests.</li>
+                        </ul>
+                    </div>
                     <div>
                         <h4 class="font-semibold">Version 1.7.0</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
@@ -837,8 +871,12 @@
                 <div id="wfh-asset-depreciation-fields" class="hidden mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label for="wfh-asset-effective-life" class="block text-sm font-medium text-gray-700">Effective Life (Years):</label>
-                        <input type="number" id="wfh-asset-effective-life" name="wfh-asset-effective-life" step="1" min="0">
-                        <p class="tooltip-text mt-1">Check ATO guidelines for standard effective life of assets.</p>
+                        <input type="number" id="wfh-asset-effective-life" name="wfh-asset-effective-life" step="1" min="1">
+                        <p class="tooltip-text mt-1">
+                            Common ATO effective lives: computers &amp; computer equipment 4 years; laptops, tablets &amp; other portable computers 2 years;
+                            mainframe &amp; network equipment 5 years. See the
+                            <a href="https://www.ato.gov.au/businesses-and-organisations/income-deductions-and-concessions/depreciation-and-capital-expenses-and-allowances/general-depreciation-rules-capital-allowances/effective-life-of-an-asset" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">ATO effective-life determination</a>.
+                        </p>
                     </div>
                     <div>
                         <label for="wfh-asset-depreciation-method" class="block text-sm font-medium text-gray-700">Depreciation Method:</label>
@@ -892,6 +930,13 @@
                     <div>
                         <label for="wfh-property-gas" class="block text-sm font-medium text-gray-700">Gas Cost for period ($):</label>
                         <input type="number" id="wfh-property-gas" step="0.01" min="0" class="mt-1">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="wfh-property-occupancy" class="block text-sm font-medium text-gray-700">Occupancy Costs for period ($) — rent or mortgage interest:</label>
+                        <input type="number" id="wfh-property-occupancy" step="0.01" min="0" class="mt-1">
+                        <p class="tooltip-text mt-1">
+                            <strong>Caution:</strong> occupancy expenses are only deductible for employees in limited circumstances (e.g. a home that is a place of business, not just a home office). Leave blank unless you've confirmed eligibility with the ATO or your agent — the amount is apportioned by the floor-area percentage above.
+                        </p>
                     </div>
                     <div>
                         <label for="wfh-property-internet" class="block text-sm font-medium text-gray-700">Internet Cost for period ($):</label>
@@ -988,7 +1033,12 @@
                 <div id="edit-depreciation-fields" class="hidden mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label for="edit-expense-effective-life" class="block text-sm font-medium text-gray-700">Effective Life (Years):</label>
-                        <input type="number" id="edit-expense-effective-life" name="edit-expense-effective-life" step="1" min="0">
+                        <input type="number" id="edit-expense-effective-life" name="edit-expense-effective-life" step="1" min="1">
+                        <p class="tooltip-text mt-1">
+                            Common ATO effective lives: computers &amp; computer equipment 4 years; laptops, tablets &amp; other portable computers 2 years;
+                            mainframe &amp; network equipment 5 years. See the
+                            <a href="https://www.ato.gov.au/businesses-and-organisations/income-deductions-and-concessions/depreciation-and-capital-expenses-and-allowances/general-depreciation-rules-capital-allowances/effective-life-of-an-asset" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">ATO effective-life determination</a>.
+                        </p>
                     </div>
                     <div>
                         <label for="edit-depreciation-method" class="block text-sm font-medium text-gray-700">Depreciation Method:</label>

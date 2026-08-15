@@ -905,6 +905,48 @@ describe('calculateDepreciationForFinancialYear', () => {
 });
 
 // ─────────────────────────────────────────────
+// Depreciation engine agreement: the claim and the displayed schedule
+// are two views of one calculation and must never diverge. This matrix
+// pins current behaviour across methods, purchase timing, work-use
+// percentages and all configured years — it guards any future refactor
+// of the two code paths.
+// ─────────────────────────────────────────────
+describe('depreciation: claim matches schedule (engine agreement)', () => {
+    const CASES = [
+        // [label, cost, workPct, life, purchaseDate, method]
+        ['PC full-year',            1000, 100, 5, '2024-07-01', 'prime_cost'],
+        ['PC partial-year',         1000, 100, 5, '2025-01-01', 'prime_cost'],
+        ['PC prior-year final leg', 1000, 100, 5, '2020-01-01', 'prime_cost'],
+        ['PC partial work%',        1000,  50, 5, '2024-07-01', 'prime_cost'],
+        ['PC explicit 0% work',     1000,   0, 5, '2024-07-01', 'prime_cost'],
+        ['PC life 1 mid-year',      1000, 100, 1, '2024-08-05', 'prime_cost'],
+        ['DV full-year',            1000, 100, 5, '2024-07-01', 'diminishing_value'],
+        ['DV partial-year',         1000, 100, 5, '2025-01-01', 'diminishing_value'],
+        ['DV prior-year carry',     1000,  80, 2, '2024-07-06', 'diminishing_value'],
+        ['DV explicit 0% work',     1000,   0, 5, '2024-07-01', 'diminishing_value'],
+    ];
+
+    describe.each(Object.keys(TAX_CONFIG))('%s', (year) => {
+        beforeEach(() => loadConstantsForYear(year));
+
+        test.each(CASES)('%s', (label, cost, workPct, life, date, method) => {
+            const claim = TaxCalculations.calculateDepreciationForFinancialYear(cost, workPct, life, date, method);
+            const [startYear, endYearFull] = window.FINANCIAL_YEAR.split('-');
+            const fyLabel = `${startYear}-${endYearFull.slice(-2)}`;
+            const schedule = TaxCalculations.generateDepreciationSchedule({
+                isDepreciable: true, cost, workPercentage: workPct,
+                effectiveLife: life, date, depreciationMethod: method,
+            });
+            // The current-FY row is <strong>-wrapped; absent row means the
+            // schedule has ended (claim must then be 0 for this FY).
+            const match = schedule.match(new RegExp(`(?:<strong>)?${fyLabel}: \\$([\\d,]+\\.\\d{2})`));
+            const rowAmount = match ? parseFloat(match[1].replace(/,/g, '')) : 0;
+            expect(claim).toBeCloseTo(rowAmount, 2);
+        });
+    });
+});
+
+// ─────────────────────────────────────────────
 // calculateTotalWfhDeductions
 // ─────────────────────────────────────────────
 describe('calculateTotalWfhDeductions', () => {
@@ -1142,6 +1184,188 @@ describe('calculateTotalOffsets', () => {
         expect(result.phiOffset).toBeCloseTo(2460.80, 2);
         expect(result.total).toBeCloseTo(700 + 300 + 2460.80, 2);
     });
+
+    test('litoApplied caps at gross tax when passed; absent grossTax keeps entitlement', () => {
+        const data = makeAppData();
+        // 2-arg form: backwards compatible, applied = entitlement.
+        const twoArg = TaxCalculations.calculateTotalOffsets(30000, data);
+        expect(twoArg.litoApplied).toBe(700);
+        expect(twoArg.total).toBeCloseTo(700, 2);
+        // 3-arg with grossTax below LITO: only the applied portion counts.
+        const capped = TaxCalculations.calculateTotalOffsets(30000, data, 288);
+        expect(capped.lito).toBe(700);
+        expect(capped.litoApplied).toBe(288);
+        expect(capped.total).toBeCloseTo(288, 2);
+        // 3-arg with grossTax above LITO: fully applied.
+        const full = TaxCalculations.calculateTotalOffsets(30000, data, 4000);
+        expect(full.litoApplied).toBe(700);
+        expect(full.total).toBeCloseTo(700, 2);
+    });
+
+    test('litoApplied with zero gross tax is zero', () => {
+        const data = makeAppData();
+        const result = TaxCalculations.calculateTotalOffsets(30000, data, 0);
+        expect(result.litoApplied).toBe(0);
+        expect(result.total).toBe(0);
+    });
+});
+
+// ─────────────────────────────────────────────
+// calculateItemDeduction
+// ─────────────────────────────────────────────
+describe('calculateItemDeduction', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    test('non-depreciable: cost × work%', () => {
+        expect(TaxCalculations.calculateItemDeduction({ cost: 1000, workPercentage: 50 })).toBeCloseTo(500, 2);
+    });
+
+    test('explicit 0% work-use → zero deduction, even with a 100 fallback (WFH asset path)', () => {
+        // Old WFH reduce used `workPercentage || 100`, silently claiming 100%
+        expect(TaxCalculations.calculateItemDeduction({ cost: 1000, workPercentage: 0 }, 100)).toBe(0);
+    });
+
+    test('missing work% takes the fallback (100 for WFH assets, 0 for general)', () => {
+        expect(TaxCalculations.calculateItemDeduction({ cost: 1000 }, 100)).toBeCloseTo(1000, 2);
+        expect(TaxCalculations.calculateItemDeduction({ cost: 1000 }, 0)).toBe(0);
+    });
+
+    test('depreciable item routes through the depreciation engine', () => {
+        const item = { cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 5, date: '2024-07-01', depreciationMethod: 'prime_cost' };
+        expect(TaxCalculations.calculateItemDeduction(item)).toBeCloseTo(200, 2);
+    });
+
+    test('depreciable item with missing work% takes the fallback (not 0)', () => {
+        // The depreciable branch previously forwarded workPercentage straight
+        // through, so a missing value became 0% instead of the fallback.
+        expect(TaxCalculations.calculateItemDeduction(
+            { cost: 1000, isDepreciable: true, effectiveLife: 0, date: '2024-07-01' }, 100)
+        ).toBeCloseTo(1000, 2);
+        expect(TaxCalculations.calculateItemDeduction(
+            { cost: 1000, isDepreciable: true, effectiveLife: 5, date: '2024-07-01', depreciationMethod: 'prime_cost' }, 100)
+        ).toBeCloseTo(200, 2);
+    });
+
+    test('depreciable item honours an explicit 0% work-use', () => {
+        expect(TaxCalculations.calculateItemDeduction(
+            { cost: 1000, workPercentage: 0, isDepreciable: true, effectiveLife: 5, date: '2024-07-01', depreciationMethod: 'prime_cost' }, 100)
+        ).toBe(0);
+    });
+});
+
+// ─────────────────────────────────────────────
+// normaliseWorkPct (shared work-% rule)
+// ─────────────────────────────────────────────
+describe('normaliseWorkPct', () => {
+    test('explicit 0 survives', () => {
+        expect(TaxCalculations.normaliseWorkPct(0, 100)).toBe(0);
+        expect(TaxCalculations.normaliseWorkPct('0', 100)).toBe(0);
+    });
+
+    test('blank, whitespace, non-numeric and missing values take the fallback', () => {
+        ['', '  ', 'abc', null, undefined].forEach(raw => {
+            expect(TaxCalculations.normaliseWorkPct(raw, 100)).toBe(100);
+            expect(TaxCalculations.normaliseWorkPct(raw, 0)).toBe(0);
+        });
+    });
+
+    test('numeric values pass through, clamped to 0-100', () => {
+        expect(TaxCalculations.normaliseWorkPct(50)).toBe(50);
+        expect(TaxCalculations.normaliseWorkPct('75.5')).toBe(75.5);
+        expect(TaxCalculations.normaliseWorkPct(150)).toBe(100);
+        expect(TaxCalculations.normaliseWorkPct(-5, 100)).toBe(0);
+    });
+});
+
+// ─────────────────────────────────────────────
+// calculateYearSummary (drives summary UI + exports)
+// ─────────────────────────────────────────────
+describe('calculateYearSummary', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    test('default scenario: $80k salary, $18k withheld, no deductions', () => {
+        const s = TaxCalculations.calculateYearSummary(makeAppData());
+        expect(s.financialYear).toBe('2024-2025');
+        expect(s.totalAssessableIncome).toBe(80000);
+        expect(s.totalTaxWithheld).toBe(18000);
+        expect(s.overallTotalDeductions).toBe(0);
+        expect(s.taxableIncome).toBe(80000);
+        expect(s.grossTax).toBeCloseTo(14788, 2);
+        expect(s.medicareLevy).toBeCloseTo(1600, 2);
+        expect(s.mls).toBe(0);
+        expect(s.offsets.total).toBe(0);
+        expect(s.netTaxPayable).toBeCloseTo(16388, 2);
+        expect(s.finalOutcome).toBeCloseTo(1612, 2);
+    });
+
+    test('composed scenario: expenses, WFH fixed rate, super, franking credits', () => {
+        const data = makeAppData({
+            otherIncome: { frankingCredits: 500 },
+            generalExpenses: [{ cost: 1000, workPercentage: 50, date: '2024-10-01', isDepreciable: false }],
+            wfh: { method: 'fixed_rate', totalMinutes: 6000 },
+            taxpayerDetails: { personalSuperContribution: 1000 },
+        });
+        data.income.payg = [{ grossSalary: 90000, taxWithheld: 20000, sourceName: 'Employer' }];
+        const s = TaxCalculations.calculateYearSummary(data);
+        // assessable = 90000 + 500 franking credits = 90500
+        expect(s.totalAssessableIncome).toBe(90500);
+        expect(s.totalGeneralDeductions).toBeCloseTo(500, 2);
+        expect(s.totalWfhDeductions).toBeCloseTo(70, 2);      // 100 hrs × $0.70
+        expect(s.totalSuperDeductions).toBe(1000);
+        expect(s.taxableIncome).toBeCloseTo(88930, 2);
+        expect(s.grossTax).toBeCloseTo(17467, 2);
+        expect(s.medicareLevy).toBeCloseTo(1778.60, 2);
+        expect(s.mls).toBe(0);
+        expect(s.offsets.frankingCredits).toBe(500);
+        expect(s.netTaxPayable).toBeCloseTo(17467 + 1778.60 - 500, 2);
+        expect(s.finalOutcome).toBeCloseTo(20000 - 18745.60, 2);
+    });
+
+    test('summary matches per-year constants (same data, different years)', () => {
+        const data = makeAppData();
+        loadConstantsForYear('2026-2027');
+        const s2627 = TaxCalculations.calculateYearSummary(data);
+        // 15% bracket: gross tax at 80k = 14520 (vs 14788 under 16%)
+        expect(s2627.financialYear).toBe('2026-2027');
+        expect(s2627.grossTax).toBeCloseTo(14520, 2);
+    });
+
+    test('offset rows reconcile: gross + medicare + mls − offsets.total = net tax', () => {
+        // Low income where LITO exceeds gross tax: previously the summary
+        // showed the full $700 entitlement against a small gross tax and the
+        // rows did not add up to the net tax displayed.
+        const lowIncome = { ...makeAppData() };
+        lowIncome.income.payg = [{ grossSalary: 19000, taxWithheld: 100, sourceName: 'Employer' }];
+        const sLow = TaxCalculations.calculateYearSummary(lowIncome);
+        expect(sLow.offsets.lito).toBe(700);
+        expect(sLow.grossTax).toBeLessThan(700);       // 19% of (19000 − 18200) = $152
+        expect(sLow.offsets.litoApplied).toBeCloseTo(sLow.grossTax, 2);
+        expect(sLow.grossTax + sLow.medicareLevy + sLow.mls - sLow.offsets.total)
+            .toBeCloseTo(sLow.netTaxPayable, 2);
+
+        // Negative PHI offset (over-claimed rebate) scenario.
+        const phiOver = {
+            ...makeAppData({ otherIncome: { frankingCredits: 300 } }),
+            taxpayerDetails: singleTaxpayer({ phiPremiumsPaid_period1: 1000, phiRebateReceived: 500 }),
+        };
+        phiOver.income.payg = [{ grossSalary: 120000, taxWithheld: 32000, sourceName: 'Employer' }];
+        const sPhi = TaxCalculations.calculateYearSummary(phiOver);
+        expect(sPhi.offsets.phiOffset).toBeLessThan(0);
+        expect(sPhi.grossTax + sPhi.medicareLevy + sPhi.mls - sPhi.offsets.total)
+            .toBeCloseTo(sPhi.netTaxPayable, 2);
+
+        // Franking-credit-heavy scenario driving net tax negative.
+        const frankingHeavy = makeAppData({ otherIncome: { frankingCredits: 5000 } });
+        frankingHeavy.income.payg = [{ grossSalary: 30000, taxWithheld: 2000, sourceName: 'Employer' }];
+        const sFrank = TaxCalculations.calculateYearSummary(frankingHeavy);
+        expect(sFrank.grossTax + sFrank.medicareLevy + sFrank.mls - sFrank.offsets.total)
+            .toBeCloseTo(sFrank.netTaxPayable, 2);
+        // Net tax can legitimately be negative (refundable offsets exceeding
+        // tax); the summary must carry the true negative for the UI and the
+        // exports to display, not a clamped zero.
+        expect(sFrank.netTaxPayable).toBeLessThan(0);
+        expect(sFrank.finalOutcome).toBeCloseTo(2000 - sFrank.netTaxPayable, 2);
+    });
 });
 
 // ─────────────────────────────────────────────
@@ -1375,6 +1599,56 @@ describe('TAX_CONFIG structure', () => {
 });
 
 // ─────────────────────────────────────────────
+// withYearConstants (temporary year swap with restore)
+// ─────────────────────────────────────────────
+describe('withYearConstants', () => {
+    afterEach(() => loadConstantsForYear('2024-2025'));
+
+    test('runs fn under the requested year and restores afterwards', () => {
+        loadConstantsForYear('2024-2025');
+        let seenInside;
+        const result = window.withYearConstants('2026-2027', () => {
+            seenInside = window.FINANCIAL_YEAR;
+            return TaxCalculations.calculateGrossTax(80000);
+        });
+        expect(seenInside).toBe('2026-2027');
+        expect(result).toBeCloseTo(14520, 2);          // 15% bracket year
+        expect(window.FINANCIAL_YEAR).toBe('2024-2025'); // restored
+    });
+
+    test('restores constants even when fn throws', () => {
+        loadConstantsForYear('2024-2025');
+        expect(() => window.withYearConstants('2025-2026', () => {
+            throw new Error('boom');
+        })).toThrow('boom');
+        expect(window.FINANCIAL_YEAR).toBe('2024-2025');
+    });
+
+    test('unknown year runs fn without swapping', () => {
+        loadConstantsForYear('2024-2025');
+        const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        let seenInside;
+        const result = window.withYearConstants('9999-9999', () => {
+            seenInside = window.FINANCIAL_YEAR;
+            return 42;
+        });
+        expect(result).toBe(42);
+        expect(seenInside).toBe('2024-2025');          // unchanged
+        expect(spy).not.toHaveBeenCalled();             // helper is silent
+        spy.mockRestore();
+    });
+
+    test('snapshot restores values that differ from any configured year', () => {
+        loadConstantsForYear('2024-2025');
+        const original = window.WFH_FIXED_RATE_PER_HOUR;
+        window.WFH_FIXED_RATE_PER_HOUR = 0.99;          // direct global write
+        window.withYearConstants('2025-2026', () => {});
+        expect(window.WFH_FIXED_RATE_PER_HOUR).toBe(0.99); // snapshot, not reload
+        window.WFH_FIXED_RATE_PER_HOUR = original;
+    });
+});
+
+// ─────────────────────────────────────────────
 // Diminishing value — prior-year opening value
 // The algorithm pro-rates the acquisition FY (actual days held / 365), then applies full DV for
 // each complete subsequent FY before the current year. This matches ATO depreciation methodology.
@@ -1516,6 +1790,306 @@ describe('calculateTotalGeneralDeductions — depreciable expense path', () => {
             cost: 1000, workPercentage: 100, isDepreciable: false, date: '2025-07-01',
         }];
         expect(TaxCalculations.calculateTotalGeneralDeductions(expenses)).toBe(0);
+    });
+});
+
+// ─────────────────────────────────────────────
+// Immediate deductions are confined to the acquisition FY
+// ─────────────────────────────────────────────
+describe('immediate deductions are confined to the acquisition FY', () => {
+    // FY label -> [start, end, day before start, day after end]
+    const FY_BOUNDS = {
+        '2024-2025': ['2024-07-01', '2025-06-30', '2024-06-30', '2025-07-01'],
+        '2025-2026': ['2025-07-01', '2026-06-30', '2025-06-30', '2026-07-01'],
+        '2026-2027': ['2026-07-01', '2027-06-30', '2026-06-30', '2027-07-01'],
+    };
+
+    describe.each(Object.keys(TAX_CONFIG))('%s — general expenses', (year) => {
+        beforeEach(() => loadConstantsForYear(year));
+        const [fyStart, fyEnd, beforeStart, afterEnd] = FY_BOUNDS[year];
+
+        test('non-depreciable expense claimed only inside the FY window', () => {
+            // Previously any date <= FY end claimed in full, so a prior-year
+            // item re-claimed in every later financial year.
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: fyStart }]
+            )).toBeCloseTo(1000, 2);
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: fyEnd }]
+            )).toBeCloseTo(1000, 2);
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: beforeStart }]
+            )).toBe(0);
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: afterEnd }]
+            )).toBe(0);
+        });
+
+        test('depreciable expense from a prior FY still claims (spans years)', () => {
+            // Depreciation legitimately continues after the acquisition year.
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 5, date: '2024-07-01', depreciationMethod: 'prime_cost' }]
+            )).toBeCloseTo(200, 2);
+        });
+    });
+
+    describe.each(Object.keys(TAX_CONFIG))('%s — WFH assets', (year) => {
+        beforeEach(() => loadConstantsForYear(year));
+        const [fyStart, fyEnd, beforeStart, afterEnd] = FY_BOUNDS[year];
+
+        test('non-depreciable WFH asset claimed only inside the FY window', () => {
+            // The WFH asset path previously had no date filter at all.
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: fyStart }]
+            )).toBeCloseTo(1000, 2);
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: fyEnd }]
+            )).toBeCloseTo(1000, 2);
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: beforeStart }]
+            )).toBe(0);
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: afterEnd }]
+            )).toBe(0);
+        });
+
+        test('depreciable WFH asset from a prior FY still claims (spans years)', () => {
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 5, date: '2024-07-01', depreciationMethod: 'prime_cost' }]
+            )).toBeCloseTo(200, 2);
+        });
+    });
+
+    describe('mixed and malformed cases (2024-2025)', () => {
+        beforeEach(() => loadConstantsForYear('2024-2025'));
+
+        test('mixed list: only in-FY immediate and prior-year depreciable count', () => {
+            const expenses = [
+                { cost: 1000, workPercentage: 100, isDepreciable: false, date: '2023-06-01' },  // prior-year immediate -> 0
+                { cost: 500, workPercentage: 100, isDepreciable: false, date: '2024-10-01' },   // in-FY immediate -> 500
+                { cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 5, date: '2023-07-01', depreciationMethod: 'prime_cost' }, // prior-year depreciable -> 200
+            ];
+            expect(TaxCalculations.calculateTotalGeneralDeductions(expenses)).toBeCloseTo(700, 2);
+        });
+
+        test('depreciable-flagged item with zero/missing effective life is confined to its acquisition FY', () => {
+            // The engine writes such items off immediately, so the FY filter
+            // must still bound them — previously they claimed full cost in
+            // EVERY financial year (the re-claiming bug's remaining hole).
+            ['2024-2025', '2025-2026', '2026-2027'].forEach(year => {
+                loadConstantsForYear(year);
+                expect(TaxCalculations.calculateTotalGeneralDeductions(
+                    [{ cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 0, date: '2024-07-01' }]
+                )).toBe(year === '2024-2025' ? 1000 : 0);
+                expect(TaxCalculations.calculateTotalGeneralDeductions(
+                    [{ cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: '', date: '2024-07-01' }]
+                )).toBe(year === '2024-2025' ? 1000 : 0);
+                expect(TaxCalculations.calculateWfhAssetsDeduction(
+                    [{ cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 0, date: '2024-07-01' }]
+                )).toBe(year === '2024-2025' ? 1000 : 0);
+            });
+            loadConstantsForYear('2024-2025');
+        });
+
+        test('fractional effective life never produces NaN anywhere in the summary', () => {
+            // parseInt(0.5) = 0 used to slip the raw-value guard and reach a
+            // cost/0 division, poisoning taxableIncome with NaN.
+            const item = { cost: 800, workPercentage: 100, isDepreciable: true, effectiveLife: 0.5, date: '2024-08-01', depreciationMethod: 'prime_cost' };
+            const claim = TaxCalculations.calculateItemDeduction(item, 0);
+            expect(Number.isFinite(claim)).toBe(true);
+            expect(claim).toBeGreaterThanOrEqual(0);
+            expect(claim).toBeLessThanOrEqual(800);
+            const data = makeAppData({ generalExpenses: [item] });
+            const s = TaxCalculations.calculateYearSummary(data);
+            [s.overallTotalDeductions, s.taxableIncome, s.grossTax].forEach(v => {
+                expect(Number.isFinite(v)).toBe(true);
+            });
+            // 0.5 rounds to 1: life-1 prime cost, day-pro-rated for the
+            // mid-year purchase (334/365 days of FY 2024-25 from 1 Aug).
+            expect(s.totalGeneralDeductions).toBeCloseTo(800 * 334 / 365, 2);
+        });
+
+        test('non-numeric effective life yields an immediate write-off, not NaN or a blank schedule', () => {
+            const item = { cost: 500, workPercentage: 100, isDepreciable: true, effectiveLife: 'abc', date: '2024-08-01', depreciationMethod: 'prime_cost' };
+            expect(TaxCalculations.calculateItemDeduction(item, 0)).toBe(500);
+            expect(TaxCalculations.generateDepreciationSchedule(item)).toBe('Immediate');
+        });
+
+        test('missing or malformed dates contribute 0 without throwing', () => {
+            expect(() => TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false }]
+            )).not.toThrow();
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false }]
+            )).toBe(0);
+            expect(TaxCalculations.calculateTotalGeneralDeductions(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: 'not-a-date' }]
+            )).toBe(0);
+            expect(TaxCalculations.calculateWfhAssetsDeduction(
+                [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: '2024-13-45' }]
+            )).toBe(0);
+            expect(TaxCalculations.calculateTotalGeneralDeductions(null)).toBe(0);
+        });
+    });
+});
+
+// ─────────────────────────────────────────────
+// calculateItemDeductionThisFY (shared totals/rows/CSV gate)
+// ─────────────────────────────────────────────
+describe('calculateItemDeductionThisFY', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    test('depreciating item claims in any FY the schedule covers', () => {
+        const item = { cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 5, date: '2020-01-01', depreciationMethod: 'prime_cost' };
+        expect(TaxCalculations.calculateItemDeductionThisFY(item, 0)).toBeCloseTo(100.55, 2);
+    });
+
+    test('immediate item claims only in its acquisition FY', () => {
+        const item = { cost: 400, workPercentage: 50, isDepreciable: false, date: '2024-08-01' };
+        expect(TaxCalculations.calculateItemDeductionThisFY(item, 0)).toBeCloseTo(200, 2);
+        expect(TaxCalculations.calculateItemDeductionThisFY(item, 0, '2025-2026')).toBe(0);
+    });
+
+    test('depreciable item with zero life is treated as immediate and FY-bounded', () => {
+        const item = { cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 0, date: '2024-08-01' };
+        expect(TaxCalculations.calculateItemDeductionThisFY(item, 100)).toBeCloseTo(1000, 2);
+        expect(TaxCalculations.calculateItemDeductionThisFY(item, 100, '2025-2026')).toBe(0);
+    });
+
+    test('honours the work-% fallback rule', () => {
+        expect(TaxCalculations.calculateItemDeductionThisFY(
+            { cost: 1000, isDepreciable: false, date: '2024-08-01' }, 100)).toBeCloseTo(1000, 2);
+        expect(TaxCalculations.calculateItemDeductionThisFY(
+            { cost: 1000, workPercentage: 0, isDepreciable: false, date: '2024-08-01' }, 100)).toBe(0);
+    });
+});
+
+// ─────────────────────────────────────────────
+// dateInFinancialYear (shared FY predicate)
+// ─────────────────────────────────────────────
+describe('dateInFinancialYear', () => {
+    test('bounds are inclusive at both FY start and FY end', () => {
+        expect(TaxCalculations.dateInFinancialYear('2024-07-01', '2024-2025')).toBe(true);
+        expect(TaxCalculations.dateInFinancialYear('2025-06-30', '2024-2025')).toBe(true);
+        expect(TaxCalculations.dateInFinancialYear('2024-06-30', '2024-2025')).toBe(false);
+        expect(TaxCalculations.dateInFinancialYear('2025-07-01', '2024-2025')).toBe(false);
+    });
+
+    test('defaults to the active financial year', () => {
+        loadConstantsForYear('2025-2026');
+        expect(TaxCalculations.dateInFinancialYear('2025-10-15')).toBe(true);
+        expect(TaxCalculations.dateInFinancialYear('2024-10-15')).toBe(false);
+    });
+
+    test('JS-rollover dates are rejected, not silently rolled forward', () => {
+        // '2024-06-31' would roll to 1 Jul 2024 and land the item in the NEXT
+        // FY; the round-trip check must reject it for both adjacent years.
+        expect(TaxCalculations.dateInFinancialYear('2024-06-31', '2023-2024')).toBe(false);
+        expect(TaxCalculations.dateInFinancialYear('2024-06-31', '2024-2025')).toBe(false);
+        expect(TaxCalculations.dateInFinancialYear('2023-02-29', '2022-2023')).toBe(false); // non-leap
+        expect(TaxCalculations.dateInFinancialYear('2024-02-30', '2023-2024')).toBe(false);
+        expect(TaxCalculations.dateInFinancialYear('2024-02-29', '2023-2024')).toBe(true);  // leap
+    });
+
+    test('unparseable financial-year label is rejected, not thrown on', () => {
+        expect(TaxCalculations.dateInFinancialYear('2024-08-01', 'garbage')).toBe(false);
+        expect(TaxCalculations.dateInFinancialYear('2024-08-01', '')).toBe(false);
+    });
+
+    test('malformed and out-of-range dates are excluded, not thrown on', () => {
+        [null, undefined, '', 'not-a-date', '2024-13-01', '2024-00-10', '2024-01-32', '2024/01/05', 42].forEach(bad => {
+            expect(TaxCalculations.dateInFinancialYear(bad, '2024-2025')).toBe(false);
+        });
+    });
+});
+
+// ─────────────────────────────────────────────
+// findIdenticalAssetGroups (ATO identical-assets > $300 test)
+// ─────────────────────────────────────────────
+describe('findIdenticalAssetGroups', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    const item = (overrides = {}) => ({
+        id: 'x', description: 'RAM module', date: '2024-08-01',
+        cost: 224, workPercentage: 100, isDepreciable: false, ...overrides,
+    });
+
+    test('groups identical non-depreciable items across both lists when combined cost exceeds $300', () => {
+        // The real-world case: 8 identical RAM modules at $224 each.
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [item(), item({ id: 'a2' }), item({ id: 'a3' }), item({ id: 'a4' })],
+            [item({ id: 'w1', description: 'RAM module' }), item({ id: 'w2', description: 'RAM module' }), item({ id: 'w3', description: 'RAM module' }), item({ id: 'w4', description: 'RAM module' })],
+        );
+        expect(groups).toHaveLength(1);
+        expect(groups[0].count).toBe(8);
+        expect(groups[0].combinedCost).toBeCloseTo(1792, 2);
+        expect(groups[0].items.map(i => i.source)).toEqual(
+            expect.arrayContaining(['General Expenses', 'WFH Assets']));
+    });
+
+    test('combined cost of exactly $300 does not warn (strictly more than $300)', () => {
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [item({ cost: 200 }), item({ cost: 100, id: 'b' })], []);
+        expect(groups).toHaveLength(0);
+    });
+
+    test('combined cost of $300.01 warns', () => {
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [item({ cost: 200 }), item({ cost: 100.01, id: 'b' })], []);
+        expect(groups).toHaveLength(1);
+        expect(groups[0].combinedCost).toBeCloseTo(300.01, 2);
+    });
+
+    test('description normalisation folds case, whitespace and blank descriptions are skipped', () => {
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [item({ description: 'Office  Chair' }), item({ id: 'b', description: 'office chair' })], []);
+        expect(groups).toHaveLength(1);
+        // Groups on the normalised key but reports the user's original casing.
+        expect(groups[0].description).toBe('Office  Chair');
+
+        const noDesc = TaxCalculations.findIdenticalAssetGroups(
+            [item({ description: '   ' }), item({ id: 'b', description: '' })], []);
+        expect(noDesc).toHaveLength(0);
+    });
+
+    test('depreciable items and items dated in another FY are excluded from grouping', () => {
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [
+                item(), item({ id: 'b', isDepreciable: true, effectiveLife: 4 }),
+                item({ id: 'c', date: '2023-08-01' }),   // prior FY
+                item({ id: 'd', date: '2025-08-01' }),   // future FY
+            ], []);
+        // Only the one remaining in-FY non-depreciable item -> group of 1 -> no warning.
+        expect(groups).toHaveLength(0);
+    });
+
+    test('single items, empty lists and missing lists produce no warnings', () => {
+        expect(TaxCalculations.findIdenticalAssetGroups([item()], [])).toHaveLength(0);
+        expect(TaxCalculations.findIdenticalAssetGroups([], [])).toHaveLength(0);
+        expect(TaxCalculations.findIdenticalAssetGroups(null, undefined)).toHaveLength(0);
+    });
+
+    test('explicit financial year argument bounds the grouping window', () => {
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [item({ date: '2025-08-01' }), item({ id: 'b', date: '2025-09-01' })], [], '2025-2026');
+        expect(groups).toHaveLength(1);
+        // Same items are out of window for 2024-2025 (the loaded year).
+        expect(TaxCalculations.findIdenticalAssetGroups(
+            [item({ date: '2025-08-01' }), item({ id: 'b', date: '2025-09-01' })], [])).toHaveLength(0);
+    });
+
+    test('calculateYearSummary exposes identicalAssetWarnings for the active year', () => {
+        const data = makeAppData({
+            generalExpenses: [item(), item({ id: 'b' })],
+        });
+        const s = TaxCalculations.calculateYearSummary(data);
+        expect(s.identicalAssetWarnings).toHaveLength(1);
+        expect(s.identicalAssetWarnings[0].combinedCost).toBeCloseTo(448, 2);
+
+        // Defensive guard: appData whose wfh lacks actualCostDetails entirely.
+        const bare = { ...makeAppData(), wfh: { method: 'fixed_rate', totalMinutes: 0 } };
+        const sBare = TaxCalculations.calculateYearSummary(bare);
+        expect(sBare.identicalAssetWarnings).toEqual([]);
     });
 });
 
@@ -1733,6 +2307,34 @@ describe('generateDepreciationSchedule', () => {
         delete a.date;
         expect(TaxCalculations.generateDepreciationSchedule(a)).toBe('Invalid date');
     });
+
+    test('explicit 0% work-use renders $0.00 rows, not 100% amounts', () => {
+        // The schedule previously coerced 0 to 100 via `|| 100`, so an asset
+        // that claims $0 displayed a full-cost schedule.
+        const result = TaxCalculations.generateDepreciationSchedule(asset({ workPercentage: 0 }));
+        expect(result).toMatch(/2024-25:/);
+        expect(result).not.toMatch(/\$[1-9]/);          // no non-zero amount anywhere
+        expect(result).toMatch(/2024-25:.*\$0\.00/);    // current-FY row shows zero
+    });
+
+    test('schedule agrees with the claim for a 0% work-use asset', () => {
+        const a = asset({ workPercentage: 0 });
+        const schedule = TaxCalculations.generateDepreciationSchedule(a);
+        const match = schedule.match(/<strong>2024-25: \$([\d,]+\.\d{2})/);
+        expect(match).not.toBeNull();
+        const scheduleAmount = parseFloat(match[1].replace(/,/g, ''));
+        const claim = TaxCalculations.calculateDepreciationForFinancialYear(
+            a.cost, a.workPercentage, a.effectiveLife, a.date, a.depreciationMethod);
+        expect(claim).toBe(0);
+        expect(scheduleAmount).toBeCloseTo(claim, 2);
+    });
+
+    test('missing work% still defaults to 100% in the schedule', () => {
+        const a = asset();
+        delete a.workPercentage;
+        const result = TaxCalculations.generateDepreciationSchedule(a);
+        expect(result).toMatch(/2024-25:.*400\.00/);   // 1200/3 at 100%
+    });
 });
 
 // ─────────────────────────────────────────────
@@ -1798,6 +2400,33 @@ describe('calculateWfhActualCostDeduction — multi-property', () => {
     test('empty properties array → zero running expenses', () => {
         const details = { properties: [], assets: [] };
         expect(TaxCalculations.calculateWfhActualCostDeduction(details)).toBe(0);
+    });
+
+    test('occupancy costs are apportioned by floor area like utilities', () => {
+        // rent/mortgage interest 12000 at 10/100 floor area → 1200 on top of
+        // electricity 2000 * 10% = 200
+        const details = { properties: [prop({ occupancyCost: 12000 })], assets: [] };
+        expect(TaxCalculations.calculateWfhActualCostDeduction(details)).toBeCloseTo(1400, 2);
+    });
+
+    test('occupancy cost absent or zero leaves the deduction unchanged', () => {
+        expect(TaxCalculations.calculateWfhActualCostDeduction(
+            { properties: [prop({ occupancyCost: 0 })], assets: [] })).toBeCloseTo(200, 2);
+        expect(TaxCalculations.calculateWfhActualCostDeduction(
+            { properties: [prop({ occupancyCost: undefined })], assets: [] })).toBeCloseTo(200, 2);
+    });
+
+    test('occupancy costs across multiple properties are summed', () => {
+        // Real-return shape: rent 27983 at 9.49% floor area ≈ 2655.8
+        const details = {
+            properties: [
+                prop({ officeArea: 9.49, totalHomeArea: 100, electricityCost: 0, occupancyCost: 27983 }),
+                prop({ officeArea: 10, totalHomeArea: 100, electricityCost: 0, occupancyCost: 12000 }),
+            ],
+            assets: [],
+        };
+        // 27983 * 0.0949 + 12000 * 0.10
+        expect(TaxCalculations.calculateWfhActualCostDeduction(details)).toBeCloseTo(27983 * 0.0949 + 1200, 2);
     });
 });
 

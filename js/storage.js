@@ -6,18 +6,25 @@ const StorageManager = (() => {
     const setNotifyCallback = (fn) => { _notify = fn; };
 
     // Dynamic storage key based on financial year (backward compatible)
-    // 2024-2025 resolves to aussieTaxHelperData-2025
-    const getStorageKey = (year) => `aussieTaxHelperData-${year.split('-')[1]}`;
+    // 2024-2025 resolves to aussieTaxHelperData-2025. One parse/format pair
+    // shared by the writer and the reader so the two can't disagree on the
+    // format. Note: getStorageKey is intentionally lenient (blind slice) for
+    // callers passing year labels this version doesn't configure.
+    const STORAGE_KEY_PREFIX = 'aussieTaxHelperData-';
+    // Storage keys carry exactly 4 digits — the regex is built from the
+    // prefix so the format lives in one place.
+    const STORAGE_KEY_RE = new RegExp(`^${STORAGE_KEY_PREFIX}(\\d{4})$`);
+    const endYearToFinancialYear = (endYear) => `${endYear - 1}-${endYear}`;
+    const getStorageKey = (year) => `${STORAGE_KEY_PREFIX}${String(year).split('-')[1]}`;
 
     // Years that actually have data in localStorage — may include years not
     // selectable in this version (e.g. imported from a newer app version).
     const getAllStoredYears = () => {
         const years = [];
         for (let i = 0; i < localStorage.length; i++) {
-            const match = (localStorage.key(i) || '').match(/^aussieTaxHelperData-(\d{4})$/);
+            const match = (localStorage.key(i) || '').match(STORAGE_KEY_RE);
             if (match) {
-                const endYear = parseInt(match[1], 10);
-                years.push(`${endYear - 1}-${endYear}`);
+                years.push(endYearToFinancialYear(parseInt(match[1], 10)));
             }
         }
         return years.sort();
@@ -228,6 +235,22 @@ const StorageManager = (() => {
         }
     };
 
+    // Calculated summary for one year's data, computed under that year's
+    // constants — withYearConstants swaps the globals and restores them even
+    // on error, so no caller-level cleanup is needed. Returns null for years
+    // this version has no configuration for.
+    const computeYearSummary = (year, data) => {
+        if (typeof TaxCalculations === 'undefined' || !window.AVAILABLE_YEARS.includes(year)) return null;
+        return window.withYearConstants(year, () => {
+            try {
+                return TaxCalculations.calculateYearSummary(data);
+            } catch (e) {
+                console.error(`Failed to compute summary for ${year}:`, e);
+                return null;
+            }
+        });
+    };
+
     const exportData = (currentData, format, scope = 'all') => {
         try {
             // Build the dataset based on scope
@@ -260,23 +283,95 @@ const StorageManager = (() => {
             let dataStr, blobType, fileExtension;
 
             if (format === 'json') {
-                dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: exportYearsData }, null, 2);
+                // Derived figures for the accountant — regenerated on import,
+                // never read back in.
+                const calculatedSummaries = {};
+                Object.entries(exportYearsData).forEach(([yr, d]) => {
+                    const summary = computeYearSummary(yr, d);
+                    if (summary) calculatedSummaries[yr] = summary;
+                });
+                dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: exportYearsData, calculatedSummaries }, null, 2);
                 blobType = 'application/json';
                 fileExtension = 'json';
             } else {
+                // One CSV cell escaper: doubles embedded quotes (RFC 4180)
+                // and neutralises spreadsheet formula injection by prefixing
+                // a leading formula character with a single quote. The same
+                // guard main applied to the year banner (4bf8965), applied
+                // here to every user-supplied value.
+                const csvCell = (value) => {
+                    const s = String(value ?? '').replace(/"/g, '""');
+                    return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+                };
                 const arrayToCsv = (arr, headers, keys) => {
                     if (!arr || arr.length === 0) return `No data for this category.\n`;
                     const headerRow = headers.map(h => `"${h}"`).join(',');
                     const dataRows = arr.map(item =>
-                        keys.map(key => `"${String(item[key] ?? '').replace(/"/g, '""')}"`).join(',')
+                        keys.map(key => `"${csvCell(item[key])}"`).join(',')
                     );
                     return [headerRow, ...dataRows].join('\n');
                 };
 
-                const buildYearCsv = (data, year) => {
+                const buildYearCsv = (data, year, summary) => {
+                    const money = (v) => (Math.round(((v || 0) + Number.EPSILON) * 100) / 100).toFixed(2);
+                    // Per-item deduction as claimed this FY, bounded exactly like
+                    // the deduction totals: immediate items only in their
+                    // acquisition FY, depreciable items via the engine. The
+                    // explicit year matters — buildYearCsv may run while the
+                    // ACTIVE year's globals are loaded (see exportData), so the
+                    // gate must not read window.FINANCIAL_YEAR implicitly.
+                    const withDeduction = (items, fallbackPct) => summary
+                        ? (items || []).map(item => ({
+                            ...item,
+                            deductionThisFY: money(TaxCalculations.calculateItemDeductionThisFY(item, fallbackPct, year)),
+                        }))
+                        : (items || []);
+
                     // Banner must not start with '=': Excel treats a leading '=' as a formula
                     // when opening a CSV, which mangles the year header (#NAME?/formula error).
                     let s = `"Financial Year: ${year}"\n\n`;
+
+                    if (summary) {
+                        s += `"Calculated Tax Summary (estimates computed by Aussie Tax Helper)"\n`;
+                        s += `"Item","Amount (AUD)"\n`;
+                        [
+                            ['Total Assessable Income', summary.totalAssessableIncome],
+                            ['Total Tax Withheld', summary.totalTaxWithheld],
+                            ['General Expense Deductions', summary.totalGeneralDeductions],
+                            ['Work-From-Home Deductions', summary.totalWfhDeductions],
+                            ['Personal Super Contribution Deduction', summary.totalSuperDeductions],
+                            ['Total Deductions', summary.overallTotalDeductions],
+                            ['Taxable Income', summary.taxableIncome],
+                            ['Gross Income Tax', summary.grossTax],
+                            ['Medicare Levy', summary.medicareLevy],
+                            ['Medicare Levy Surcharge', summary.mls],
+                            ['Low Income Tax Offset (non-refundable, applied)', summary.offsets.litoApplied ?? summary.offsets.lito],
+                            ['Franking Credits (refundable)', summary.offsets.frankingCredits],
+                            ['PHI Rebate Offset (refundable)', summary.offsets.phiOffset],
+                            ['Total Offsets', summary.offsets.total],
+                            ['Net Tax Payable', summary.netTaxPayable],
+                            [summary.finalOutcome >= 0 ? 'Estimated Refund' : 'Estimated Amount Owing', Math.abs(summary.finalOutcome)],
+                        ].forEach(([label, value]) => { s += `"${label}","${money(value)}"\n`; });
+                        s += '\n';
+                    } else {
+                        s += `"Calculated Tax Summary","Unavailable - this app version has no tax configuration for ${year}"\n\n`;
+                    }
+
+                    // Identical low-value assets: flag groups whose combined
+                    // cost exceeds the ATO's $300 immediate-deduction test.
+                    const warnings = (summary && summary.identicalAssetWarnings) || [];
+                    if (warnings.length > 0) {
+                        s += `"ATO Threshold Review - identical assets acquired in FY"\n`;
+                        s += `"Description","Count","Combined Cost (AUD)","Items"\n`;
+                        warnings.forEach(group => {
+                            const itemsStr = group.items
+                                .map(i => `${i.source}: ${money(i.cost)}${i.date ? ` (${i.date})` : ''}`)
+                                .join('; ');
+                            s += `"${csvCell(group.description)}","${group.count}","${money(group.combinedCost)}","${csvCell(itemsStr)}"\n`;
+                        });
+                        s += `"Note: the ATO excludes assets that are one of a number of identical or substantially identical assets started to hold in the year when together they cost more than $300. These may need to be depreciated instead - review before claiming."\n\n`;
+                    }
+
                     s += `"Taxpayer Details"\n${arrayToCsv(
                         [data.taxpayerDetails],
                         ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid (Jul-Mar)', 'PHI Premiums Paid (Apr-Jun)', 'PHI Rebate Received'],
@@ -289,27 +384,34 @@ const StorageManager = (() => {
                         ['bankInterest', 'dividendsUnfranked', 'dividendsFranked', 'frankingCredits', 'netCapitalGains']
                     )}\n\n`;
                     s += `"General Expenses"\n${arrayToCsv(
-                        data.generalExpenses,
-                        ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'],
-                        ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod']
+                        withDeduction(data.generalExpenses, 0),
+                        ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
+                        ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
                     )}\n\n`;
                     s += `"Work-From-Home Details"\n"Method:","${data.wfh.method}"\n\n`;
                     s += `"WFH Hours Log"\n${arrayToCsv(data.wfh.hoursLog, ['Date', 'Minutes'], ['date', 'minutes'])}\n\n`;
                     const wfhProps = data.wfh.actualCostDetails.properties || [];
                     s += `"WFH Actual Cost - Property Periods"\n${arrayToCsv(
                         wfhProps,
-                        ['Description', 'From Date', 'To Date', 'Office Area (m²)', 'Total Home Area (m²)', 'Electricity Cost ($)', 'Gas Cost ($)', 'Internet Cost ($)', 'Internet Work %', 'Phone Cost ($)', 'Stationery Cost ($)'],
-                        ['description', 'fromDate', 'toDate', 'officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
+                        ['Description', 'From Date', 'To Date', 'Office Area (m²)', 'Total Home Area (m²)', 'Electricity Cost ($)', 'Gas Cost ($)', 'Occupancy Costs ($)', 'Internet Cost ($)', 'Internet Work %', 'Phone Cost ($)', 'Stationery Cost ($)'],
+                        ['description', 'fromDate', 'toDate', 'officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'occupancyCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
                     )}\n\n`;
                     s += `"WFH Actual Cost - Assets"\n${arrayToCsv(
-                        data.wfh.actualCostDetails.assets,
-                        ['Description', 'Date', 'Cost', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method'],
-                        ['description', 'date', 'cost', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod']
+                        withDeduction(data.wfh.actualCostDetails.assets, 100),
+                        ['Description', 'Date', 'Cost', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
+                        ['description', 'date', 'cost', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
                     )}\n\n`;
                     return s;
                 };
 
-                dataStr = Object.entries(exportYearsData).map(([yr, d]) => buildYearCsv(d, yr)).join('\n');
+                // Each year's CSV — including the per-item depreciable
+                // deductions — must be computed under THAT year's
+                // constants; withYearConstants swaps and restores per year
+                // (computeYearSummary alone restored too early, leaving
+                // buildYearCsv under the active year's globals).
+                dataStr = Object.entries(exportYearsData).map(([yr, d]) =>
+                    window.withYearConstants(yr, () => buildYearCsv(d, yr, computeYearSummary(yr, d)))
+                ).join('\n');
                 blobType = 'text/csv;charset=utf-8;';
                 fileExtension = 'csv';
             }

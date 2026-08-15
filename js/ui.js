@@ -257,6 +257,7 @@ const UIManager = (() => {
             document.getElementById('wfh-property-total-home-area').value = property.totalHomeArea || '';
             document.getElementById('wfh-property-electricity').value = property.electricityCost || '';
             document.getElementById('wfh-property-gas').value = property.gasCost || '';
+            document.getElementById('wfh-property-occupancy').value = property.occupancyCost || '';
             document.getElementById('wfh-property-internet').value = property.internetCost || '';
             document.getElementById('wfh-property-internet-work-pct').value = property.internetWorkPercent || '';
             document.getElementById('wfh-property-phone').value = property.phoneCost || '';
@@ -331,9 +332,9 @@ const UIManager = (() => {
             return;
         }
         [...expenses].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(exp => {
-            const deduction = exp.isDepreciable
-                ? TaxCalculations.calculateDepreciationForFinancialYear(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
-                : (exp.cost * (exp.workPercentage / 100));
+            // Same gate as the section totals, so the rows always sum to the
+            // total displayed above them (prior-year immediate items show 0).
+            const deduction = TaxCalculations.calculateItemDeductionThisFY(exp, 0);
 
             const claimScheduleHtml = TaxCalculations.generateDepreciationSchedule(exp);
             const methodDisplay = exp.isDepreciable ? (exp.depreciationMethod === 'prime_cost' ? 'Prime Cost' : 'Diminishing') : 'N/A';
@@ -420,8 +421,11 @@ const UIManager = (() => {
                 return cell;
             };
 
-            const workPercentage = asset.workPercentage || 100;
-            const deduction = TaxCalculations.calculateDepreciationForFinancialYear(asset.cost, workPercentage, asset.effectiveLife, asset.date, asset.depreciationMethod);
+            // Same gate as the section totals, so the rows always sum to the
+            // total displayed above them; also honours an explicit 0% work
+            // use (the old `|| 100` coerced it to a full-cost row).
+            const deduction = TaxCalculations.calculateItemDeductionThisFY(asset, 100);
+            const workPercentage = TaxCalculations.normaliseWorkPct(asset.workPercentage, 100);
 
             const claimScheduleHtml = TaxCalculations.generateDepreciationSchedule(asset);
 
@@ -434,7 +438,7 @@ const UIManager = (() => {
             row.appendChild(createCell(asset.description));
             row.appendChild(createCell(asset.date));
             row.appendChild(createCell(formatCurrency(asset.cost)));
-            row.appendChild(createCell(`${workPercentage}%`));
+            row.appendChild(createCell(`${normaliseWorkPct(asset.workPercentage, 100)}%`));
             row.appendChild(createCell(methodDisplay));
             row.appendChild(createCell(formatCurrency(deduction), ['font-semibold']));
             row.appendChild(createCell(claimScheduleHtml, ['text-xs'], true));
@@ -483,24 +487,13 @@ const UIManager = (() => {
 
         document.getElementById('wfh-fixed-rate-value').textContent = formatCurrency(window.WFH_FIXED_RATE_PER_HOUR);
 
-        const totalAssessableIncome = TaxCalculations.calculateTotalAssessableIncome(appData.income);
-        const totalTaxWithheld = appData.income.payg.reduce((sum, item) => sum + item.taxWithheld, 0);
-
-        const totalGeneralDeductions = TaxCalculations.calculateTotalGeneralDeductions(appData.generalExpenses);
-        const totalWfhDeductions = TaxCalculations.calculateTotalWfhDeductions(appData.wfh);
-        const totalSuperDeductions = parseFloat(appData.taxpayerDetails.personalSuperContribution) || 0;
-
-        const overallTotalDeductions = totalGeneralDeductions + totalWfhDeductions + totalSuperDeductions;
-        const taxableIncome = TaxCalculations.calculateTaxableIncome(appData);
-
-        const grossTax = TaxCalculations.calculateGrossTax(taxableIncome);
-        const medicareLevy = TaxCalculations.calculateMedicareLevy(taxableIncome, appData.taxpayerDetails);
-        const mls = TaxCalculations.calculateMLS(taxableIncome, appData.taxpayerDetails);
-
-        const offsets = TaxCalculations.calculateTotalOffsets(taxableIncome, appData);
-
-        const netTaxPayable = TaxCalculations.calculateNetTaxPayable(grossTax, medicareLevy, mls, offsets);
-        const finalOutcome = TaxCalculations.calculateFinalOutcome(totalTaxWithheld, netTaxPayable);
+        const {
+            totalAssessableIncome, totalTaxWithheld,
+            totalGeneralDeductions, totalWfhDeductions, totalSuperDeductions,
+            overallTotalDeductions, taxableIncome,
+            grossTax, medicareLevy, mls, offsets, netTaxPayable, finalOutcome,
+            identicalAssetWarnings,
+        } = TaxCalculations.calculateYearSummary(appData);
 
         const outcomeText = finalOutcome >= 0 ? `${formatCurrency(finalOutcome)} Refund` : `${formatCurrency(Math.abs(finalOutcome))} Payable`;
 
@@ -533,13 +526,40 @@ const UIManager = (() => {
         document.getElementById('summary-medicare-levy').textContent = formatCurrency(medicareLevy);
         document.getElementById('summary-mls').textContent = formatCurrency(mls);
         document.getElementById('summary-tax-offsets').textContent = formatCurrency(offsets.total);
-        document.getElementById('summary-lito-offset').textContent = formatCurrency(offsets.lito);
+        document.getElementById('summary-lito-offset').textContent = formatCurrency(offsets.litoApplied ?? offsets.lito);
         document.getElementById('summary-lito-offset-row').style.display = offsets.lito > 0 ? 'flex' : 'none';
         document.getElementById('summary-franking-credits-offset').textContent = formatCurrency(offsets.frankingCredits);
         document.getElementById('summary-phi-offset').textContent = formatCurrency(offsets.phiOffset);
-        document.getElementById('summary-net-tax').textContent = formatCurrency(netTaxPayable < 0 ? 0 : netTaxPayable);
+        // An offset that turns negative (over-claimed PHI rebate, or an
+        // offset total in liability) is an amount owing, not a benefit.
+        const phiEl = document.getElementById('summary-phi-offset');
+        phiEl.classList.toggle('text-green-500', offsets.phiOffset >= 0);
+        phiEl.classList.toggle('text-red-600', offsets.phiOffset < 0);
+        document.getElementById('summary-phi-offset-label').textContent =
+            offsets.phiOffset < 0 ? '- Private Health Insurance (amount owing):' : '- Private Health Insurance:';
+        const totalEl = document.getElementById('summary-tax-offsets');
+        totalEl.classList.toggle('text-green-500', offsets.total >= 0);
+        totalEl.classList.toggle('text-red-600', offsets.total < 0);
+        // A negative net tax is real: refundable offsets (franking credits,
+        // PHI offset) exceeding tax increase the refund. Snap sub-cent float
+        // residue to 0 so it doesn't render as "-$0.00".
+        const netTaxShown = Math.abs(netTaxPayable) < 0.005 ? 0 : netTaxPayable;
+        document.getElementById('summary-net-tax').textContent = formatCurrency(netTaxShown);
         document.getElementById('summary-tax-withheld').textContent = formatCurrency(totalTaxWithheld);
         document.getElementById('summary-final-outcome').textContent = outcomeText;
+
+        // Identical low-value assets: the ATO tests the $300 threshold on
+        // the combined cost, so surface groups for review (never reclassify).
+        const warnBox = document.getElementById('identical-assets-warning');
+        const warnList = document.getElementById('identical-assets-warning-list');
+        warnList.innerHTML = '';
+        warnBox.classList.toggle('hidden', (identicalAssetWarnings || []).length === 0);
+        (identicalAssetWarnings || []).forEach(group => {
+            const li = document.createElement('li');
+            li.textContent = `"${group.description}" × ${group.count} — combined ${formatCurrency(group.combinedCost)} `
+                + `(${group.items.map(i => `${i.source}: ${formatCurrency(i.cost)}`).join(', ')})`;
+            warnList.appendChild(li);
+        });
     };
 
     return {

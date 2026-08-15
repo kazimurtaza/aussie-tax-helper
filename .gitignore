@@ -12,3 +12,7 @@ personal-data/
 
 # Claude Code
 .claude/
+
+# Local package-manager artifacts (repo is npm + npm ci in CI)
+pnpm-lock.yaml
+pnpm-workspace.yaml
