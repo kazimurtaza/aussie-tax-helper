@@ -1974,6 +1974,34 @@ describe('generateDepreciationSchedule', () => {
         delete a.date;
         expect(TaxCalculations.generateDepreciationSchedule(a)).toBe('Invalid date');
     });
+
+    test('explicit 0% work-use renders $0.00 rows, not 100% amounts', () => {
+        // The schedule previously coerced 0 to 100 via `|| 100`, so an asset
+        // that claims $0 displayed a full-cost schedule.
+        const result = TaxCalculations.generateDepreciationSchedule(asset({ workPercentage: 0 }));
+        expect(result).toMatch(/2024-25:/);
+        expect(result).not.toMatch(/\$[1-9]/);          // no non-zero amount anywhere
+        expect(result).toMatch(/2024-25:.*\$0\.00/);    // current-FY row shows zero
+    });
+
+    test('schedule agrees with the claim for a 0% work-use asset', () => {
+        const a = asset({ workPercentage: 0 });
+        const schedule = TaxCalculations.generateDepreciationSchedule(a);
+        const match = schedule.match(/<strong>2024-25: \$([\d,]+\.\d{2})/);
+        expect(match).not.toBeNull();
+        const scheduleAmount = parseFloat(match[1].replace(/,/g, ''));
+        const claim = TaxCalculations.calculateDepreciationForFinancialYear(
+            a.cost, a.workPercentage, a.effectiveLife, a.date, a.depreciationMethod);
+        expect(claim).toBe(0);
+        expect(scheduleAmount).toBeCloseTo(claim, 2);
+    });
+
+    test('missing work% still defaults to 100% in the schedule', () => {
+        const a = asset();
+        delete a.workPercentage;
+        const result = TaxCalculations.generateDepreciationSchedule(a);
+        expect(result).toMatch(/2024-25:.*400\.00/);   // 1200/3 at 100%
+    });
 });
 
 // ─────────────────────────────────────────────

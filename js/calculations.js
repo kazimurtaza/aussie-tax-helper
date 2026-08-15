@@ -391,7 +391,7 @@ const TaxCalculations = (() => {
 
         const schedule = [];
         let openingValue = parseFloat(asset.cost);
-        const workPct = (parseFloat(asset.workPercentage) || 100) / 100;
+        const workPct = normaliseWorkPct(asset.workPercentage, 100) / 100;
         const life = parseInt(asset.effectiveLife);
         const isDV = asset.depreciationMethod === 'diminishing_value';
         if (!asset.date || typeof asset.date !== 'string') return 'Invalid date';
