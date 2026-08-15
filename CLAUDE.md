@@ -31,7 +31,7 @@ js/
   ui.js                # UIManager IIFE -- DOM manipulation, modals, form rendering
   app.js               # App IIFE -- event wiring, orchestration, state management
 tests/
-  calculations.test.js # 324 Jest tests (>90% coverage on calculations.js + constants.js)
+  calculations.test.js # 332 Jest tests (>90% coverage on calculations.js + constants.js)
 .github/workflows/
   test.yml             # CI: runs tests on PRs and non-main pushes
   static.yml           # CD: tests then deploys to GitHub Pages on main push
@@ -62,5 +62,5 @@ tests/
 - **main branch:** Protected. Pushes to main trigger tests + deploy to GitHub Pages.
 - **Feature branches:** Tests run on every PR and non-main push via `test.yml`.
 - **PRs:** Must pass tests before merge (deploy workflow gates on test job).
-- **Version bumps:** Manual update of version in `package.json` and changelog in `index.html` sidebar.
+- **Version bumps:** Manual update of version in `package.json`, then `npm install --package-lock-only` to sync `package-lock.json` (CI runs `npm ci`, which checks it), and changelog in `index.html` sidebar + `README.MD`.
 - **Adding a new financial year:** Add a new key to `TAX_CONFIG` in `js/constants.js`. The entry is not just `SHARED_TAX_CONFIG` -- it must also reference a `TAX_RATES_*` bracket table (`TAX_RATES:` key), spread a `MEDICARE_THRESHOLDS_YYYY_YY` const (add one if the year's Medicare thresholds changed), and define `MLS_THRESHOLDS_SINGLE`/`MLS_THRESHOLDS_FAMILY` arrays plus `PHI_REBATE_RATES_PERIODS` with exactly two period keys (`1 Jul -> 31 Mar`, `1 Apr -> 30 Jun`). Without the `TAX_RATES` reference and Medicare spread, `window.TAX_RATES` is `undefined` and `calculateGrossTax` throws. `AVAILABLE_YEARS` is auto-generated; no other files need changes.

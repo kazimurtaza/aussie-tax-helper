@@ -1484,10 +1484,6 @@ describe('TAX_CONFIG structure', () => {
         expect(TAX_CONFIG['2026-2027']).toBeDefined();
     });
 
-    test('has 3 configured years', () => {
-        expect(Object.keys(TAX_CONFIG)).toHaveLength(3);
-    });
-
     test('AVAILABLE_YEARS is sorted', () => {
         expect(AVAILABLE_YEARS).toEqual(['2024-2025', '2025-2026', '2026-2027']);
     });
@@ -2048,7 +2044,8 @@ describe('findIdenticalAssetGroups', () => {
         const groups = TaxCalculations.findIdenticalAssetGroups(
             [item({ description: 'Office  Chair' }), item({ id: 'b', description: 'office chair' })], []);
         expect(groups).toHaveLength(1);
-        expect(groups[0].description).toBe('office chair');
+        // Groups on the normalised key but reports the user's original casing.
+        expect(groups[0].description).toBe('Office  Chair');
 
         const noDesc = TaxCalculations.findIdenticalAssetGroups(
             [item({ description: '   ' }), item({ id: 'b', description: '' })], []);

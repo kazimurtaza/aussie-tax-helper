@@ -268,8 +268,9 @@ const TaxCalculations = (() => {
 
         return [...groups.entries()]
             .filter(([, items]) => items.length > 1)
-            .map(([description, items]) => ({
-                description,
+            .map(([key, items]) => ({
+                // Show the user's own casing, not the lowercased grouping key.
+                description: items[0].description,
                 financialYear,
                 count: items.length,
                 combinedCost: items.reduce((sum, i) => sum + (parseFloat(i.cost) || 0), 0),
