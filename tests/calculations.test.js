@@ -905,6 +905,48 @@ describe('calculateDepreciationForFinancialYear', () => {
 });
 
 // ─────────────────────────────────────────────
+// Depreciation engine agreement: the claim and the displayed schedule
+// are two views of one calculation and must never diverge. This matrix
+// pins current behaviour across methods, purchase timing, work-use
+// percentages and all configured years — it guards any future refactor
+// of the two code paths.
+// ─────────────────────────────────────────────
+describe('depreciation: claim matches schedule (engine agreement)', () => {
+    const CASES = [
+        // [label, cost, workPct, life, purchaseDate, method]
+        ['PC full-year',            1000, 100, 5, '2024-07-01', 'prime_cost'],
+        ['PC partial-year',         1000, 100, 5, '2025-01-01', 'prime_cost'],
+        ['PC prior-year final leg', 1000, 100, 5, '2020-01-01', 'prime_cost'],
+        ['PC partial work%',        1000,  50, 5, '2024-07-01', 'prime_cost'],
+        ['PC explicit 0% work',     1000,   0, 5, '2024-07-01', 'prime_cost'],
+        ['PC life 1 mid-year',      1000, 100, 1, '2024-08-05', 'prime_cost'],
+        ['DV full-year',            1000, 100, 5, '2024-07-01', 'diminishing_value'],
+        ['DV partial-year',         1000, 100, 5, '2025-01-01', 'diminishing_value'],
+        ['DV prior-year carry',     1000,  80, 2, '2024-07-06', 'diminishing_value'],
+        ['DV explicit 0% work',     1000,   0, 5, '2024-07-01', 'diminishing_value'],
+    ];
+
+    describe.each(Object.keys(TAX_CONFIG))('%s', (year) => {
+        beforeEach(() => loadConstantsForYear(year));
+
+        test.each(CASES)('%s', (label, cost, workPct, life, date, method) => {
+            const claim = TaxCalculations.calculateDepreciationForFinancialYear(cost, workPct, life, date, method);
+            const [startYear, endYearFull] = window.FINANCIAL_YEAR.split('-');
+            const fyLabel = `${startYear}-${endYearFull.slice(-2)}`;
+            const schedule = TaxCalculations.generateDepreciationSchedule({
+                isDepreciable: true, cost, workPercentage: workPct,
+                effectiveLife: life, date, depreciationMethod: method,
+            });
+            // The current-FY row is <strong>-wrapped; absent row means the
+            // schedule has ended (claim must then be 0 for this FY).
+            const match = schedule.match(new RegExp(`(?:<strong>)?${fyLabel}: \\$([\\d,]+\\.\\d{2})`));
+            const rowAmount = match ? parseFloat(match[1].replace(/,/g, '')) : 0;
+            expect(claim).toBeCloseTo(rowAmount, 2);
+        });
+    });
+});
+
+// ─────────────────────────────────────────────
 // calculateTotalWfhDeductions
 // ─────────────────────────────────────────────
 describe('calculateTotalWfhDeductions', () => {
