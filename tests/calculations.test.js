@@ -1142,6 +1142,30 @@ describe('calculateTotalOffsets', () => {
         expect(result.phiOffset).toBeCloseTo(2460.80, 2);
         expect(result.total).toBeCloseTo(700 + 300 + 2460.80, 2);
     });
+
+    test('litoApplied caps at gross tax when passed; absent grossTax keeps entitlement', () => {
+        const data = makeAppData();
+        // 2-arg form: backwards compatible, applied = entitlement.
+        const twoArg = TaxCalculations.calculateTotalOffsets(30000, data);
+        expect(twoArg.litoApplied).toBe(700);
+        expect(twoArg.total).toBeCloseTo(700, 2);
+        // 3-arg with grossTax below LITO: only the applied portion counts.
+        const capped = TaxCalculations.calculateTotalOffsets(30000, data, 288);
+        expect(capped.lito).toBe(700);
+        expect(capped.litoApplied).toBe(288);
+        expect(capped.total).toBeCloseTo(288, 2);
+        // 3-arg with grossTax above LITO: fully applied.
+        const full = TaxCalculations.calculateTotalOffsets(30000, data, 4000);
+        expect(full.litoApplied).toBe(700);
+        expect(full.total).toBeCloseTo(700, 2);
+    });
+
+    test('litoApplied with zero gross tax is zero', () => {
+        const data = makeAppData();
+        const result = TaxCalculations.calculateTotalOffsets(30000, data, 0);
+        expect(result.litoApplied).toBe(0);
+        expect(result.total).toBe(0);
+    });
 });
 
 // ─────────────────────────────────────────────
@@ -1262,6 +1286,38 @@ describe('calculateYearSummary', () => {
         // 15% bracket: gross tax at 80k = 14520 (vs 14788 under 16%)
         expect(s2627.financialYear).toBe('2026-2027');
         expect(s2627.grossTax).toBeCloseTo(14520, 2);
+    });
+
+    test('offset rows reconcile: gross + medicare + mls − offsets.total = net tax', () => {
+        // Low income where LITO exceeds gross tax: previously the summary
+        // showed the full $700 entitlement against a small gross tax and the
+        // rows did not add up to the net tax displayed.
+        const lowIncome = { ...makeAppData() };
+        lowIncome.income.payg = [{ grossSalary: 19000, taxWithheld: 100, sourceName: 'Employer' }];
+        const sLow = TaxCalculations.calculateYearSummary(lowIncome);
+        expect(sLow.offsets.lito).toBe(700);
+        expect(sLow.grossTax).toBeLessThan(700);       // 19% of (19000 − 18200) = $152
+        expect(sLow.offsets.litoApplied).toBeCloseTo(sLow.grossTax, 2);
+        expect(sLow.grossTax + sLow.medicareLevy + sLow.mls - sLow.offsets.total)
+            .toBeCloseTo(sLow.netTaxPayable, 2);
+
+        // Negative PHI offset (over-claimed rebate) scenario.
+        const phiOver = {
+            ...makeAppData({ otherIncome: { frankingCredits: 300 } }),
+            taxpayerDetails: singleTaxpayer({ phiPremiumsPaid_period1: 1000, phiRebateReceived: 500 }),
+        };
+        phiOver.income.payg = [{ grossSalary: 120000, taxWithheld: 32000, sourceName: 'Employer' }];
+        const sPhi = TaxCalculations.calculateYearSummary(phiOver);
+        expect(sPhi.offsets.phiOffset).toBeLessThan(0);
+        expect(sPhi.grossTax + sPhi.medicareLevy + sPhi.mls - sPhi.offsets.total)
+            .toBeCloseTo(sPhi.netTaxPayable, 2);
+
+        // Franking-credit-heavy scenario driving net tax negative.
+        const frankingHeavy = makeAppData({ otherIncome: { frankingCredits: 5000 } });
+        frankingHeavy.income.payg = [{ grossSalary: 30000, taxWithheld: 2000, sourceName: 'Employer' }];
+        const sFrank = TaxCalculations.calculateYearSummary(frankingHeavy);
+        expect(sFrank.grossTax + sFrank.medicareLevy + sFrank.mls - sFrank.offsets.total)
+            .toBeCloseTo(sFrank.netTaxPayable, 2);
     });
 });
 

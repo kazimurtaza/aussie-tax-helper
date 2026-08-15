@@ -521,7 +521,7 @@ const UIManager = (() => {
         document.getElementById('summary-medicare-levy').textContent = formatCurrency(medicareLevy);
         document.getElementById('summary-mls').textContent = formatCurrency(mls);
         document.getElementById('summary-tax-offsets').textContent = formatCurrency(offsets.total);
-        document.getElementById('summary-lito-offset').textContent = formatCurrency(offsets.lito);
+        document.getElementById('summary-lito-offset').textContent = formatCurrency(offsets.litoApplied ?? offsets.lito);
         document.getElementById('summary-lito-offset-row').style.display = offsets.lito > 0 ? 'flex' : 'none';
         document.getElementById('summary-franking-credits-offset').textContent = formatCurrency(offsets.frankingCredits);
         document.getElementById('summary-phi-offset').textContent = formatCurrency(offsets.phiOffset);

@@ -325,7 +325,7 @@ const StorageManager = (() => {
                             ['Gross Income Tax', summary.grossTax],
                             ['Medicare Levy', summary.medicareLevy],
                             ['Medicare Levy Surcharge', summary.mls],
-                            ['Low Income Tax Offset (non-refundable)', summary.offsets.lito],
+                            ['Low Income Tax Offset (non-refundable, applied)', summary.offsets.litoApplied ?? summary.offsets.lito],
                             ['Franking Credits (refundable)', summary.offsets.frankingCredits],
                             ['PHI Rebate Offset (refundable)', summary.offsets.phiOffset],
                             ['Total Offsets', summary.offsets.total],

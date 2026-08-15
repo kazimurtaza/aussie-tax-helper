@@ -324,11 +324,16 @@ const TaxCalculations = (() => {
         return totalCorrectRebate - (parseFloat(phiRebateReceived) || 0);
     };
 
-    const calculateTotalOffsets = (taxableIncome, appData) => {
+    // Offsets actually applied, not just entitled to: LITO is non-refundable
+    // and capped at gross income tax, so the total only reconciles with net
+    // tax when the capped amount is shown. Callers without a grossTax figure
+    // (2-argument form) get the uncapped entitlement, as before.
+    const calculateTotalOffsets = (taxableIncome, appData, grossTax) => {
         const lito = calculateLITO(taxableIncome);
+        const litoApplied = Math.min(lito, Number.isFinite(grossTax) ? grossTax : Infinity);
         const frankingCredits = parseFloat(appData.income.other.frankingCredits || 0);
         const phiOffset = calculatePhiOffset(taxableIncome, appData.taxpayerDetails);
-        return { lito, frankingCredits, phiOffset, total: lito + frankingCredits + phiOffset };
+        return { lito, litoApplied, frankingCredits, phiOffset, total: litoApplied + frankingCredits + phiOffset };
     };
 
     const calculateNetTaxPayable = (grossTax, medicareLevy, mls, offsets) => {
@@ -357,7 +362,7 @@ const TaxCalculations = (() => {
         const grossTax = calculateGrossTax(taxableIncome);
         const medicareLevy = calculateMedicareLevy(taxableIncome, appData.taxpayerDetails);
         const mls = calculateMLS(taxableIncome, appData.taxpayerDetails);
-        const offsets = calculateTotalOffsets(taxableIncome, appData);
+        const offsets = calculateTotalOffsets(taxableIncome, appData, grossTax);
         const netTaxPayable = calculateNetTaxPayable(grossTax, medicareLevy, mls, offsets);
         const finalOutcome = calculateFinalOutcome(totalTaxWithheld, netTaxPayable);
         return {
