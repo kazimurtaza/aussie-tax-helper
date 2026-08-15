@@ -6,18 +6,25 @@ const StorageManager = (() => {
     const setNotifyCallback = (fn) => { _notify = fn; };
 
     // Dynamic storage key based on financial year (backward compatible)
-    // 2024-2025 resolves to aussieTaxHelperData-2025
-    const getStorageKey = (year) => `aussieTaxHelperData-${year.split('-')[1]}`;
+    // 2024-2025 resolves to aussieTaxHelperData-2025. One parse/format pair
+    // shared by the writer and the reader so the two can't disagree on the
+    // format. Note: getStorageKey is intentionally lenient (blind slice) for
+    // callers passing year labels this version doesn't configure.
+    const STORAGE_KEY_PREFIX = 'aussieTaxHelperData-';
+    // Storage keys carry exactly 4 digits — the regex is built from the
+    // prefix so the format lives in one place.
+    const STORAGE_KEY_RE = new RegExp(`^${STORAGE_KEY_PREFIX}(\\d{4})$`);
+    const endYearToFinancialYear = (endYear) => `${endYear - 1}-${endYear}`;
+    const getStorageKey = (year) => `${STORAGE_KEY_PREFIX}${String(year).split('-')[1]}`;
 
     // Years that actually have data in localStorage — may include years not
     // selectable in this version (e.g. imported from a newer app version).
     const getAllStoredYears = () => {
         const years = [];
         for (let i = 0; i < localStorage.length; i++) {
-            const match = (localStorage.key(i) || '').match(/^aussieTaxHelperData-(\d{4})$/);
+            const match = (localStorage.key(i) || '').match(STORAGE_KEY_RE);
             if (match) {
-                const endYear = parseInt(match[1], 10);
-                years.push(`${endYear - 1}-${endYear}`);
+                years.push(endYearToFinancialYear(parseInt(match[1], 10)));
             }
         }
         return years.sort();
