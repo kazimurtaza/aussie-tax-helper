@@ -294,11 +294,20 @@ const StorageManager = (() => {
                 blobType = 'application/json';
                 fileExtension = 'json';
             } else {
+                // One CSV cell escaper: doubles embedded quotes (RFC 4180)
+                // and neutralises spreadsheet formula injection by prefixing
+                // a leading formula character with a single quote. The same
+                // guard main applied to the year banner (4bf8965), applied
+                // here to every user-supplied value.
+                const csvCell = (value) => {
+                    const s = String(value ?? '').replace(/"/g, '""');
+                    return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+                };
                 const arrayToCsv = (arr, headers, keys) => {
                     if (!arr || arr.length === 0) return `No data for this category.\n`;
                     const headerRow = headers.map(h => `"${h}"`).join(',');
                     const dataRows = arr.map(item =>
-                        keys.map(key => `"${String(item[key] ?? '').replace(/"/g, '""')}"`).join(',')
+                        keys.map(key => `"${csvCell(item[key])}"`).join(',')
                     );
                     return [headerRow, ...dataRows].join('\n');
                 };
@@ -318,7 +327,9 @@ const StorageManager = (() => {
                         }))
                         : (items || []);
 
-                    let s = `"=== Financial Year: ${year} ==="\n\n`;
+                    // Banner must not start with '=': Excel treats a leading '=' as a formula
+                    // when opening a CSV, which mangles the year header (#NAME?/formula error).
+                    let s = `"Financial Year: ${year}"\n\n`;
 
                     if (summary) {
                         s += `"Calculated Tax Summary (estimates computed by Aussie Tax Helper)"\n`;
@@ -356,7 +367,7 @@ const StorageManager = (() => {
                             const itemsStr = group.items
                                 .map(i => `${i.source}: ${money(i.cost)}${i.date ? ` (${i.date})` : ''}`)
                                 .join('; ');
-                            s += `"${String(group.description).replace(/"/g, '""')}","${group.count}","${money(group.combinedCost)}","${itemsStr.replace(/"/g, '""')}"\n`;
+                            s += `"${csvCell(group.description)}","${group.count}","${money(group.combinedCost)}","${csvCell(itemsStr)}"\n`;
                         });
                         s += `"Note: the ATO excludes assets that are one of a number of identical or substantially identical assets started to hold in the year when together they cost more than $300. These may need to be depreciated instead - review before claiming."\n\n`;
                     }
