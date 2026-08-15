@@ -1442,6 +1442,10 @@ describe('TAX_CONFIG structure', () => {
         expect(TAX_CONFIG['2026-2027']).toBeDefined();
     });
 
+    test('has 3 configured years', () => {
+        expect(Object.keys(TAX_CONFIG)).toHaveLength(3);
+    });
+
     test('AVAILABLE_YEARS is sorted', () => {
         expect(AVAILABLE_YEARS).toEqual(['2024-2025', '2025-2026', '2026-2027']);
     });
@@ -1553,6 +1557,56 @@ describe('TAX_CONFIG structure', () => {
         // FINANCIAL_YEAR unchanged
         expect(global.FINANCIAL_YEAR).toBe('2025-2026');
         spy.mockRestore();
+    });
+});
+
+// ─────────────────────────────────────────────
+// withYearConstants (temporary year swap with restore)
+// ─────────────────────────────────────────────
+describe('withYearConstants', () => {
+    afterEach(() => loadConstantsForYear('2024-2025'));
+
+    test('runs fn under the requested year and restores afterwards', () => {
+        loadConstantsForYear('2024-2025');
+        let seenInside;
+        const result = window.withYearConstants('2026-2027', () => {
+            seenInside = window.FINANCIAL_YEAR;
+            return TaxCalculations.calculateGrossTax(80000);
+        });
+        expect(seenInside).toBe('2026-2027');
+        expect(result).toBeCloseTo(14520, 2);          // 15% bracket year
+        expect(window.FINANCIAL_YEAR).toBe('2024-2025'); // restored
+    });
+
+    test('restores constants even when fn throws', () => {
+        loadConstantsForYear('2024-2025');
+        expect(() => window.withYearConstants('2025-2026', () => {
+            throw new Error('boom');
+        })).toThrow('boom');
+        expect(window.FINANCIAL_YEAR).toBe('2024-2025');
+    });
+
+    test('unknown year runs fn without swapping', () => {
+        loadConstantsForYear('2024-2025');
+        const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        let seenInside;
+        const result = window.withYearConstants('9999-9999', () => {
+            seenInside = window.FINANCIAL_YEAR;
+            return 42;
+        });
+        expect(result).toBe(42);
+        expect(seenInside).toBe('2024-2025');          // unchanged
+        expect(spy).not.toHaveBeenCalled();             // helper is silent
+        spy.mockRestore();
+    });
+
+    test('snapshot restores values that differ from any configured year', () => {
+        loadConstantsForYear('2024-2025');
+        const original = window.WFH_FIXED_RATE_PER_HOUR;
+        window.WFH_FIXED_RATE_PER_HOUR = 0.99;          // direct global write
+        window.withYearConstants('2025-2026', () => {});
+        expect(window.WFH_FIXED_RATE_PER_HOUR).toBe(0.99); // snapshot, not reload
+        window.WFH_FIXED_RATE_PER_HOUR = original;
     });
 });
 

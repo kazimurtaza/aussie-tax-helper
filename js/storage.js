@@ -229,20 +229,22 @@ const StorageManager = (() => {
     };
 
     // Calculated summary for one year's data, computed under that year's
-    // constants. Returns null for years this version has no configuration for.
+    // constants — withYearConstants swaps the globals and restores them even
+    // on error, so no caller-level cleanup is needed. Returns null for years
+    // this version has no configuration for.
     const computeYearSummary = (year, data) => {
         if (typeof TaxCalculations === 'undefined' || !window.AVAILABLE_YEARS.includes(year)) return null;
-        window.loadConstantsForYear(year);
-        try {
-            return TaxCalculations.calculateYearSummary(data);
-        } catch (e) {
-            console.error(`Failed to compute summary for ${year}:`, e);
-            return null;
-        }
+        return window.withYearConstants(year, () => {
+            try {
+                return TaxCalculations.calculateYearSummary(data);
+            } catch (e) {
+                console.error(`Failed to compute summary for ${year}:`, e);
+                return null;
+            }
+        });
     };
 
     const exportData = (currentData, format, scope = 'all') => {
-        const activeYear = window.FINANCIAL_YEAR;
         try {
             // Build the dataset based on scope
             let exportYearsData = {};
@@ -401,9 +403,6 @@ const StorageManager = (() => {
         } catch (e) {
             console.error("Error exporting data:", e);
             _notify("Failed to export data.");
-        } finally {
-            // computeYearSummary swaps window constants per exported year
-            if (window.FINANCIAL_YEAR !== activeYear) window.loadConstantsForYear(activeYear);
         }
     };
 
