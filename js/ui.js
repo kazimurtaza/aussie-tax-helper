@@ -257,6 +257,7 @@ const UIManager = (() => {
             document.getElementById('wfh-property-total-home-area').value = property.totalHomeArea || '';
             document.getElementById('wfh-property-electricity').value = property.electricityCost || '';
             document.getElementById('wfh-property-gas').value = property.gasCost || '';
+            document.getElementById('wfh-property-occupancy').value = property.occupancyCost || '';
             document.getElementById('wfh-property-internet').value = property.internetCost || '';
             document.getElementById('wfh-property-internet-work-pct').value = property.internetWorkPercent || '';
             document.getElementById('wfh-property-phone').value = property.phoneCost || '';

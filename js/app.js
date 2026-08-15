@@ -394,6 +394,7 @@ const App = (() => {
             totalHomeArea: parseFloat(document.getElementById('wfh-property-total-home-area').value) || 0,
             electricityCost: parseFloat(document.getElementById('wfh-property-electricity').value) || 0,
             gasCost: parseFloat(document.getElementById('wfh-property-gas').value) || 0,
+            occupancyCost: parseFloat(document.getElementById('wfh-property-occupancy').value) || 0,
             internetCost: parseFloat(document.getElementById('wfh-property-internet').value) || 0,
             internetWorkPercent: clampPct(document.getElementById('wfh-property-internet-work-pct').value),
             phoneCost: parseFloat(document.getElementById('wfh-property-phone').value) || 0,

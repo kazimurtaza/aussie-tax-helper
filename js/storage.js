@@ -373,8 +373,8 @@ const StorageManager = (() => {
                     const wfhProps = data.wfh.actualCostDetails.properties || [];
                     s += `"WFH Actual Cost - Property Periods"\n${arrayToCsv(
                         wfhProps,
-                        ['Description', 'From Date', 'To Date', 'Office Area (m²)', 'Total Home Area (m²)', 'Electricity Cost ($)', 'Gas Cost ($)', 'Internet Cost ($)', 'Internet Work %', 'Phone Cost ($)', 'Stationery Cost ($)'],
-                        ['description', 'fromDate', 'toDate', 'officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
+                        ['Description', 'From Date', 'To Date', 'Office Area (m²)', 'Total Home Area (m²)', 'Electricity Cost ($)', 'Gas Cost ($)', 'Occupancy Costs ($)', 'Internet Cost ($)', 'Internet Work %', 'Phone Cost ($)', 'Stationery Cost ($)'],
+                        ['description', 'fromDate', 'toDate', 'officeArea', 'totalHomeArea', 'electricityCost', 'gasCost', 'occupancyCost', 'internetCost', 'internetWorkPercent', 'phoneCost', 'stationeryCost']
                     )}\n\n`;
                     s += `"WFH Actual Cost - Assets"\n${arrayToCsv(
                         withDeduction(data.wfh.actualCostDetails.assets, 100),

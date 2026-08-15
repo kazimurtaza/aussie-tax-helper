@@ -157,7 +157,11 @@ const TaxCalculations = (() => {
         const totalHomeArea = parseFloat(details.totalHomeArea || 0);
         const floorAreaPercent = (officeArea > 0 && totalHomeArea > 0) ? officeArea / totalHomeArea : 0;
 
-        totalDeduction += (parseFloat(details.electricityCost || 0) + parseFloat(details.gasCost || 0)) * floorAreaPercent;
+        // Occupancy costs (rent or mortgage interest) share the floor-area
+        // apportionment with utilities — only deductible for employees in
+        // limited circumstances, so the field is opt-in with a caution.
+        totalDeduction += (parseFloat(details.electricityCost || 0) + parseFloat(details.gasCost || 0)
+            + parseFloat(details.occupancyCost || 0)) * floorAreaPercent;
         totalDeduction += parseFloat(details.internetCost || 0) * (parseFloat(details.internetWorkPercent || 0) / 100);
         totalDeduction += parseFloat(details.phoneCost || 0);
         totalDeduction += parseFloat(details.stationeryCost || 0);

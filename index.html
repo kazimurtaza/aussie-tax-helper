@@ -911,6 +911,13 @@
                         <label for="wfh-property-gas" class="block text-sm font-medium text-gray-700">Gas Cost for period ($):</label>
                         <input type="number" id="wfh-property-gas" step="0.01" min="0" class="mt-1">
                     </div>
+                    <div class="md:col-span-2">
+                        <label for="wfh-property-occupancy" class="block text-sm font-medium text-gray-700">Occupancy Costs for period ($) — rent or mortgage interest:</label>
+                        <input type="number" id="wfh-property-occupancy" step="0.01" min="0" class="mt-1">
+                        <p class="tooltip-text mt-1">
+                            <strong>Caution:</strong> occupancy expenses are only deductible for employees in limited circumstances (e.g. a home that is a place of business, not just a home office). Leave blank unless you've confirmed eligibility with the ATO or your agent — the amount is apportioned by the floor-area percentage above.
+                        </p>
+                    </div>
                     <div>
                         <label for="wfh-property-internet" class="block text-sm font-medium text-gray-700">Internet Cost for period ($):</label>
                         <input type="number" id="wfh-property-internet" step="0.01" min="0" class="mt-1">

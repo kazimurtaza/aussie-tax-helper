@@ -2218,6 +2218,33 @@ describe('calculateWfhActualCostDeduction — multi-property', () => {
         const details = { properties: [], assets: [] };
         expect(TaxCalculations.calculateWfhActualCostDeduction(details)).toBe(0);
     });
+
+    test('occupancy costs are apportioned by floor area like utilities', () => {
+        // rent/mortgage interest 12000 at 10/100 floor area → 1200 on top of
+        // electricity 2000 * 10% = 200
+        const details = { properties: [prop({ occupancyCost: 12000 })], assets: [] };
+        expect(TaxCalculations.calculateWfhActualCostDeduction(details)).toBeCloseTo(1400, 2);
+    });
+
+    test('occupancy cost absent or zero leaves the deduction unchanged', () => {
+        expect(TaxCalculations.calculateWfhActualCostDeduction(
+            { properties: [prop({ occupancyCost: 0 })], assets: [] })).toBeCloseTo(200, 2);
+        expect(TaxCalculations.calculateWfhActualCostDeduction(
+            { properties: [prop({ occupancyCost: undefined })], assets: [] })).toBeCloseTo(200, 2);
+    });
+
+    test('occupancy costs across multiple properties are summed', () => {
+        // Real-return shape: rent 27983 at 9.49% floor area ≈ 2655.8
+        const details = {
+            properties: [
+                prop({ officeArea: 9.49, totalHomeArea: 100, electricityCost: 0, occupancyCost: 27983 }),
+                prop({ officeArea: 10, totalHomeArea: 100, electricityCost: 0, occupancyCost: 12000 }),
+            ],
+            assets: [],
+        };
+        // 27983 * 0.0949 + 12000 * 0.10
+        expect(TaxCalculations.calculateWfhActualCostDeduction(details)).toBeCloseTo(27983 * 0.0949 + 1200, 2);
+    });
 });
 
 // ─────────────────────────────────────────────
