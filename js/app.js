@@ -263,8 +263,11 @@ const App = (() => {
         e.preventDefault();
         const form = e.target;
         const isDepreciable = form['expense-is-depreciable'].checked;
-        if (isDepreciable && !form['expense-effective-life'].value) {
-            UIManager.showNotification("Please enter an effective life for depreciable assets.");
+        // Guard the parsed value, not the raw string: a literal 0 or a blank
+        // previously passed the truthiness check and stored life 0, which
+        // re-claimed full cost every year.
+        if (isDepreciable && clampNum(form['expense-effective-life'].value) <= 0) {
+            UIManager.showNotification("Please enter an effective life (in years, 1 or more) for depreciable assets.");
             return;
         }
         const newExpense = {
@@ -304,6 +307,12 @@ const App = (() => {
         const expenseIndex = appData.generalExpenses.findIndex(exp => exp.id === id);
         if (expenseIndex !== -1) {
             const isDepreciable = form['edit-expense-is-depreciable'].checked;
+            // Same guard as the add form: a depreciable edit needs a life >= 1
+            // or the item silently becomes an every-year immediate write-off.
+            if (isDepreciable && clampNum(form['edit-expense-effective-life'].value) <= 0) {
+                UIManager.showNotification("Please enter an effective life (in years, 1 or more) for depreciable assets.");
+                return;
+            }
             appData.generalExpenses[expenseIndex] = {
                 id: id,
                 description: form['edit-expense-description'].value.trim(),

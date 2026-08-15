@@ -332,9 +332,9 @@ const UIManager = (() => {
             return;
         }
         [...expenses].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(exp => {
-            const deduction = exp.isDepreciable
-                ? TaxCalculations.calculateDepreciationForFinancialYear(exp.cost, exp.workPercentage, exp.effectiveLife, exp.date, exp.depreciationMethod)
-                : (exp.cost * (exp.workPercentage / 100));
+            // Same gate as the section totals, so the rows always sum to the
+            // total displayed above them (prior-year immediate items show 0).
+            const deduction = TaxCalculations.calculateItemDeductionThisFY(exp, 0);
 
             const claimScheduleHtml = TaxCalculations.generateDepreciationSchedule(exp);
             const methodDisplay = exp.isDepreciable ? (exp.depreciationMethod === 'prime_cost' ? 'Prime Cost' : 'Diminishing') : 'N/A';
@@ -421,8 +421,11 @@ const UIManager = (() => {
                 return cell;
             };
 
-            const workPercentage = asset.workPercentage || 100;
-            const deduction = TaxCalculations.calculateDepreciationForFinancialYear(asset.cost, workPercentage, asset.effectiveLife, asset.date, asset.depreciationMethod);
+            // Same gate as the section totals, so the rows always sum to the
+            // total displayed above them; also honours an explicit 0% work
+            // use (the old `|| 100` coerced it to a full-cost row).
+            const deduction = TaxCalculations.calculateItemDeductionThisFY(asset, 100);
+            const workPercentage = TaxCalculations.normaliseWorkPct(asset.workPercentage, 100);
 
             const claimScheduleHtml = TaxCalculations.generateDepreciationSchedule(asset);
 
@@ -435,7 +438,7 @@ const UIManager = (() => {
             row.appendChild(createCell(asset.description));
             row.appendChild(createCell(asset.date));
             row.appendChild(createCell(formatCurrency(asset.cost)));
-            row.appendChild(createCell(`${workPercentage}%`));
+            row.appendChild(createCell(`${normaliseWorkPct(asset.workPercentage, 100)}%`));
             row.appendChild(createCell(methodDisplay));
             row.appendChild(createCell(formatCurrency(deduction), ['font-semibold']));
             row.appendChild(createCell(claimScheduleHtml, ['text-xs'], true));
