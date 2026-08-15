@@ -555,6 +555,15 @@
 
             <section id="summary-section" class="app-section bg-white p-6 rounded-lg shadow-lg">
                 <h2 class="text-2xl font-semibold mb-4 text-blue-800">Tax Estimation Summary (<span class="financialYearDisplay"></span>)</h2>
+                <div id="identical-assets-warning" class="hidden mb-4 p-4 rounded-lg border border-amber-300 bg-amber-50">
+                    <h3 class="text-sm font-semibold text-amber-800 mb-1">Review: identical low-value assets</h3>
+                    <ul id="identical-assets-warning-list" class="list-disc pl-5 text-sm text-amber-900 space-y-1"></ul>
+                    <p class="text-xs text-amber-800 mt-2">
+                        The ATO tests the $300 immediate-deduction threshold on the <em>combined</em> cost of identical or substantially identical assets
+                        you started to hold this income year — these items may need to be depreciated instead of claimed in full. Assets bought as a set
+                        (e.g. a desk and chair marketed together) can also lose the immediate deduction. This is a warning only; nothing has been changed.
+                    </p>
+                </div>
                 <div class="summary-grid space-y-2 text-gray-700 text-lg">
                     <div class="summary-item flex justify-between py-2 border-b">
                         <span>Total Assessable Income:</span>

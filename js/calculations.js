@@ -171,6 +171,42 @@ const TaxCalculations = (() => {
             .reduce((total, asset) => total + calculateItemDeduction(asset, 100), 0);
     };
 
+    // ATO: the ≤$300 immediate deduction is excluded when an asset is one of
+    // a number of identical, or substantially identical, assets started to
+    // hold during the income year that together cost more than $300. Items
+    // from other years are excluded from the grouping. Detection only — the
+    // app surfaces a warning and the user decides; nothing is reclassified.
+    const IDENTICAL_ASSET_THRESHOLD = 300;
+
+    const normaliseDescription = (desc) =>
+        String(desc ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+    const findIdenticalAssetGroups = (generalExpenses = [], wfhAssets = [], financialYear = window.FINANCIAL_YEAR) => {
+        const candidates = [
+            ...(generalExpenses || []).map(item => ({ ...item, source: 'General Expenses' })),
+            ...(wfhAssets || []).map(item => ({ ...item, source: 'WFH Assets' })),
+        ].filter(item => !item.isDepreciable && dateInFinancialYear(item.date, financialYear));
+
+        const groups = new Map();
+        candidates.forEach(item => {
+            const key = normaliseDescription(item.description);
+            if (!key) return;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(item);
+        });
+
+        return [...groups.entries()]
+            .filter(([, items]) => items.length > 1)
+            .map(([description, items]) => ({
+                description,
+                financialYear,
+                count: items.length,
+                combinedCost: items.reduce((sum, i) => sum + (parseFloat(i.cost) || 0), 0),
+                items: items.map(({ id, description: d, cost, date, source }) => ({ id, description: d, cost, date, source })),
+            }))
+            .filter(group => group.combinedCost > IDENTICAL_ASSET_THRESHOLD);
+    };
+
     const calculateWfhActualCostDeduction = (details) => {
         if (!details) return 0;
         const properties = details.properties || [details];
@@ -365,6 +401,10 @@ const TaxCalculations = (() => {
         const offsets = calculateTotalOffsets(taxableIncome, appData, grossTax);
         const netTaxPayable = calculateNetTaxPayable(grossTax, medicareLevy, mls, offsets);
         const finalOutcome = calculateFinalOutcome(totalTaxWithheld, netTaxPayable);
+        const identicalAssetWarnings = findIdenticalAssetGroups(
+            appData.generalExpenses,
+            (appData.wfh && appData.wfh.actualCostDetails && appData.wfh.actualCostDetails.assets) || [],
+        );
         return {
             financialYear: window.FINANCIAL_YEAR,
             totalAssessableIncome,
@@ -377,6 +417,7 @@ const TaxCalculations = (() => {
             grossTax,
             medicareLevy,
             mls,
+            identicalAssetWarnings,
             offsets,
             netTaxPayable,
             finalOutcome,
@@ -465,6 +506,7 @@ const TaxCalculations = (() => {
         calculateItemDeduction,
         normaliseWorkPct,
         dateInFinancialYear,
+        findIdenticalAssetGroups,
         calculateDepreciationForFinancialYear,
         calculateWfhActualCostDeduction,
         calculateWfhRunningExpensesDeduction,

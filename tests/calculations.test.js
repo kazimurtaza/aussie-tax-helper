@@ -1822,6 +1822,95 @@ describe('dateInFinancialYear', () => {
 });
 
 // ─────────────────────────────────────────────
+// findIdenticalAssetGroups (ATO identical-assets > $300 test)
+// ─────────────────────────────────────────────
+describe('findIdenticalAssetGroups', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    const item = (overrides = {}) => ({
+        id: 'x', description: 'RAM module', date: '2024-08-01',
+        cost: 224, workPercentage: 100, isDepreciable: false, ...overrides,
+    });
+
+    test('groups identical non-depreciable items across both lists when combined cost exceeds $300', () => {
+        // The real-world case: 8 identical RAM modules at $224 each.
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [item(), item({ id: 'a2' }), item({ id: 'a3' }), item({ id: 'a4' })],
+            [item({ id: 'w1', description: 'RAM module' }), item({ id: 'w2', description: 'RAM module' }), item({ id: 'w3', description: 'RAM module' }), item({ id: 'w4', description: 'RAM module' })],
+        );
+        expect(groups).toHaveLength(1);
+        expect(groups[0].count).toBe(8);
+        expect(groups[0].combinedCost).toBeCloseTo(1792, 2);
+        expect(groups[0].items.map(i => i.source)).toEqual(
+            expect.arrayContaining(['General Expenses', 'WFH Assets']));
+    });
+
+    test('combined cost of exactly $300 does not warn (strictly more than $300)', () => {
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [item({ cost: 200 }), item({ cost: 100, id: 'b' })], []);
+        expect(groups).toHaveLength(0);
+    });
+
+    test('combined cost of $300.01 warns', () => {
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [item({ cost: 200 }), item({ cost: 100.01, id: 'b' })], []);
+        expect(groups).toHaveLength(1);
+        expect(groups[0].combinedCost).toBeCloseTo(300.01, 2);
+    });
+
+    test('description normalisation folds case, whitespace and blank descriptions are skipped', () => {
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [item({ description: 'Office  Chair' }), item({ id: 'b', description: 'office chair' })], []);
+        expect(groups).toHaveLength(1);
+        expect(groups[0].description).toBe('office chair');
+
+        const noDesc = TaxCalculations.findIdenticalAssetGroups(
+            [item({ description: '   ' }), item({ id: 'b', description: '' })], []);
+        expect(noDesc).toHaveLength(0);
+    });
+
+    test('depreciable items and items dated in another FY are excluded from grouping', () => {
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [
+                item(), item({ id: 'b', isDepreciable: true, effectiveLife: 4 }),
+                item({ id: 'c', date: '2023-08-01' }),   // prior FY
+                item({ id: 'd', date: '2025-08-01' }),   // future FY
+            ], []);
+        // Only the one remaining in-FY non-depreciable item -> group of 1 -> no warning.
+        expect(groups).toHaveLength(0);
+    });
+
+    test('single items, empty lists and missing lists produce no warnings', () => {
+        expect(TaxCalculations.findIdenticalAssetGroups([item()], [])).toHaveLength(0);
+        expect(TaxCalculations.findIdenticalAssetGroups([], [])).toHaveLength(0);
+        expect(TaxCalculations.findIdenticalAssetGroups(null, undefined)).toHaveLength(0);
+    });
+
+    test('explicit financial year argument bounds the grouping window', () => {
+        const groups = TaxCalculations.findIdenticalAssetGroups(
+            [item({ date: '2025-08-01' }), item({ id: 'b', date: '2025-09-01' })], [], '2025-2026');
+        expect(groups).toHaveLength(1);
+        // Same items are out of window for 2024-2025 (the loaded year).
+        expect(TaxCalculations.findIdenticalAssetGroups(
+            [item({ date: '2025-08-01' }), item({ id: 'b', date: '2025-09-01' })], [])).toHaveLength(0);
+    });
+
+    test('calculateYearSummary exposes identicalAssetWarnings for the active year', () => {
+        const data = makeAppData({
+            generalExpenses: [item(), item({ id: 'b' })],
+        });
+        const s = TaxCalculations.calculateYearSummary(data);
+        expect(s.identicalAssetWarnings).toHaveLength(1);
+        expect(s.identicalAssetWarnings[0].combinedCost).toBeCloseTo(448, 2);
+
+        // Defensive guard: appData whose wfh lacks actualCostDetails entirely.
+        const bare = { ...makeAppData(), wfh: { method: 'fixed_rate', totalMinutes: 0 } };
+        const sBare = TaxCalculations.calculateYearSummary(bare);
+        expect(sBare.identicalAssetWarnings).toEqual([]);
+    });
+});
+
+// ─────────────────────────────────────────────
 // calculateWfhAssetsDeduction — depreciable WFH assets (lines 100-105)
 // ─────────────────────────────────────────────
 describe('calculateWfhAssetsDeduction — depreciable assets', () => {

@@ -337,6 +337,21 @@ const StorageManager = (() => {
                         s += `"Calculated Tax Summary","Unavailable - this app version has no tax configuration for ${year}"\n\n`;
                     }
 
+                    // Identical low-value assets: flag groups whose combined
+                    // cost exceeds the ATO's $300 immediate-deduction test.
+                    const warnings = (summary && summary.identicalAssetWarnings) || [];
+                    if (warnings.length > 0) {
+                        s += `"ATO Threshold Review - identical assets acquired in FY"\n`;
+                        s += `"Description","Count","Combined Cost (AUD)","Items"\n`;
+                        warnings.forEach(group => {
+                            const itemsStr = group.items
+                                .map(i => `${i.source}: ${money(i.cost)}${i.date ? ` (${i.date})` : ''}`)
+                                .join('; ');
+                            s += `"${String(group.description).replace(/"/g, '""')}","${group.count}","${money(group.combinedCost)}","${itemsStr.replace(/"/g, '""')}"\n`;
+                        });
+                        s += `"Note: the ATO excludes assets that are one of a number of identical or substantially identical assets started to hold in the year when together they cost more than $300. These may need to be depreciated instead - review before claiming."\n\n`;
+                    }
+
                     s += `"Taxpayer Details"\n${arrayToCsv(
                         [data.taxpayerDetails],
                         ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid (Jul-Mar)', 'PHI Premiums Paid (Apr-Jun)', 'PHI Rebate Received'],

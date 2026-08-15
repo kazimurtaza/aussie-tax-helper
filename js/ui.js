@@ -488,6 +488,7 @@ const UIManager = (() => {
             totalGeneralDeductions, totalWfhDeductions, totalSuperDeductions,
             overallTotalDeductions, taxableIncome,
             grossTax, medicareLevy, mls, offsets, netTaxPayable, finalOutcome,
+            identicalAssetWarnings,
         } = TaxCalculations.calculateYearSummary(appData);
 
         const outcomeText = finalOutcome >= 0 ? `${formatCurrency(finalOutcome)} Refund` : `${formatCurrency(Math.abs(finalOutcome))} Payable`;
@@ -542,6 +543,19 @@ const UIManager = (() => {
         document.getElementById('summary-net-tax').textContent = formatCurrency(netTaxShown);
         document.getElementById('summary-tax-withheld').textContent = formatCurrency(totalTaxWithheld);
         document.getElementById('summary-final-outcome').textContent = outcomeText;
+
+        // Identical low-value assets: the ATO tests the $300 threshold on
+        // the combined cost, so surface groups for review (never reclassify).
+        const warnBox = document.getElementById('identical-assets-warning');
+        const warnList = document.getElementById('identical-assets-warning-list');
+        warnList.innerHTML = '';
+        warnBox.classList.toggle('hidden', (identicalAssetWarnings || []).length === 0);
+        (identicalAssetWarnings || []).forEach(group => {
+            const li = document.createElement('li');
+            li.textContent = `"${group.description}" × ${group.count} — combined ${formatCurrency(group.combinedCost)} `
+                + `(${group.items.map(i => `${i.source}: ${formatCurrency(i.cost)}`).join(', ')})`;
+            warnList.appendChild(li);
+        });
     };
 
     return {
