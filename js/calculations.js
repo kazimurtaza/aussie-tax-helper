@@ -32,10 +32,11 @@ const TaxCalculations = (() => {
     };
 
     // True when a YYYY-MM-DD date string falls inside the financial year
-    // [1 Jul .. 30 Jun]. Malformed, missing, or out-of-range month/day values
-    // are excluded rather than throwing — callers treat an unparseable date
-    // as "not claimable this FY". Shared by the deduction totals and the
-    // CSV export so both bound items identically.
+    // [1 Jul .. 30 Jun]. Malformed, missing, out-of-range and rolled-over
+    // dates (e.g. 2024-06-31, 2023-02-29) are excluded rather than thrown
+    // on — callers treat an unparseable date as "not claimable this FY".
+    // Shared by the deduction totals and the CSV export so both bound items
+    // identically.
     const dateInFinancialYear = (dateStr, financialYear = window.FINANCIAL_YEAR) => {
         if (!dateStr || typeof dateStr !== 'string') return false;
         const parts = dateStr.split('-').map(Number);
@@ -45,8 +46,17 @@ const TaxCalculations = (() => {
         const bounds = fyBounds(financialYear);
         if (!bounds) return false;
         const date = new Date(y, m - 1, d);
-        return isNaN(date.getTime()) ? false : date >= bounds.start && date <= bounds.end;
+        if (isNaN(date.getTime())) return false;
+        // Reject dates JS silently rolled forward (Jun 31 -> Jul 1 etc.) —
+        // a rollover can move an item across the 30 June FY boundary.
+        if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return false;
+        return date >= bounds.start && date <= bounds.end;
     };
+
+    // Effective life as the engine needs it: a whole number of years >= 0.
+    // Fractional input rounds to the nearest year (0.5 -> 1, 0.4 -> 0);
+    // non-numeric or negative input becomes 0 (immediate write-off).
+    const normaliseEffectiveLife = (raw) => Math.max(0, Math.round(parseFloat(raw) || 0));
 
     // ── Depreciation engine ────────────────────────────────────────────────
     // One implementation of the decline-in-value maths, consumed by both the
@@ -56,11 +66,12 @@ const TaxCalculations = (() => {
     // walks the engine's rows from the acquisition year.
 
     // Parse and validate an asset into an engine context, or null when the
-    // purchase date can't be parsed.
+    // purchase date can't be parsed. life must already be normalised by the
+    // caller (whole years >= 1) — the engine never sees life 0.
     const parseDepreciableAsset = (cost, workPercentage, effectiveLifeYears, purchaseDateString, method) => {
         const numCost = parseFloat(cost || 0);
-        const life = parseInt(effectiveLifeYears || 0);
-        const workPct = parseFloat(workPercentage || 0);
+        const life = normaliseEffectiveLife(effectiveLifeYears);
+        const workPct = normaliseWorkPct(workPercentage);
         if (!purchaseDateString || typeof purchaseDateString !== 'string') return null;
         // Parse as local time to stay consistent with FY boundary dates (also local).
         const [py, pm, pd] = purchaseDateString.split('-').map(Number);
@@ -144,13 +155,18 @@ const TaxCalculations = (() => {
         const numCost = parseFloat(cost || 0);
         if (numCost <= 0) return 0;
 
-        if (!effectiveLifeYears || effectiveLifeYears <= 0) {
+        // Guard on the normalised life, not the raw value: a fractional life
+        // like 0.5 previously slipped through (truthy, > 0) and reached the
+        // engine as parseInt 0, dividing by zero into NaN.
+        const life = normaliseEffectiveLife(effectiveLifeYears);
+        if (life <= 0) {
             // No schedule to depreciate over — immediate write-off of the
-            // work-related portion (handled by callers as a non-depreciable item).
-            return numCost * (parseFloat(workPercentage || 0) / 100);
+            // work-related portion. Callers treat this shape as an immediate
+            // item and bound it to its acquisition FY.
+            return numCost * (normaliseWorkPct(workPercentage) / 100);
         }
 
-        const ctx = parseDepreciableAsset(numCost, workPercentage, effectiveLifeYears, purchaseDateString, method);
+        const ctx = parseDepreciableAsset(numCost, workPercentage, life, purchaseDateString, method);
         if (!ctx) return 0;
 
         const bounds = fyBounds(window.FINANCIAL_YEAR);
@@ -178,14 +194,28 @@ const TaxCalculations = (() => {
         return parseFloat(item.cost || 0) * (workPct / 100);
     };
 
+    // Deduction for one item *for the FY under review* — the single rule the
+    // totals, the on-screen rows and the CSV export all share. An item spans
+    // years only when it genuinely depreciates (isDepreciable with an
+    // effective life > 0); everything else — including a depreciable-flagged
+    // item with a missing/zero life, which the engine writes off immediately
+    // — is confined to its acquisition FY, or it re-claims full cost every
+    // year.
+    const itemSpansFinancialYears = (item) => item.isDepreciable && normaliseEffectiveLife(item.effectiveLife) > 0;
+
+    const calculateItemDeductionThisFY = (item, fallbackWorkPct = 0, financialYear = window.FINANCIAL_YEAR) => {
+        return (itemSpansFinancialYears(item) || dateInFinancialYear(item.date, financialYear))
+            ? calculateItemDeduction(item, fallbackWorkPct)
+            : 0;
+    };
+
     // Immediate (non-depreciable) claims are confined to the FY the item was
     // acquired in — without the FY-start bound a $1,000 item dated 2024-07-01
     // claimed in full again in every later year. Depreciable items span years
     // legitimately via the depreciation engine and are not filtered here.
     const calculateTotalGeneralDeductions = (generalExpenses) => {
         return (generalExpenses || [])
-            .filter(exp => exp.isDepreciable || dateInFinancialYear(exp.date))
-            .reduce((total, exp) => total + calculateItemDeduction(exp, 0), 0);
+            .reduce((total, exp) => total + calculateItemDeductionThisFY(exp, 0), 0);
     };
 
     const calculateWfhRunningExpensesDeduction = (details) => {
@@ -209,8 +239,7 @@ const TaxCalculations = (() => {
     const calculateWfhAssetsDeduction = (assets) => {
         if (!assets || assets.length === 0) return 0;
         return assets
-            .filter(asset => asset.isDepreciable || dateInFinancialYear(asset.date))
-            .reduce((total, asset) => total + calculateItemDeduction(asset, 100), 0);
+            .reduce((total, asset) => total + calculateItemDeductionThisFY(asset, 100), 0);
     };
 
     // ATO: the ≤$300 immediate deduction is excluded when an asset is one of
@@ -476,11 +505,13 @@ const TaxCalculations = (() => {
         .replace(/"/g, '&quot;');
 
     const generateDepreciationSchedule = (asset) => {
-        if (!asset.isDepreciable || !asset.effectiveLife || asset.effectiveLife <= 0) {
+        // Guard on the normalised life: a non-numeric life previously turned
+        // maxIter into NaN, skipping the loop and rendering a blank cell.
+        const life = normaliseEffectiveLife(asset.effectiveLife);
+        if (!asset.isDepreciable || life <= 0) {
             return 'Immediate';
         }
 
-        const life = parseInt(asset.effectiveLife);
         const isDV = asset.depreciationMethod === 'diminishing_value';
         const ctx = parseDepreciableAsset(
             parseFloat(asset.cost),
@@ -536,6 +567,7 @@ const TaxCalculations = (() => {
         calculateFinalOutcome,
         calculateYearSummary,
         calculateItemDeduction,
+        calculateItemDeductionThisFY,
         normaliseWorkPct,
         dateInFinancialYear,
         findIdenticalAssetGroups,

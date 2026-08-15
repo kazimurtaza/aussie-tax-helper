@@ -1876,6 +1876,49 @@ describe('immediate deductions are confined to the acquisition FY', () => {
             expect(TaxCalculations.calculateTotalGeneralDeductions(expenses)).toBeCloseTo(700, 2);
         });
 
+        test('depreciable-flagged item with zero/missing effective life is confined to its acquisition FY', () => {
+            // The engine writes such items off immediately, so the FY filter
+            // must still bound them — previously they claimed full cost in
+            // EVERY financial year (the re-claiming bug's remaining hole).
+            ['2024-2025', '2025-2026', '2026-2027'].forEach(year => {
+                loadConstantsForYear(year);
+                expect(TaxCalculations.calculateTotalGeneralDeductions(
+                    [{ cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 0, date: '2024-07-01' }]
+                )).toBe(year === '2024-2025' ? 1000 : 0);
+                expect(TaxCalculations.calculateTotalGeneralDeductions(
+                    [{ cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: '', date: '2024-07-01' }]
+                )).toBe(year === '2024-2025' ? 1000 : 0);
+                expect(TaxCalculations.calculateWfhAssetsDeduction(
+                    [{ cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 0, date: '2024-07-01' }]
+                )).toBe(year === '2024-2025' ? 1000 : 0);
+            });
+            loadConstantsForYear('2024-2025');
+        });
+
+        test('fractional effective life never produces NaN anywhere in the summary', () => {
+            // parseInt(0.5) = 0 used to slip the raw-value guard and reach a
+            // cost/0 division, poisoning taxableIncome with NaN.
+            const item = { cost: 800, workPercentage: 100, isDepreciable: true, effectiveLife: 0.5, date: '2024-08-01', depreciationMethod: 'prime_cost' };
+            const claim = TaxCalculations.calculateItemDeduction(item, 0);
+            expect(Number.isFinite(claim)).toBe(true);
+            expect(claim).toBeGreaterThanOrEqual(0);
+            expect(claim).toBeLessThanOrEqual(800);
+            const data = makeAppData({ generalExpenses: [item] });
+            const s = TaxCalculations.calculateYearSummary(data);
+            [s.overallTotalDeductions, s.taxableIncome, s.grossTax].forEach(v => {
+                expect(Number.isFinite(v)).toBe(true);
+            });
+            // 0.5 rounds to 1: life-1 prime cost, day-pro-rated for the
+            // mid-year purchase (334/365 days of FY 2024-25 from 1 Aug).
+            expect(s.totalGeneralDeductions).toBeCloseTo(800 * 334 / 365, 2);
+        });
+
+        test('non-numeric effective life yields an immediate write-off, not NaN or a blank schedule', () => {
+            const item = { cost: 500, workPercentage: 100, isDepreciable: true, effectiveLife: 'abc', date: '2024-08-01', depreciationMethod: 'prime_cost' };
+            expect(TaxCalculations.calculateItemDeduction(item, 0)).toBe(500);
+            expect(TaxCalculations.generateDepreciationSchedule(item)).toBe('Immediate');
+        });
+
         test('missing or malformed dates contribute 0 without throwing', () => {
             expect(() => TaxCalculations.calculateTotalGeneralDeductions(
                 [{ cost: 1000, workPercentage: 100, isDepreciable: false }]
@@ -1889,7 +1932,39 @@ describe('immediate deductions are confined to the acquisition FY', () => {
             expect(TaxCalculations.calculateWfhAssetsDeduction(
                 [{ cost: 1000, workPercentage: 100, isDepreciable: false, date: '2024-13-45' }]
             )).toBe(0);
+            expect(TaxCalculations.calculateTotalGeneralDeductions(null)).toBe(0);
         });
+    });
+});
+
+// ─────────────────────────────────────────────
+// calculateItemDeductionThisFY (shared totals/rows/CSV gate)
+// ─────────────────────────────────────────────
+describe('calculateItemDeductionThisFY', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+
+    test('depreciating item claims in any FY the schedule covers', () => {
+        const item = { cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 5, date: '2020-01-01', depreciationMethod: 'prime_cost' };
+        expect(TaxCalculations.calculateItemDeductionThisFY(item, 0)).toBeCloseTo(100.55, 2);
+    });
+
+    test('immediate item claims only in its acquisition FY', () => {
+        const item = { cost: 400, workPercentage: 50, isDepreciable: false, date: '2024-08-01' };
+        expect(TaxCalculations.calculateItemDeductionThisFY(item, 0)).toBeCloseTo(200, 2);
+        expect(TaxCalculations.calculateItemDeductionThisFY(item, 0, '2025-2026')).toBe(0);
+    });
+
+    test('depreciable item with zero life is treated as immediate and FY-bounded', () => {
+        const item = { cost: 1000, workPercentage: 100, isDepreciable: true, effectiveLife: 0, date: '2024-08-01' };
+        expect(TaxCalculations.calculateItemDeductionThisFY(item, 100)).toBeCloseTo(1000, 2);
+        expect(TaxCalculations.calculateItemDeductionThisFY(item, 100, '2025-2026')).toBe(0);
+    });
+
+    test('honours the work-% fallback rule', () => {
+        expect(TaxCalculations.calculateItemDeductionThisFY(
+            { cost: 1000, isDepreciable: false, date: '2024-08-01' }, 100)).toBeCloseTo(1000, 2);
+        expect(TaxCalculations.calculateItemDeductionThisFY(
+            { cost: 1000, workPercentage: 0, isDepreciable: false, date: '2024-08-01' }, 100)).toBe(0);
     });
 });
 
@@ -1908,6 +1983,21 @@ describe('dateInFinancialYear', () => {
         loadConstantsForYear('2025-2026');
         expect(TaxCalculations.dateInFinancialYear('2025-10-15')).toBe(true);
         expect(TaxCalculations.dateInFinancialYear('2024-10-15')).toBe(false);
+    });
+
+    test('JS-rollover dates are rejected, not silently rolled forward', () => {
+        // '2024-06-31' would roll to 1 Jul 2024 and land the item in the NEXT
+        // FY; the round-trip check must reject it for both adjacent years.
+        expect(TaxCalculations.dateInFinancialYear('2024-06-31', '2023-2024')).toBe(false);
+        expect(TaxCalculations.dateInFinancialYear('2024-06-31', '2024-2025')).toBe(false);
+        expect(TaxCalculations.dateInFinancialYear('2023-02-29', '2022-2023')).toBe(false); // non-leap
+        expect(TaxCalculations.dateInFinancialYear('2024-02-30', '2023-2024')).toBe(false);
+        expect(TaxCalculations.dateInFinancialYear('2024-02-29', '2023-2024')).toBe(true);  // leap
+    });
+
+    test('unparseable financial-year label is rejected, not thrown on', () => {
+        expect(TaxCalculations.dateInFinancialYear('2024-08-01', 'garbage')).toBe(false);
+        expect(TaxCalculations.dateInFinancialYear('2024-08-01', '')).toBe(false);
     });
 
     test('malformed and out-of-range dates are excluded, not thrown on', () => {
