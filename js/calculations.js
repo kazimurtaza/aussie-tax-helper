@@ -398,7 +398,10 @@ const TaxCalculations = (() => {
         const totalWfhDeductions = calculateTotalWfhDeductions(appData.wfh);
         const totalSuperDeductions = parseFloat(appData.taxpayerDetails.personalSuperContribution) || 0;
         const overallTotalDeductions = totalGeneralDeductions + totalWfhDeductions + totalSuperDeductions;
-        const taxableIncome = calculateTaxableIncome(appData);
+        // Derived from the totals already in scope — calculateTaxableIncome
+        // would recompute all three deduction passes (including depreciation)
+        // from scratch on every UI refresh.
+        const taxableIncome = Math.max(0, totalAssessableIncome - overallTotalDeductions);
         const grossTax = calculateGrossTax(taxableIncome);
         const medicareLevy = calculateMedicareLevy(taxableIncome, appData.taxpayerDetails);
         const mls = calculateMLS(taxableIncome, appData.taxpayerDetails);
