@@ -525,6 +525,16 @@ const UIManager = (() => {
         document.getElementById('summary-lito-offset-row').style.display = offsets.lito > 0 ? 'flex' : 'none';
         document.getElementById('summary-franking-credits-offset').textContent = formatCurrency(offsets.frankingCredits);
         document.getElementById('summary-phi-offset').textContent = formatCurrency(offsets.phiOffset);
+        // An offset that turns negative (over-claimed PHI rebate, or an
+        // offset total in liability) is an amount owing, not a benefit.
+        const phiEl = document.getElementById('summary-phi-offset');
+        phiEl.classList.toggle('text-green-500', offsets.phiOffset >= 0);
+        phiEl.classList.toggle('text-red-600', offsets.phiOffset < 0);
+        document.getElementById('summary-phi-offset-label').textContent =
+            offsets.phiOffset < 0 ? '- Private Health Insurance (amount owing):' : '- Private Health Insurance:';
+        const totalEl = document.getElementById('summary-tax-offsets');
+        totalEl.classList.toggle('text-green-500', offsets.total >= 0);
+        totalEl.classList.toggle('text-red-600', offsets.total < 0);
         // A negative net tax is real: refundable offsets (franking credits,
         // PHI offset) exceeding tax increase the refund. Snap sub-cent float
         // residue to 0 so it doesn't render as "-$0.00".
