@@ -494,7 +494,7 @@ const UIManager = (() => {
             totalGeneralDeductions, totalWfhDeductions, totalSuperDeductions,
             overallTotalDeductions, taxableIncome,
             grossTax, medicareLevy, mls, offsets, netTaxPayable, finalOutcome,
-            identicalAssetWarnings,
+            identicalAssetWarnings, sameDaySetNotices,
         } = TaxCalculations.calculateYearSummary(appData);
 
         const outcomeText = finalOutcome >= 0 ? `${formatCurrency(finalOutcome)} Refund` : `${formatCurrency(Math.abs(finalOutcome))} Payable`;
@@ -561,6 +561,20 @@ const UIManager = (() => {
             li.textContent = `"${group.description}" × ${group.count} — combined ${formatCurrency(group.combinedCost)} `
                 + `(${group.items.map(i => `${i.source}: ${formatCurrency(i.cost)}`).join(', ')})`;
             warnList.appendChild(li);
+        });
+
+        // Same-day purchases: the "set of assets" limb is a judgement call,
+        // so this is a question in its own softer card — never mixed with
+        // the identical-assets warning above.
+        const setBox = document.getElementById('sameday-set-notice');
+        const setList = document.getElementById('sameday-set-notice-list');
+        setList.innerHTML = '';
+        setBox.classList.toggle('hidden', (sameDaySetNotices || []).length === 0);
+        (sameDaySetNotices || []).forEach(set => {
+            const li = document.createElement('li');
+            li.textContent = `${set.date} — ${set.count} items totalling ${formatCurrency(set.combinedCost)} `
+                + `(${set.items.map(i => `${i.description} (${formatCurrency(i.cost)})`).join(', ')})`;
+            setList.appendChild(li);
         });
     };
 

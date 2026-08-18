@@ -286,6 +286,40 @@ const TaxCalculations = (() => {
             .filter(group => group.combinedCost > IDENTICAL_ASSET_THRESHOLD);
     };
 
+    // The other limb of s 40-80(2): the immediate deduction is also
+    // unavailable when the asset is part of a *set* acquired in the income
+    // year whose total cost exceeds $300. Whether items form a set
+    // (interdependent, marketed together, designed for use together) is a
+    // judgement call no grouping heuristic can make, so this surfaces
+    // same-day equipment purchases as a QUESTION for the user — a much
+    // softer signal than the identical-items warning. Identical-description
+    // groups are excluded: the strong warning already covers them.
+    const findSameDayPurchaseSets = (generalExpenses = [], wfhAssets = [], financialYear = window.FINANCIAL_YEAR) => {
+        const candidates = [
+            ...(generalExpenses || []).map(item => ({ ...item, source: 'General Expenses' })),
+            ...(wfhAssets || []).map(item => ({ ...item, source: 'WFH Assets' })),
+        ].filter(item => !item.isDepreciable && isAssetClassItem(item) && dateInFinancialYear(item.date, financialYear));
+
+        const byDate = new Map();
+        candidates.forEach(item => {
+            if (!item.date) return;
+            if (!byDate.has(item.date)) byDate.set(item.date, []);
+            byDate.get(item.date).push(item);
+        });
+
+        return [...byDate.entries()]
+            .filter(([, items]) => items.length > 1)
+            .map(([date, items]) => ({
+                date,
+                financialYear,
+                count: items.length,
+                distinctDescriptions: new Set(items.map(i => normaliseDescription(i.description))).size,
+                combinedCost: items.reduce((sum, i) => sum + (parseFloat(i.cost) || 0), 0),
+                items: items.map(({ id, description: d, cost, source }) => ({ id, description: d, cost, source })),
+            }))
+            .filter(set => set.distinctDescriptions > 1 && set.combinedCost > IDENTICAL_ASSET_THRESHOLD);
+    };
+
     const calculateWfhActualCostDeduction = (details) => {
         if (!details) return 0;
         const properties = details.properties || [details];
@@ -487,6 +521,10 @@ const TaxCalculations = (() => {
             appData.generalExpenses,
             (appData.wfh && appData.wfh.actualCostDetails && appData.wfh.actualCostDetails.assets) || [],
         );
+        const sameDaySetNotices = findSameDayPurchaseSets(
+            appData.generalExpenses,
+            (appData.wfh && appData.wfh.actualCostDetails && appData.wfh.actualCostDetails.assets) || [],
+        );
         return {
             financialYear: window.FINANCIAL_YEAR,
             totalAssessableIncome,
@@ -500,6 +538,7 @@ const TaxCalculations = (() => {
             medicareLevy,
             mls,
             identicalAssetWarnings,
+            sameDaySetNotices,
             offsets,
             netTaxPayable,
             finalOutcome,
@@ -579,6 +618,7 @@ const TaxCalculations = (() => {
         normaliseWorkPct,
         dateInFinancialYear,
         findIdenticalAssetGroups,
+        findSameDayPurchaseSets,
         calculateDepreciationForFinancialYear,
         calculateWfhActualCostDeduction,
         calculateWfhRunningExpensesDeduction,

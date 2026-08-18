@@ -382,6 +382,21 @@ const StorageManager = (() => {
                         s += `"Note: the ATO excludes assets that are one of a number of identical or substantially identical assets started to hold in the year when together they cost more than $300. These may need to be depreciated instead - review before claiming."\n\n`;
                     }
 
+                    // Same-day purchases: the "set of assets" limb of the $300
+                    // test — a question for the user, not a finding.
+                    const sets = (summary && summary.sameDaySetNotices) || [];
+                    if (sets.length > 0) {
+                        s += `"Possible sets acquired on the same day (check, not a finding)"\n`;
+                        s += `"Date","Count","Combined Cost (AUD)","Items"\n`;
+                        sets.forEach(set => {
+                            const itemsStr = set.items
+                                .map(i => `${i.source}: ${i.description} (${money(i.cost)})`)
+                                .join('; ');
+                            s += `"${set.date}","${set.count}","${money(set.combinedCost)}","${csvCell(itemsStr)}"\n`;
+                        });
+                        s += `"Note: items bought together as a set (interdependent, marketed together, or designed to be used together) lose the immediate deduction when the set costs more than $300. Unrelated items bought the same day are not a set."\n\n`;
+                    }
+
                     s += `"Taxpayer Details"\n${arrayToCsv(
                         [data.taxpayerDetails],
                         ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid (Jul-Mar)', 'PHI Premiums Paid (Apr-Jun)', 'PHI Rebate Received'],

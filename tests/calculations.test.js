@@ -2567,3 +2567,72 @@ describe('storage migration — assetType', () => {
         expect(() => StorageManager.loadData('2024-2025')).not.toThrow();
     });
 });
+// ─────────────────────────────────────────────
+// findSameDayPurchaseSets (set-of-assets limb, question not warning)
+// ─────────────────────────────────────────────
+describe('findSameDayPurchaseSets', () => {
+    beforeEach(() => loadConstantsForYear('2025-2026'));
+    const item = (overrides = {}) => ({
+        id: 'x', description: 'Item', date: '2025-08-25',
+        cost: 50, workPercentage: 100, isDepreciable: false, ...overrides,
+    });
+    test('seven different hardware items bought the same day totalling over $300 raise a notice', () => {
+        // The real case: 25 Aug 2025, seven different non-depreciable items,
+        // $331.74 combined.
+        const costs = [59.99, 49.50, 45.00, 39.25, 55.00, 42.00, 41.00];
+        const items = costs.map((cost, i) => item({
+            id: `d${i}`, description: `Part ${String.fromCharCode(65 + i)}`, cost,
+        }));
+        const sets = TaxCalculations.findSameDayPurchaseSets(items, []);
+        expect(sets).toHaveLength(1);
+        expect(sets[0].date).toBe('2025-08-25');
+        expect(sets[0].count).toBe(7);
+        expect(sets[0].combinedCost).toBeCloseTo(331.74, 2);
+    });
+    test('identical-description groups are the strong warning\'s job, not a set notice', () => {
+        const sets = TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'a', description: 'RAM', cost: 200 }), item({ id: 'b', description: 'ram', cost: 200 })], []);
+        expect(sets).toHaveLength(0);
+    });
+    test('services and consumables are excluded from the set grouping', () => {
+        const sets = TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'a', description: 'Part A', cost: 200, assetType: 'service' }),
+             item({ id: 'b', description: 'Part B', cost: 200, assetType: 'consumable' })], []);
+        expect(sets).toHaveLength(0);
+    });
+    test('same-day items at or under $300 combined raise no notice', () => {
+        expect(TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'a', description: 'A', cost: 150 }), item({ id: 'b', description: 'B', cost: 150 })], [])
+        ).toHaveLength(0);   // exactly $300 stays exclusive
+        expect(TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'c', description: 'C', cost: 150.01 }), item({ id: 'd', description: 'D', cost: 150 })], [])
+        ).toHaveLength(1);
+    });
+    test('items on different days do not group', () => {
+        expect(TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'a', description: 'A', cost: 200, date: '2025-08-25' }),
+             item({ id: 'b', description: 'B', cost: 200, date: '2025-08-26' })], [])
+        ).toHaveLength(0);
+    });
+    test('depreciable items and out-of-FY items are excluded', () => {
+        expect(TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'a', description: 'A', cost: 200, isDepreciable: true, effectiveLife: 4 }),
+             item({ id: 'b', description: 'B', cost: 200 })], [])
+        ).toHaveLength(0);
+        expect(TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'c', description: 'C', cost: 200, date: '2023-08-25' }),
+             item({ id: 'd', description: 'D', cost: 200, date: '2023-08-25' })], [])
+        ).toHaveLength(0);
+    });
+    test('calculateYearSummary exposes sameDaySetNotices', () => {
+        const data = makeAppData({
+            generalExpenses: [
+                item({ id: 'a', description: 'Part A', cost: 200 }),
+                item({ id: 'b', description: 'Part B', cost: 150 }),
+            ],
+        });
+        const s = TaxCalculations.calculateYearSummary(data);
+        expect(s.sameDaySetNotices).toHaveLength(1);
+        expect(s.sameDaySetNotices[0].combinedCost).toBeCloseTo(350, 2);
+    });
+});
