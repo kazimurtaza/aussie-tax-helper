@@ -2676,3 +2676,68 @@ describe('generateDepreciationSchedule — written-down value shown per row', ()
         })).toBe('Invalid date');
     });
 });
+// ─────────────────────────────────────────────
+// auditCrossYearAssets (cross-year consistency, report-only)
+// ─────────────────────────────────────────────
+describe('auditCrossYearAssets', () => {
+    const dep = (overrides = {}) => ({
+        description: 'Asset', date: '2024-12-01', cost: 635.45, workPercentage: 100,
+        isDepreciable: true, effectiveLife: 2, depreciationMethod: 'diminishing_value', ...overrides,
+    });
+    const year = (generalExpenses = [], wfhAssets = []) => ({
+        generalExpenses,
+        wfh: { method: 'actual_cost', hoursLog: [], totalMinutes: 0, actualCostDetails: { properties: [], assets: wfhAssets } },
+    });
+    test('flags field drift between years (the GPU case)', () => {
+        const findings = TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep()]),
+            '2025-2026': year([dep({ cost: 635.00, effectiveLife: 4 })]),
+        });
+        expect(findings).toHaveLength(1);
+        expect(findings[0].description).toBe('Asset');
+        expect(findings[0].copies.map(c => c.cost)).toEqual([635.45, 635]);
+        expect(findings[0].copies.map(c => c.effectiveLife)).toEqual([2, 4]);
+    });
+    test('flags a flip from depreciable to non-depreciable (the P100 case)', () => {
+        const findings = TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep({ description: 'P100 Nvidia Tesla', cost: 435.38, date: '2024-08-05', effectiveLife: 1 })]),
+            '2025-2026': year([dep({ description: 'P100 Nvidia Tesla', cost: 173.00, date: '2024-07-01', isDepreciable: false, effectiveLife: 0, depreciationMethod: 'prime_cost' })]),
+        });
+        expect(findings).toHaveLength(1);
+        const copies = findings[0].copies;
+        expect(copies[0].isDepreciable).toBe(true);
+        expect(copies[1].isDepreciable).toBe(false);
+    });
+    test('flags the same asset living in different lists (the Pixel Tablet case)', () => {
+        const findings = TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep({ description: 'Google Pixel Tablet' })], []),
+            '2025-2026': year([], [dep({ description: 'Google Pixel Tablet' })]),
+        });
+        expect(findings).toHaveLength(1);
+        expect(new Set(findings[0].copies.map(c => c.list))).toEqual(new Set(['General Expenses', 'WFH Assets']));
+    });
+    test('identical copies across years and single-year items report nothing', () => {
+        expect(TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep()]),
+            '2025-2026': year([dep()]),
+            '2026-2027': year([dep()]),
+        })).toHaveLength(0);
+        expect(TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep()]),
+        })).toHaveLength(0);
+    });
+    test('non-depreciable items are audited too (same-description services across years)', () => {
+        // A subscription re-entered each year with a changed price is a real
+        // disagreement worth surfacing, so non-depreciable items participate.
+        const findings = TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep({ description: 'Claude.AI Pro', isDepreciable: false, cost: 34, effectiveLife: 0 })]),
+            '2025-2026': year([dep({ description: 'Claude.AI Pro', isDepreciable: false, cost: 100, effectiveLife: 0 })]),
+        });
+        expect(findings).toHaveLength(1);
+    });
+    test('empty/shapeless input is safe', () => {
+        expect(TaxCalculations.auditCrossYearAssets(null)).toHaveLength(0);
+        expect(TaxCalculations.auditCrossYearAssets({})).toHaveLength(0);
+        expect(TaxCalculations.auditCrossYearAssets({ '2024-2025': {} })).toHaveLength(0);
+    });
+});

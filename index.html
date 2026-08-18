@@ -586,6 +586,15 @@
                         question, not a warning, and nothing has been changed.
                     </p>
                 </div>
+                <div id="crossyear-audit-warning" class="hidden mb-4 p-4 rounded-lg border border-red-300 bg-red-50">
+                    <h3 class="text-sm font-semibold text-red-800 mb-1">Records disagree across years</h3>
+                    <ul id="crossyear-audit-warning-list" class="list-disc pl-5 text-sm text-red-900 space-y-1"></ul>
+                    <p class="text-xs text-red-800 mt-2">
+                        Storage is per financial year, so a depreciating asset is re-entered in each year it declines in value — and these copies don't match.
+                        Each year's schedule is computed from its own copy, so the carried written-down value is wrong until they agree.
+                        Decide which record is correct and update the other year. Nothing is changed automatically.
+                    </p>
+                </div>
                 <div class="summary-grid space-y-2 text-gray-700 text-lg">
                     <div class="summary-item flex justify-between py-2 border-b">
                         <span>Total Assessable Income:</span>

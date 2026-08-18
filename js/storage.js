@@ -245,6 +245,30 @@ const StorageManager = (() => {
         }
     };
 
+    // Cross-year consistency audit: a depreciating asset must be re-entered
+    // in every year it declines in value, and nothing verified the copies
+    // agreed. Reads every stored year and reports same-description items
+    // whose cost/date/life/method/depreciable flag differ between years, or
+    // that live in different lists. Report-only.
+    const getCrossYearAssetAudit = () => {
+        if (typeof TaxCalculations === 'undefined') return [];
+        const yearsData = {};
+        getAllStoredYears().forEach(year => {
+            try {
+                const raw = localStorage.getItem(getStorageKey(year));
+                if (raw) yearsData[year] = JSON.parse(raw);
+            } catch (e) {
+                // Corrupt year — the export path already warns about those.
+            }
+        });
+        try {
+            return TaxCalculations.auditCrossYearAssets(yearsData);
+        } catch (e) {
+            console.error('Cross-year asset audit failed:', e);
+            return [];
+        }
+    };
+
     // Calculated summary for one year's data, computed under that year's
     // constants — withYearConstants swaps the globals and restores them even
     // on error, so no caller-level cleanup is needed. Returns null for years
@@ -300,7 +324,10 @@ const StorageManager = (() => {
                     const summary = computeYearSummary(yr, d);
                     if (summary) calculatedSummaries[yr] = summary;
                 });
-                dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: exportYearsData, calculatedSummaries }, null, 2);
+                // Cross-year audit spans years, so it rides at the top level
+                // rather than inside any one year's summary.
+                const crossYearAudit = getCrossYearAssetAudit();
+                dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: exportYearsData, calculatedSummaries, crossYearAudit }, null, 2);
                 blobType = 'application/json';
                 fileExtension = 'json';
             } else {
@@ -437,6 +464,19 @@ const StorageManager = (() => {
                 dataStr = Object.entries(exportYearsData).map(([yr, d]) =>
                     window.withYearConstants(yr, () => buildYearCsv(d, yr, computeYearSummary(yr, d)))
                 ).join('\n');
+                // The audit spans years, so it appends once after all year
+                // blocks rather than inside any one of them.
+                const audit = getCrossYearAssetAudit();
+                if (audit.length > 0) {
+                    dataStr += `"Cross-Year Asset Consistency"\n`;
+                    dataStr += `"Description","Year","List","Cost","Date","Depreciable","Effective Life","Method"\n`;
+                    audit.forEach(finding => {
+                        finding.copies.forEach(copy => {
+                            dataStr += `"${csvCell(finding.description)}","${copy.year}","${copy.list}","${copy.cost}","${csvCell(copy.date)}","${copy.isDepreciable}","${copy.effectiveLife}","${copy.depreciationMethod}"\n`;
+                        });
+                    });
+                    dataStr += `"Note: storage is per financial year, so a depreciating asset is re-entered each year it declines in value. These copies disagree - decide which record is correct and update the other year."\n`;
+                }
                 blobType = 'text/csv;charset=utf-8;';
                 fileExtension = 'csv';
             }
@@ -636,6 +676,7 @@ const StorageManager = (() => {
         getYearsWithData,
         detectDefaultYear,
         saveActiveYearPreference,
+        getCrossYearAssetAudit,
         setNotifyCallback
     };
 })();

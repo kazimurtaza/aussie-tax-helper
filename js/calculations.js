@@ -323,8 +323,57 @@ const TaxCalculations = (() => {
             .filter(set => set.distinctDescriptions > 1 && set.combinedCost > IDENTICAL_ASSET_THRESHOLD);
     };
 
-    const calculateWfhActualCostDeduction = (details) => {
-        if (!details) return 0;
+    // A depreciating asset must be re-entered in every year it declines in
+    // value (storage is per financial year), and nothing verified the copies
+    // agreed — real data had the same GPU with cost $635.45/life 2 in one
+    // year and $635.00/life 4 in the next, an asset flipped from depreciable
+    // to non-depreciable, and one moved between the two lists. Each year's
+    // schedule is computed from its own copy, so the divergence is silent.
+    // Report-only: the user decides which record is correct.
+    const auditCrossYearAssets = (yearsData) => {
+        const byDescription = new Map();
+        Object.entries(yearsData || {}).forEach(([year, appData]) => {
+            const lists = [
+                { list: 'General Expenses', items: appData.generalExpenses || [] },
+                { list: 'WFH Assets', items: (appData.wfh && appData.wfh.actualCostDetails && appData.wfh.actualCostDetails.assets) || [] },
+            ];
+            lists.forEach(({ list, items }) => {
+                items.forEach(item => {
+                    const key = normaliseDescription(item.description);
+                    if (!key) return;
+                    if (!byDescription.has(key)) byDescription.set(key, []);
+                    byDescription.get(key).push({
+                        year, list,
+                        description: item.description,
+                        cost: parseFloat(item.cost) || 0,
+                        date: item.date || '',
+                        isDepreciable: !!item.isDepreciable,
+                        effectiveLife: item.isDepreciable ? (item.effectiveLife || 0) : 0,
+                        depreciationMethod: item.isDepreciable ? (item.depreciationMethod || 'prime_cost') : '',
+                    });
+                });
+            });
+        });
+
+        const findings = [];
+        byDescription.forEach((copies, key) => {
+            if (copies.length < 2) return;
+            const first = copies[0];
+            const listDrift = copies.some(c => c.list !== first.list);
+            const fieldDrift = copies.some(c =>
+                c.cost !== first.cost ||
+                c.date !== first.date ||
+                c.isDepreciable !== first.isDepreciable ||
+                c.effectiveLife !== first.effectiveLife ||
+                c.depreciationMethod !== first.depreciationMethod);
+            if (listDrift || fieldDrift) {
+                findings.push({ description: first.description, copies });
+            }
+        });
+        return findings;
+    };
+
+    const calculateWfhActualCostDeduction = (details) => {        if (!details) return 0;
         const properties = details.properties || [details];
         const runningExpenses = properties.reduce((sum, prop) =>
             sum + calculateWfhRunningExpensesDeduction(prop), 0);
@@ -626,6 +675,7 @@ const TaxCalculations = (() => {
         dateInFinancialYear,
         findIdenticalAssetGroups,
         findSameDayPurchaseSets,
+        auditCrossYearAssets,
         calculateDepreciationForFinancialYear,
         calculateWfhActualCostDeduction,
         calculateWfhRunningExpensesDeduction,

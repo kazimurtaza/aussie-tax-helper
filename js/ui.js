@@ -576,6 +576,29 @@ const UIManager = (() => {
                 + `(${set.items.map(i => `${i.description} (${formatCurrency(i.cost)})`).join(', ')})`;
             setList.appendChild(li);
         });
+
+        // Cross-year consistency: same asset re-entered across years but the
+        // copies disagree. Read-only audit over stored years; rendered as a
+        // red "records disagree" card — a factual finding, unlike the amber
+        // judgement-call warnings above.
+        const auditBox = document.getElementById('crossyear-audit-warning');
+        const auditList = document.getElementById('crossyear-audit-warning-list');
+        auditList.innerHTML = '';
+        let auditFindings = [];
+        try {
+            auditFindings = (typeof StorageManager !== 'undefined' && StorageManager.getCrossYearAssetAudit)
+                ? StorageManager.getCrossYearAssetAudit() : [];
+        } catch (e) {
+            auditFindings = [];
+        }
+        auditBox.classList.toggle('hidden', auditFindings.length === 0);
+        auditFindings.forEach(finding => {
+            const li = document.createElement('li');
+            const copies = finding.copies.map(c =>
+                `${c.year} (${c.list}): ${formatCurrency(c.cost)}${c.isDepreciable ? `, ${c.effectiveLife}yr ${c.depreciationMethod === 'diminishing_value' ? 'DV' : 'PC'}` : ', not depreciable'}`).join(' · ');
+            li.textContent = `"${finding.description}" — ${copies}`;
+            auditList.appendChild(li);
+        });
     };
 
     return {
