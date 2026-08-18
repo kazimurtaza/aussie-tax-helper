@@ -2027,6 +2027,38 @@ describe('findIdenticalAssetGroups', () => {
             expect.arrayContaining(['General Expenses', 'WFH Assets']));
     });
 
+    test('services are excluded — 11 identical subscriptions never warn', () => {
+        // The defect: 11 Claude.AI Pro subscriptions at $34 raised a warning.
+        // A subscription is a service consumed as paid, not a depreciating
+        // asset, so the s 40-80(2) $300 test does not apply once the items
+        // are tagged as services (the default remains equipment).
+        const subs = Array.from({ length: 11 }, (_, i) =>
+            item({ id: `s${i}`, description: 'Claude.AI Pro', cost: 34, assetType: 'service' }));
+        expect(TaxCalculations.findIdenticalAssetGroups(subs, [])).toHaveLength(0);
+        // Two Max subscriptions at $152.25 — also over $300 combined.
+        expect(TaxCalculations.findIdenticalAssetGroups(
+            [item({ id: 'm1', description: 'Claude.AI Max', cost: 152.25, assetType: 'service' }),
+             item({ id: 'm2', description: 'Claude.AI Max', cost: 152.25, assetType: 'service' })], [])
+        ).toHaveLength(0);
+    });
+
+    test('consumables are excluded too, and the equipment default still warns', () => {
+        expect(TaxCalculations.findIdenticalAssetGroups(
+            [item({ id: 'c1', description: 'Toner cartridge', cost: 200, assetType: 'consumable' }),
+             item({ id: 'c2', description: 'Toner cartridge', cost: 200, assetType: 'consumable' })], [])
+        ).toHaveLength(0);
+        // Missing assetType reads as equipment — stored data from before the
+        // field existed keeps warning exactly as before.
+        expect(TaxCalculations.findIdenticalAssetGroups(
+            [item({ id: 'e1', description: 'Cable', cost: 200 }),
+             item({ id: 'e2', description: 'Cable', cost: 200 })], [])
+        ).toHaveLength(1);
+        expect(TaxCalculations.findIdenticalAssetGroups(
+            [item({ id: 'e3', description: 'Cable', cost: 200, assetType: 'equipment' }),
+             item({ id: 'e4', description: 'Cable', cost: 200, assetType: 'equipment' })], [])
+        ).toHaveLength(1);
+    });
+
     test('combined cost of exactly $300 does not warn (strictly more than $300)', () => {
         const groups = TaxCalculations.findIdenticalAssetGroups(
             [item({ cost: 200 }), item({ cost: 100, id: 'b' })], []);
@@ -2455,5 +2487,83 @@ describe('calculateDepreciationForFinancialYear — date validation', () => {
 
     test('valid date within FY → non-zero deduction', () => {
         expect(TaxCalculations.calculateDepreciationForFinancialYear(1000, 100, 5, '2024-07-01')).toBeGreaterThan(0);
+    });
+});
+// ─────────────────────────────────────────────
+// Storage migration: assetType stamping (idempotent)
+// ─────────────────────────────────────────────
+describe('storage migration — assetType', () => {
+    let localStorageStub;
+    let StorageManager;
+    beforeEach(() => {
+        jest.resetModules();
+        const store = {};
+        localStorageStub = {
+            getItem: (k) => (k in store ? store[k] : null),
+            setItem: (k, v) => { store[k] = String(v); },
+            removeItem: (k) => { delete store[k]; },
+            key: (i) => Object.keys(store)[i] ?? null,
+            get length() { return Object.keys(store).length; },
+        };
+        global.localStorage = localStorageStub;
+        // storage.js exposes itself on window (= global here), not via
+        // module.exports, and reads the window.* tax globals.
+        require('../js/constants.js');
+        require('../js/calculations.js');
+        require('../js/storage.js');
+        StorageManager = global.StorageManager;
+        loadConstantsForYear('2024-2025');
+    });
+    const legacyData = () => ({
+        userSettings: { currentSection: 'dashboard-section', financialYear: '2024-2025' },
+        taxpayerDetails: { filingStatus: 'single' },
+        income: { payg: [], other: { bankInterest: 0, dividendsUnfranked: 0, dividendsFranked: 0, frankingCredits: 0, netCapitalGains: 0 } },
+        generalExpenses: [
+            { id: 'e1', description: 'Claude.AI Pro', date: '2024-08-01', cost: 34, workPercentage: 100, isDepreciable: false, category: 'other' },
+            { id: 'e2', description: 'Monitor', date: '2024-09-01', cost: 500, workPercentage: 100, isDepreciable: true, effectiveLife: 4, depreciationMethod: 'prime_cost', category: 'tools' },
+        ],
+        wfh: {
+            method: 'fixed_rate', hoursLog: [], totalMinutes: 0,
+            actualCostDetails: {
+                properties: [],
+                assets: [{ id: 'w1', description: 'Desk', date: '2024-07-15', cost: 350, workPercentage: 100, isDepreciable: false }],
+            },
+        },
+    });
+    test('pre-migration data loads with all values unchanged and assetType stamped', () => {
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify(legacyData()));
+        const loaded = StorageManager.loadData('2024-2025');
+        // Values unchanged...
+        expect(loaded.generalExpenses[0].description).toBe('Claude.AI Pro');
+        expect(loaded.generalExpenses[0].cost).toBe(34);
+        expect(loaded.generalExpenses[1].effectiveLife).toBe(4);
+        expect(loaded.wfh.actualCostDetails.assets[0].cost).toBe(350);
+        // ...and every item stamped.
+        expect(loaded.generalExpenses.map(e => e.assetType)).toEqual(['equipment', 'equipment']);
+        expect(loaded.wfh.actualCostDetails.assets[0].assetType).toBe('equipment');
+    });
+    test('an explicit service assetType survives the migration untouched', () => {
+        const data = legacyData();
+        data.generalExpenses[0].assetType = 'service';
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify(data));
+        const loaded = StorageManager.loadData('2024-2025');
+        expect(loaded.generalExpenses[0].assetType).toBe('service');
+        expect(loaded.generalExpenses[1].assetType).toBe('equipment');
+    });
+    test('migration is idempotent — running it twice changes nothing', () => {
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify(legacyData()));
+        const once = StorageManager.loadData('2024-2025');
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify(once));
+        const twice = StorageManager.loadData('2024-2025');
+        expect(twice.generalExpenses).toEqual(once.generalExpenses);
+        expect(twice.wfh.actualCostDetails.assets).toEqual(once.wfh.actualCostDetails.assets);
+    });
+    test('empty and shapeless data pass through without throwing', () => {
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify({
+            userSettings: {}, taxpayerDetails: { filingStatus: 'single' },
+            income: { payg: [], other: {} }, generalExpenses: [],
+            wfh: { method: 'fixed_rate', hoursLog: [], totalMinutes: 0, actualCostDetails: { properties: [], assets: [] } },
+        }));
+        expect(() => StorageManager.loadData('2024-2025')).not.toThrow();
     });
 });

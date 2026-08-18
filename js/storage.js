@@ -139,6 +139,16 @@ const StorageManager = (() => {
                 delete log.hours;
             });
         }
+        // Stamp assetType on items saved before the field existed. A missing
+        // value already reads as 'equipment' everywhere, so this is a
+        // normalisation for the UI/editors, not a behaviour change — and
+        // idempotent: the second run finds nothing left to stamp.
+        (data.generalExpenses || []).forEach(exp => {
+            if (!exp.assetType) exp.assetType = 'equipment';
+        });
+        (data.wfh?.actualCostDetails?.assets || []).forEach(asset => {
+            if (!asset.assetType) asset.assetType = 'equipment';
+        });
         return data;
     };
 
@@ -385,8 +395,8 @@ const StorageManager = (() => {
                     )}\n\n`;
                     s += `"General Expenses"\n${arrayToCsv(
                         withDeduction(data.generalExpenses, 0),
-                        ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
-                        ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
+                        ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Asset Type', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
+                        ['description', 'date', 'cost', 'category', 'workPercentage', 'assetType', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
                     )}\n\n`;
                     s += `"Work-From-Home Details"\n"Method:","${data.wfh.method}"\n\n`;
                     s += `"WFH Hours Log"\n${arrayToCsv(data.wfh.hoursLog, ['Date', 'Minutes'], ['date', 'minutes'])}\n\n`;
@@ -398,8 +408,8 @@ const StorageManager = (() => {
                     )}\n\n`;
                     s += `"WFH Actual Cost - Assets"\n${arrayToCsv(
                         withDeduction(data.wfh.actualCostDetails.assets, 100),
-                        ['Description', 'Date', 'Cost', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
-                        ['description', 'date', 'cost', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
+                        ['Description', 'Date', 'Cost', 'Work %', 'Asset Type', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
+                        ['description', 'date', 'cost', 'workPercentage', 'assetType', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
                     )}\n\n`;
                     return s;
                 };
@@ -614,3 +624,5 @@ const StorageManager = (() => {
         setNotifyCallback
     };
 })();
+
+window.StorageManager = StorageManager;

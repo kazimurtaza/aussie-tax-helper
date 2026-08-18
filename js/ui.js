@@ -42,6 +42,7 @@ const UIManager = (() => {
             form['wfh-asset-date'].value = asset.date;
             form['wfh-asset-cost'].value = asset.cost;
             form['wfh-asset-work-percentage'].value = asset.workPercentage || 100;
+            form['wfh-asset-asset-type'].value = asset.assetType || 'equipment';
             form['wfh-asset-is-depreciable'].checked = asset.isDepreciable;
 
             if (asset.isDepreciable) {
@@ -76,6 +77,7 @@ const UIManager = (() => {
         form['edit-expense-cost'].value = expenseItem.cost;
         form['edit-expense-category'].value = expenseItem.category;
         form['edit-expense-work-percentage'].value = expenseItem.workPercentage;
+        form['edit-expense-asset-type'].value = expenseItem.assetType || 'equipment';
         form['edit-expense-is-depreciable'].checked = expenseItem.isDepreciable;
         document.getElementById('edit-depreciation-fields').classList.toggle('hidden', !expenseItem.isDepreciable);
         if (expenseItem.isDepreciable) {

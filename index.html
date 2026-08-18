@@ -394,6 +394,15 @@
                                 <label for="expense-work-percentage" class="block text-sm font-medium text-gray-700">Work-Related Use (%):</label>
                                 <input type="number" id="expense-work-percentage" name="expense-work-percentage" min="0" max="100" value="100" step="1">
                             </div>
+                            <div class="md:col-span-2">
+                                <label for="expense-asset-type" class="block text-sm font-medium text-gray-700">Asset Type:</label>
+                                <select id="expense-asset-type" name="expense-asset-type">
+                                    <option value="equipment" selected>Equipment (physical asset)</option>
+                                    <option value="service">Service (subscription, support plan)</option>
+                                    <option value="consumable">Consumable (used up, e.g. toner)</option>
+                                </select>
+                                <p class="tooltip-text mt-1">Services and consumables are deducted in full when paid — the ATO's $300 asset tests don't apply to them.</p>
+                            </div>
                             <div class="md:col-span-2 flex items-center space-x-2">
                                 <input type="checkbox" id="expense-is-depreciable" name="expense-is-depreciable" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                                 <label for="expense-is-depreciable" class="text-sm font-medium text-gray-700">Is this a depreciable asset (cost > $300 and lasts > 1 year)?</label>
@@ -863,6 +872,15 @@
                         <label for="wfh-asset-work-percentage" class="block text-sm font-medium text-gray-700">Work-Related Use (%):</label>
                         <input type="number" id="wfh-asset-work-percentage" name="wfh-asset-work-percentage" min="0" max="100" value="100" step="1">
                     </div>
+                    <div class="md:col-span-2">
+                        <label for="wfh-asset-asset-type" class="block text-sm font-medium text-gray-700">Asset Type:</label>
+                        <select id="wfh-asset-asset-type" name="wfh-asset-asset-type">
+                            <option value="equipment" selected>Equipment (physical asset)</option>
+                            <option value="service">Service (subscription, support plan)</option>
+                            <option value="consumable">Consumable (used up, e.g. toner)</option>
+                        </select>
+                        <p class="tooltip-text mt-1">Services and consumables are deducted in full when paid — the ATO's $300 asset tests don't apply to them.</p>
+                    </div>
                     <div class="md:col-span-2 flex items-center space-x-2">
                         <input type="checkbox" id="wfh-asset-is-depreciable" name="wfh-asset-is-depreciable" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         <label for="wfh-asset-is-depreciable" class="text-sm font-medium text-gray-700">Is this a depreciable asset (cost > $300 and lasts > 1 year)?</label>
@@ -1024,6 +1042,15 @@
                     <div class="md:col-span-2">
                         <label for="edit-expense-work-percentage" class="block text-sm font-medium text-gray-700">Work-Related Use (%):</label>
                         <input type="number" id="edit-expense-work-percentage" name="edit-expense-work-percentage" min="0" max="100" step="1">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="edit-expense-asset-type" class="block text-sm font-medium text-gray-700">Asset Type:</label>
+                        <select id="edit-expense-asset-type" name="edit-expense-asset-type">
+                            <option value="equipment" selected>Equipment (physical asset)</option>
+                            <option value="service">Service (subscription, support plan)</option>
+                            <option value="consumable">Consumable (used up, e.g. toner)</option>
+                        </select>
+                        <p class="tooltip-text mt-1">Services and consumables are deducted in full when paid — the ATO's $300 asset tests don't apply to them.</p>
                     </div>
                     <div class="md:col-span-2 flex items-center space-x-2">
                         <input type="checkbox" id="edit-expense-is-depreciable" name="edit-expense-is-depreciable" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">

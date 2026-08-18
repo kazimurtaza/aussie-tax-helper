@@ -249,6 +249,13 @@ const TaxCalculations = (() => {
     // app surfaces a warning and the user decides; nothing is reclassified.
     const IDENTICAL_ASSET_THRESHOLD = 300;
 
+    // The $300 test is a *depreciating asset* rule. Services and consumables
+    // are consumed as paid for — no asset is held — so they are deductible in
+    // full under the general deduction provision with no threshold and no
+    // identical-items rule. A missing assetType reads as equipment so stored
+    // data from before the field existed behaves unchanged.
+    const isAssetClassItem = (item) => (item.assetType || 'equipment') === 'equipment';
+
     const normaliseDescription = (desc) =>
         String(desc ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -256,7 +263,7 @@ const TaxCalculations = (() => {
         const candidates = [
             ...(generalExpenses || []).map(item => ({ ...item, source: 'General Expenses' })),
             ...(wfhAssets || []).map(item => ({ ...item, source: 'WFH Assets' })),
-        ].filter(item => !item.isDepreciable && dateInFinancialYear(item.date, financialYear));
+        ].filter(item => !item.isDepreciable && isAssetClassItem(item) && dateInFinancialYear(item.date, financialYear));
 
         const groups = new Map();
         candidates.forEach(item => {
