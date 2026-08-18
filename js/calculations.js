@@ -147,6 +147,9 @@ const TaxCalculations = (() => {
             amount: capped * (workPct / 100) * proRata,
             daysOwned: isAcqYear ? acqDaysOwned : null,
             fyDays: isAcqYear ? acqFYDays : null,
+            // Written-down values at full cost basis — the figures an
+            // accountant carries forward, distinct from the work-share claim.
+            openingValueBefore,
             remainingValueAfter: Math.max(0, openingValueBefore - annual * proRata),
         };
     };
@@ -591,7 +594,11 @@ const TaxCalculations = (() => {
             }
 
             remainingValue = row.remainingValueAfter;
-            const amountStr = `${fyLabel}: ${fmt(row.amount)}${proRataNote}`;
+            // Show the claim plus the opening/closing written-down value at
+            // full cost basis — the number an accountant carries forward, so
+            // a disagreement against a prepared schedule is self-diagnosing.
+            const wdvNote = ` <span style="opacity:0.55;font-size:0.8em">(opening ${fmt(row.openingValueBefore)} → closing ${fmt(row.remainingValueAfter)})</span>`;
+            const amountStr = `${fyLabel}: ${fmt(row.amount)}${proRataNote}${wdvNote}`;
             schedule.push(isCurrent ? `<strong>${amountStr}</strong>` : amountStr);
         }
 

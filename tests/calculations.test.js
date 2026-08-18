@@ -2342,10 +2342,12 @@ describe('generateDepreciationSchedule', () => {
 
     test('explicit 0% work-use renders $0.00 rows, not 100% amounts', () => {
         // The schedule previously coerced 0 to 100 via `|| 100`, so an asset
-        // that claims $0 displayed a full-cost schedule.
+        // that claims $0 displayed a full-cost schedule. Claims must be $0;
+        // the cost-basis written-down-value notes are legitimately non-zero.
         const result = TaxCalculations.generateDepreciationSchedule(asset({ workPercentage: 0 }));
         expect(result).toMatch(/2024-25:/);
-        expect(result).not.toMatch(/\$[1-9]/);          // no non-zero amount anywhere
+        const claims = result.split('<br>').map(row => row.match(/: \$([\d,]+\.\d{2})/)[1]);
+        claims.forEach(claim => expect(claim).toBe('0.00'));
         expect(result).toMatch(/2024-25:.*\$0\.00/);    // current-FY row shows zero
     });
 
@@ -2634,5 +2636,43 @@ describe('findSameDayPurchaseSets', () => {
         const s = TaxCalculations.calculateYearSummary(data);
         expect(s.sameDaySetNotices).toHaveLength(1);
         expect(s.sameDaySetNotices[0].combinedCost).toBeCloseTo(350, 2);
+    });
+});
+// ─────────────────────────────────────────────
+// Depreciation schedule: opening/closing written-down value
+// ─────────────────────────────────────────────
+describe('generateDepreciationSchedule — written-down value shown per row', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+    test('each row shows opening → closing WDV at full cost basis (real GPU case)', () => {
+        // $635.45 GPU, 3-year DV, acquired 2024-12-01. The accountant's
+        // carried opening WDV for 2025-26 was $389 — the figure that
+        // previously existed only inside the engine.
+        const result = TaxCalculations.generateDepreciationSchedule({
+            isDepreciable: true, cost: 635.45, workPercentage: 100, effectiveLife: 3,
+            date: '2024-12-01', depreciationMethod: 'diminishing_value',
+        });
+        expect(result).toMatch(/2024-25: \$246\.06.*opening \$635\.45 → closing \$389\.39/);
+        expect(result).toMatch(/2025-26: \$259\.60.*opening \$389\.39 → closing \$129\.80/);
+        expect(result).toMatch(/2026-27: \$86\.53.*opening \$129\.80 → closing \$43\.27/);
+        // Closing of one year is exactly the opening of the next.
+        expect(result).toMatch(/closing \$389\.39.*2025-26: \$259\.60.*opening \$389\.39/);
+    });
+    test('WDV is full cost basis — unaffected by a partial work percentage', () => {
+        const full = TaxCalculations.generateDepreciationSchedule({
+            isDepreciable: true, cost: 1200, workPercentage: 100, effectiveLife: 3,
+            date: '2024-07-01', depreciationMethod: 'prime_cost',
+        });
+        const half = TaxCalculations.generateDepreciationSchedule({
+            isDepreciable: true, cost: 1200, workPercentage: 50, effectiveLife: 3,
+            date: '2024-07-01', depreciationMethod: 'prime_cost',
+        });
+        expect(full).toMatch(/2024-25: \$400\.00.*opening \$1,200\.00 → closing \$800\.00/);
+        expect(half).toMatch(/2024-25: \$200\.00.*opening \$1,200\.00 → closing \$800\.00/);
+    });
+    test('Immediate and Invalid date outputs are unchanged', () => {
+        expect(TaxCalculations.generateDepreciationSchedule({ isDepreciable: false })).toBe('Immediate');
+        expect(TaxCalculations.generateDepreciationSchedule({
+            isDepreciable: true, cost: 500, effectiveLife: 4, workPercentage: 100, date: 'nope',
+        })).toBe('Invalid date');
     });
 });
