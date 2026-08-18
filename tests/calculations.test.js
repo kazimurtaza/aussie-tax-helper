@@ -2028,17 +2028,17 @@ describe('findIdenticalAssetGroups', () => {
     });
 
     test('services are excluded — 11 identical subscriptions never warn', () => {
-        // The defect: 11 Claude.AI Pro subscriptions at $34 raised a warning.
+        // The defect: eleven identical monthly subscriptions at $34 raised a warning.
         // A subscription is a service consumed as paid, not a depreciating
         // asset, so the s 40-80(2) $300 test does not apply once the items
         // are tagged as services (the default remains equipment).
         const subs = Array.from({ length: 11 }, (_, i) =>
-            item({ id: `s${i}`, description: 'Claude.AI Pro', cost: 34, assetType: 'service' }));
+            item({ id: `s${i}`, description: 'Software Pro subscription', cost: 34, assetType: 'service' }));
         expect(TaxCalculations.findIdenticalAssetGroups(subs, [])).toHaveLength(0);
         // Two Max subscriptions at $152.25 — also over $300 combined.
         expect(TaxCalculations.findIdenticalAssetGroups(
-            [item({ id: 'm1', description: 'Claude.AI Max', cost: 152.25, assetType: 'service' }),
-             item({ id: 'm2', description: 'Claude.AI Max', cost: 152.25, assetType: 'service' })], [])
+            [item({ id: 'm1', description: 'Software Max subscription', cost: 152.25, assetType: 'service' }),
+             item({ id: 'm2', description: 'Software Max subscription', cost: 152.25, assetType: 'service' })], [])
         ).toHaveLength(0);
     });
 
@@ -2532,7 +2532,7 @@ describe('storage migration — assetType', () => {
         taxpayerDetails: { filingStatus: 'single' },
         income: { payg: [], other: { bankInterest: 0, dividendsUnfranked: 0, dividendsFranked: 0, frankingCredits: 0, netCapitalGains: 0 } },
         generalExpenses: [
-            { id: 'e1', description: 'Claude.AI Pro', date: '2024-08-01', cost: 34, workPercentage: 100, isDepreciable: false, category: 'other' },
+            { id: 'e1', description: 'Software Pro subscription', date: '2024-08-01', cost: 34, workPercentage: 100, isDepreciable: false, category: 'other' },
             { id: 'e2', description: 'Monitor', date: '2024-09-01', cost: 500, workPercentage: 100, isDepreciable: true, effectiveLife: 4, depreciationMethod: 'prime_cost', category: 'tools' },
         ],
         wfh: {
@@ -2547,7 +2547,7 @@ describe('storage migration — assetType', () => {
         localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify(legacyData()));
         const loaded = StorageManager.loadData('2024-2025');
         // Values unchanged...
-        expect(loaded.generalExpenses[0].description).toBe('Claude.AI Pro');
+        expect(loaded.generalExpenses[0].description).toBe('Software Pro subscription');
         expect(loaded.generalExpenses[0].cost).toBe(34);
         expect(loaded.generalExpenses[1].effectiveLife).toBe(4);
         expect(loaded.wfh.actualCostDetails.assets[0].cost).toBe(350);
@@ -2586,21 +2586,21 @@ describe('storage migration — assetType', () => {
 describe('findSameDayPurchaseSets', () => {
     beforeEach(() => loadConstantsForYear('2025-2026'));
     const item = (overrides = {}) => ({
-        id: 'x', description: 'Item', date: '2025-08-25',
+        id: 'x', description: 'Item', date: '2025-09-15',
         cost: 50, workPercentage: 100, isDepreciable: false, ...overrides,
     });
     test('seven different hardware items bought the same day totalling over $300 raise a notice', () => {
-        // The real case: 25 Aug 2025, seven different non-depreciable items,
-        // $331.74 combined.
-        const costs = [59.99, 49.50, 45.00, 39.25, 55.00, 42.00, 41.00];
+        // Seven different non-depreciable items on one day, combined just
+        // over the $300 threshold.
+        const costs = [59.00, 49.00, 45.00, 39.00, 55.00, 42.00, 44.00];
         const items = costs.map((cost, i) => item({
             id: `d${i}`, description: `Part ${String.fromCharCode(65 + i)}`, cost,
         }));
         const sets = TaxCalculations.findSameDayPurchaseSets(items, []);
         expect(sets).toHaveLength(1);
-        expect(sets[0].date).toBe('2025-08-25');
+        expect(sets[0].date).toBe('2025-09-15');
         expect(sets[0].count).toBe(7);
-        expect(sets[0].combinedCost).toBeCloseTo(331.74, 2);
+        expect(sets[0].combinedCost).toBeCloseTo(333.00, 2);
     });
     test('identical-description groups are the strong warning\'s job, not a set notice', () => {
         const sets = TaxCalculations.findSameDayPurchaseSets(
@@ -2623,7 +2623,7 @@ describe('findSameDayPurchaseSets', () => {
     });
     test('items on different days do not group', () => {
         expect(TaxCalculations.findSameDayPurchaseSets(
-            [item({ id: 'a', description: 'A', cost: 200, date: '2025-08-25' }),
+            [item({ id: 'a', description: 'A', cost: 200, date: '2025-09-15' }),
              item({ id: 'b', description: 'B', cost: 200, date: '2025-08-26' })], [])
         ).toHaveLength(0);
     });
@@ -2654,19 +2654,20 @@ describe('findSameDayPurchaseSets', () => {
 // ─────────────────────────────────────────────
 describe('generateDepreciationSchedule — written-down value shown per row', () => {
     beforeEach(() => loadConstantsForYear('2024-2025'));
-    test('each row shows opening → closing WDV at full cost basis (real GPU case)', () => {
-        // $635.45 GPU, 3-year DV, acquired 2024-12-01. The accountant's
-        // carried opening WDV for 2025-26 was $389 — the figure that
-        // previously existed only inside the engine.
+    test('each row shows opening → closing WDV at full cost basis', () => {
+        // Mid-year DV purchase: year 1 is day-pro-rated, then full 2/life on
+        // the diminishing balance. The opening WDV each year is the figure a
+        // prepared depreciation schedule carries — previously it existed
+        // only inside the engine.
         const result = TaxCalculations.generateDepreciationSchedule({
-            isDepreciable: true, cost: 635.45, workPercentage: 100, effectiveLife: 3,
-            date: '2024-12-01', depreciationMethod: 'diminishing_value',
+            isDepreciable: true, cost: 800, workPercentage: 100, effectiveLife: 3,
+            date: '2024-09-10', depreciationMethod: 'diminishing_value',
         });
-        expect(result).toMatch(/2024-25: \$246\.06.*opening \$635\.45 → closing \$389\.39/);
-        expect(result).toMatch(/2025-26: \$259\.60.*opening \$389\.39 → closing \$129\.80/);
-        expect(result).toMatch(/2026-27: \$86\.53.*opening \$129\.80 → closing \$43\.27/);
+        expect(result).toMatch(/2024-25: \$429\.59.*opening \$800\.00 → closing \$370\.41/);
+        expect(result).toMatch(/2025-26: \$246\.94.*opening \$370\.41 → closing \$123\.47/);
+        expect(result).toMatch(/2026-27: \$82\.31.*opening \$123\.47 → closing \$41\.16/);
         // Closing of one year is exactly the opening of the next.
-        expect(result).toMatch(/closing \$389\.39.*2025-26: \$259\.60.*opening \$389\.39/);
+        expect(result).toMatch(/closing \$370\.41.*2025-26: \$246\.94.*opening \$370\.41/);
     });
     test('WDV is full cost basis — unaffected by a partial work percentage', () => {
         const full = TaxCalculations.generateDepreciationSchedule({
@@ -2692,7 +2693,7 @@ describe('generateDepreciationSchedule — written-down value shown per row', ()
 // ─────────────────────────────────────────────
 describe('auditCrossYearAssets', () => {
     const dep = (overrides = {}) => ({
-        description: 'Asset', date: '2024-12-01', cost: 635.45, workPercentage: 100,
+        description: 'Asset', date: '2024-11-30', cost: 500.45, workPercentage: 100,
         isDepreciable: true, effectiveLife: 2, depreciationMethod: 'diminishing_value', ...overrides,
     });
     const year = (generalExpenses = [], wfhAssets = []) => ({
@@ -2702,27 +2703,27 @@ describe('auditCrossYearAssets', () => {
     test('flags field drift between years (the GPU case)', () => {
         const findings = TaxCalculations.auditCrossYearAssets({
             '2024-2025': year([dep()]),
-            '2025-2026': year([dep({ cost: 635.00, effectiveLife: 4 })]),
+            '2025-2026': year([dep({ cost: 500.00, effectiveLife: 4 })]),
         });
         expect(findings).toHaveLength(1);
         expect(findings[0].description).toBe('Asset');
-        expect(findings[0].copies.map(c => c.cost)).toEqual([635.45, 635]);
+        expect(findings[0].copies.map(c => c.cost)).toEqual([500.45, 500]);
         expect(findings[0].copies.map(c => c.effectiveLife)).toEqual([2, 4]);
     });
-    test('flags a flip from depreciable to non-depreciable (the P100 case)', () => {
+    test('flags a flip from depreciable to non-depreciable', () => {
         const findings = TaxCalculations.auditCrossYearAssets({
-            '2024-2025': year([dep({ description: 'P100 Nvidia Tesla', cost: 435.38, date: '2024-08-05', effectiveLife: 1 })]),
-            '2025-2026': year([dep({ description: 'P100 Nvidia Tesla', cost: 173.00, date: '2024-07-01', isDepreciable: false, effectiveLife: 0, depreciationMethod: 'prime_cost' })]),
+            '2024-2025': year([dep({ description: 'Accelerator card', cost: 435.38, date: '2024-08-05', effectiveLife: 1 })]),
+            '2025-2026': year([dep({ description: 'Accelerator card', cost: 173.00, date: '2024-07-01', isDepreciable: false, effectiveLife: 0, depreciationMethod: 'prime_cost' })]),
         });
         expect(findings).toHaveLength(1);
         const copies = findings[0].copies;
         expect(copies[0].isDepreciable).toBe(true);
         expect(copies[1].isDepreciable).toBe(false);
     });
-    test('flags the same asset living in different lists (the Pixel Tablet case)', () => {
+    test('flags the same asset living in different lists', () => {
         const findings = TaxCalculations.auditCrossYearAssets({
-            '2024-2025': year([dep({ description: 'Google Pixel Tablet' })], []),
-            '2025-2026': year([], [dep({ description: 'Google Pixel Tablet' })]),
+            '2024-2025': year([dep({ description: 'Tablet' })], []),
+            '2025-2026': year([], [dep({ description: 'Tablet' })]),
         });
         expect(findings).toHaveLength(1);
         expect(new Set(findings[0].copies.map(c => c.list))).toEqual(new Set(['General Expenses', 'WFH Assets']));
@@ -2741,8 +2742,8 @@ describe('auditCrossYearAssets', () => {
         // A subscription re-entered each year with a changed price is a real
         // disagreement worth surfacing, so non-depreciable items participate.
         const findings = TaxCalculations.auditCrossYearAssets({
-            '2024-2025': year([dep({ description: 'Claude.AI Pro', isDepreciable: false, cost: 34, effectiveLife: 0 })]),
-            '2025-2026': year([dep({ description: 'Claude.AI Pro', isDepreciable: false, cost: 100, effectiveLife: 0 })]),
+            '2024-2025': year([dep({ description: 'Software Pro subscription', isDepreciable: false, cost: 34, effectiveLife: 0 })]),
+            '2025-2026': year([dep({ description: 'Software Pro subscription', isDepreciable: false, cost: 100, effectiveLife: 0 })]),
         });
         expect(findings).toHaveLength(1);
     });
@@ -2757,7 +2758,7 @@ describe('auditCrossYearAssets', () => {
 // ─────────────────────────────────────────────
 describe('auditCrossYearAssets — same-year duplicates and per-field pins', () => {
     const dep = (overrides = {}) => ({
-        description: 'Asset', date: '2024-12-01', cost: 500, workPercentage: 100,
+        description: 'Asset', date: '2024-10-15', cost: 500, workPercentage: 100,
         isDepreciable: true, effectiveLife: 3, depreciationMethod: 'prime_cost', ...overrides,
     });
     const year = (generalExpenses = [], wfhAssets = []) => ({
@@ -2769,7 +2770,7 @@ describe('auditCrossYearAssets — same-year duplicates and per-field pins', () 
         // bought months apart — normal data, must stay silent. The original
         // audit fired the red card on exactly this pattern.
         const subs = Array.from({ length: 11 }, (_, i) =>
-            dep({ description: 'Claude.AI Pro', date: `2024-${String(8 + (i > 3 ? 1 : 0)).padStart(2, '0')}-15`, cost: 34, isDepreciable: false, effectiveLife: 0 }));
+            dep({ description: 'Software Pro subscription', date: `2024-${String(8 + (i > 3 ? 1 : 0)).padStart(2, '0')}-15`, cost: 34, isDepreciable: false, effectiveLife: 0 }));
         expect(TaxCalculations.auditCrossYearAssets({ '2024-2025': year(subs) })).toHaveLength(0);
         expect(TaxCalculations.auditCrossYearAssets({
             '2024-2025': year([dep({ description: 'Toner', date: '2024-08-01', cost: 89, isDepreciable: false, effectiveLife: 0 }),
@@ -2784,7 +2785,7 @@ describe('auditCrossYearAssets — same-year duplicates and per-field pins', () 
     // non-empty for depreciable ones, so a flag flip always changes the
     // method too) — it is defence-in-depth and is mutation-unreachable.
     const scenarios = [
-        ['date drift', { date: '2024-12-01' }, { date: '2024-11-01' }],
+        ['date drift', { date: '2024-10-15' }, { date: '2024-11-15' }],
         ['depreciable flip (life 0)', { isDepreciable: true, effectiveLife: 0 }, { isDepreciable: false, effectiveLife: 0 }],
         ['effective-life drift', { effectiveLife: 3 }, { effectiveLife: 5 }],
         ['method drift', { depreciationMethod: 'prime_cost' }, { depreciationMethod: 'diminishing_value' }],
@@ -2806,11 +2807,11 @@ describe('auditCrossYearAssets — same-year duplicates and per-field pins', () 
     test('same-day sets group across the two lists and normalise date keys', () => {
         loadConstantsForYear('2025-2026');
         const sets = TaxCalculations.findSameDayPurchaseSets(
-            [{ id: 'a', description: 'Part A', date: '2025-8-25', cost: 200, workPercentage: 100, isDepreciable: false }],
-            [{ id: 'b', description: 'Part B', date: '2025-08-25', cost: 200, workPercentage: 100, isDepreciable: false }],
+            [{ id: 'a', description: 'Part A', date: '2025-9-15', cost: 200, workPercentage: 100, isDepreciable: false }],
+            [{ id: 'b', description: 'Part B', date: '2025-09-15', cost: 200, workPercentage: 100, isDepreciable: false }],
             '2025-2026');
         expect(sets).toHaveLength(1);
-        expect(sets[0].date).toBe('2025-08-25');   // normalised key, not the raw '2025-8-25'
+        expect(sets[0].date).toBe('2025-09-15');   // normalised key, not the raw '2025-9-15'''
         expect(new Set(sets[0].items.map(i => i.source))).toEqual(new Set(['General Expenses', 'WFH Assets']));
         loadConstantsForYear('2024-2025');
     });

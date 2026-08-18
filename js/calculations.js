@@ -330,8 +330,8 @@ const TaxCalculations = (() => {
 
     // A depreciating asset must be re-entered in every year it declines in
     // value (storage is per financial year), and nothing verified the copies
-    // agreed — in practice copies diverged on cost, effective life, the
-    // depreciable flag itself, and even which list the item lived in. Each
+    // agreed — in practice copies diverge on cost, effective life, the
+    // depreciable flag itself, and even which list the item lives in. Each
     // year's schedule is computed from its own copy, so the divergence is
     // silent and the carried written-down value is wrong. Report-only: the
     // user decides which record is correct.
