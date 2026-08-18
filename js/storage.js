@@ -249,11 +249,14 @@ const StorageManager = (() => {
     // in every year it declines in value, and nothing verified the copies
     // agreed. Reads every stored year and reports same-description items
     // whose cost/date/life/method/depreciable flag differ between years, or
-    // that live in different lists. Report-only.
-    const getCrossYearAssetAudit = () => {
+    // that live in different lists. Report-only. Pass the set of years being
+    // exported so a current-year-only export doesn't drag in audit findings
+    // from years that aren't in the file.
+    const getCrossYearAssetAudit = (years = null) => {
         if (typeof TaxCalculations === 'undefined') return [];
+        const wanted = Array.isArray(years) ? years : getAllStoredYears();
         const yearsData = {};
-        getAllStoredYears().forEach(year => {
+        wanted.forEach(year => {
             try {
                 const raw = localStorage.getItem(getStorageKey(year));
                 if (raw) yearsData[year] = JSON.parse(raw);
@@ -326,7 +329,7 @@ const StorageManager = (() => {
                 });
                 // Cross-year audit spans years, so it rides at the top level
                 // rather than inside any one year's summary.
-                const crossYearAudit = getCrossYearAssetAudit();
+                const crossYearAudit = getCrossYearAssetAudit(Object.keys(exportYearsData));
                 dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: exportYearsData, calculatedSummaries, crossYearAudit }, null, 2);
                 blobType = 'application/json';
                 fileExtension = 'json';
@@ -466,13 +469,13 @@ const StorageManager = (() => {
                 ).join('\n');
                 // The audit spans years, so it appends once after all year
                 // blocks rather than inside any one of them.
-                const audit = getCrossYearAssetAudit();
+                const audit = getCrossYearAssetAudit(Object.keys(exportYearsData));
                 if (audit.length > 0) {
                     dataStr += `"Cross-Year Asset Consistency"\n`;
                     dataStr += `"Description","Year","List","Cost","Date","Depreciable","Effective Life","Method"\n`;
                     audit.forEach(finding => {
                         finding.copies.forEach(copy => {
-                            dataStr += `"${csvCell(finding.description)}","${copy.year}","${copy.list}","${copy.cost}","${csvCell(copy.date)}","${copy.isDepreciable}","${copy.effectiveLife}","${copy.depreciationMethod}"\n`;
+                            dataStr += `"${csvCell(finding.description)}","${csvCell(copy.year)}","${csvCell(copy.list)}","${csvCell(copy.cost)}","${csvCell(copy.date)}","${csvCell(copy.isDepreciable)}","${csvCell(copy.effectiveLife)}","${csvCell(copy.depreciationMethod)}"\n`;
                         });
                     });
                     dataStr += `"Note: storage is per financial year, so a depreciating asset is re-entered each year it declines in value. These copies disagree - decide which record is correct and update the other year."\n`;

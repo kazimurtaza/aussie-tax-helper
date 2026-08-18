@@ -2497,6 +2497,7 @@ describe('calculateDepreciationForFinancialYear — date validation', () => {
 describe('storage migration — assetType', () => {
     let localStorageStub;
     let StorageManager;
+    const hadLocalStorage = Object.prototype.hasOwnProperty.call(global, 'localStorage');
     beforeEach(() => {
         jest.resetModules();
         const store = {};
@@ -2514,6 +2515,16 @@ describe('storage migration — assetType', () => {
         require('../js/calculations.js');
         require('../js/storage.js');
         StorageManager = global.StorageManager;
+        loadConstantsForYear('2024-2025');
+    });
+    afterAll(() => {
+        // Restore the file-top module world for every later describe: drop
+        // the stub and re-point the globals at the original requires so the
+        // suite has no order dependence on this block.
+        if (hadLocalStorage) delete global.localStorage;
+        jest.resetModules();
+        require('../js/constants.js');
+        require('../js/calculations.js');
         loadConstantsForYear('2024-2025');
     });
     const legacyData = () => ({
@@ -2739,5 +2750,68 @@ describe('auditCrossYearAssets', () => {
         expect(TaxCalculations.auditCrossYearAssets(null)).toHaveLength(0);
         expect(TaxCalculations.auditCrossYearAssets({})).toHaveLength(0);
         expect(TaxCalculations.auditCrossYearAssets({ '2024-2025': {} })).toHaveLength(0);
+    });
+});
+// ─────────────────────────────────────────────
+// auditCrossYearAssets — review follow-up regressions
+// ─────────────────────────────────────────────
+describe('auditCrossYearAssets — same-year duplicates and per-field pins', () => {
+    const dep = (overrides = {}) => ({
+        description: 'Asset', date: '2024-12-01', cost: 500, workPercentage: 100,
+        isDepreciable: true, effectiveLife: 3, depreciationMethod: 'prime_cost', ...overrides,
+    });
+    const year = (generalExpenses = [], wfhAssets = []) => ({
+        generalExpenses,
+        wfh: { method: 'actual_cost', hoursLog: [], totalMinutes: 0, actualCostDetails: { properties: [], assets: wfhAssets } },
+    });
+    test('same-year duplicates with different dates are NOT a cross-year finding', () => {
+        // Monthly subscriptions re-entered in one year, identical consumables
+        // bought months apart — normal data, must stay silent. The original
+        // audit fired the red card on exactly this pattern.
+        const subs = Array.from({ length: 11 }, (_, i) =>
+            dep({ description: 'Claude.AI Pro', date: `2024-${String(8 + (i > 3 ? 1 : 0)).padStart(2, '0')}-15`, cost: 34, isDepreciable: false, effectiveLife: 0 }));
+        expect(TaxCalculations.auditCrossYearAssets({ '2024-2025': year(subs) })).toHaveLength(0);
+        expect(TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep({ description: 'Toner', date: '2024-08-01', cost: 89, isDepreciable: false, effectiveLife: 0 }),
+                                dep({ description: 'Toner', date: '2024-11-20', cost: 89, isDepreciable: false, effectiveLife: 0 })]),
+        })).toHaveLength(0);
+    });
+    // One pin per compared field — the mutation check showed the original
+    // suite left four of five comparisons deletable while green. The
+    // depreciable flip is exercised via a life-0 item; note the flag
+    // comparison can never be the SOLE discriminator (the copy record
+    // collapses method to '' for non-depreciable items and guarantees
+    // non-empty for depreciable ones, so a flag flip always changes the
+    // method too) — it is defence-in-depth and is mutation-unreachable.
+    const scenarios = [
+        ['date drift', { date: '2024-12-01' }, { date: '2024-11-01' }],
+        ['depreciable flip (life 0)', { isDepreciable: true, effectiveLife: 0 }, { isDepreciable: false, effectiveLife: 0 }],
+        ['effective-life drift', { effectiveLife: 3 }, { effectiveLife: 5 }],
+        ['method drift', { depreciationMethod: 'prime_cost' }, { depreciationMethod: 'diminishing_value' }],
+        ['assetType drift', { isDepreciable: false, effectiveLife: 0 }, { isDepreciable: false, effectiveLife: 0, assetType: 'service' }],
+    ];
+    test.each(scenarios)('%s is flagged', (_label, a, b) => {
+        const findings = TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep(a)]),
+            '2025-2026': year([dep(b)]),
+        });
+        expect(findings).toHaveLength(1);
+    });
+    test('fractional vs whole effective life normalises before comparing', () => {
+        expect(TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep({ effectiveLife: 0.5 })]),
+            '2025-2026': year([dep({ effectiveLife: 1 })]),
+        })).toHaveLength(0);
+    });
+    test('same-day sets group across the two lists and normalise date keys', () => {
+        loadConstantsForYear('2025-2026');
+        const sets = TaxCalculations.findSameDayPurchaseSets(
+            [{ id: 'a', description: 'Part A', date: '2025-8-25', cost: 200, workPercentage: 100, isDepreciable: false }],
+            [{ id: 'b', description: 'Part B', date: '2025-08-25', cost: 200, workPercentage: 100, isDepreciable: false }],
+            '2025-2026');
+        expect(sets).toHaveLength(1);
+        expect(sets[0].date).toBe('2025-08-25');   // normalised key, not the raw '2025-8-25'
+        expect(new Set(sets[0].items.map(i => i.source))).toEqual(new Set(['General Expenses', 'WFH Assets']));
+        loadConstantsForYear('2024-2025');
     });
 });

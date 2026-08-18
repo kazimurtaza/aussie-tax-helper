@@ -306,14 +306,19 @@ const TaxCalculations = (() => {
         const byDate = new Map();
         candidates.forEach(item => {
             if (!item.date) return;
-            if (!byDate.has(item.date)) byDate.set(item.date, []);
-            byDate.get(item.date).push(item);
+            // Normalise the date string: dateInFinancialYear accepts
+            // non-padded forms ('2025-8-25'), which must group with their
+            // padded equivalents rather than forming a separate bucket.
+            const [y, m, d] = item.date.split('-').map(Number);
+            const key = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            if (!byDate.has(key)) byDate.set(key, []);
+            byDate.get(key).push(item);
         });
 
         return [...byDate.entries()]
             .filter(([, items]) => items.length > 1)
             .map(([date, items]) => ({
-                date,
+                date,   // normalised YYYY-MM-DD key
                 financialYear,
                 count: items.length,
                 distinctDescriptions: new Set(items.map(i => normaliseDescription(i.description))).size,
@@ -325,11 +330,11 @@ const TaxCalculations = (() => {
 
     // A depreciating asset must be re-entered in every year it declines in
     // value (storage is per financial year), and nothing verified the copies
-    // agreed — real data had the same GPU with cost $635.45/life 2 in one
-    // year and $635.00/life 4 in the next, an asset flipped from depreciable
-    // to non-depreciable, and one moved between the two lists. Each year's
-    // schedule is computed from its own copy, so the divergence is silent.
-    // Report-only: the user decides which record is correct.
+    // agreed — in practice copies diverged on cost, effective life, the
+    // depreciable flag itself, and even which list the item lived in. Each
+    // year's schedule is computed from its own copy, so the divergence is
+    // silent and the carried written-down value is wrong. Report-only: the
+    // user decides which record is correct.
     const auditCrossYearAssets = (yearsData) => {
         const byDescription = new Map();
         Object.entries(yearsData || {}).forEach(([year, appData]) => {
@@ -348,26 +353,37 @@ const TaxCalculations = (() => {
                         cost: parseFloat(item.cost) || 0,
                         date: item.date || '',
                         isDepreciable: !!item.isDepreciable,
-                        effectiveLife: item.isDepreciable ? (item.effectiveLife || 0) : 0,
+                        effectiveLife: item.isDepreciable ? normaliseEffectiveLife(item.effectiveLife) : 0,
                         depreciationMethod: item.isDepreciable ? (item.depreciationMethod || 'prime_cost') : '',
+                        assetType: item.assetType || 'equipment',
                     });
                 });
             });
         });
 
+        const fieldsDiffer = (a, b) =>
+            a.cost !== b.cost ||
+            a.date !== b.date ||
+            a.isDepreciable !== b.isDepreciable ||
+            a.effectiveLife !== b.effectiveLife ||
+            a.depreciationMethod !== b.depreciationMethod ||
+            a.assetType !== b.assetType;
+
         const findings = [];
         byDescription.forEach((copies, key) => {
-            if (copies.length < 2) return;
-            const first = copies[0];
-            const listDrift = copies.some(c => c.list !== first.list);
-            const fieldDrift = copies.some(c =>
-                c.cost !== first.cost ||
-                c.date !== first.date ||
-                c.isDepreciable !== first.isDepreciable ||
-                c.effectiveLife !== first.effectiveLife ||
-                c.depreciationMethod !== first.depreciationMethod);
-            if (listDrift || fieldDrift) {
-                findings.push({ description: first.description, copies });
+            // Only compare copies from DIFFERENT years. Same-year duplicates
+            // (a subscription re-entered monthly, identical consumables)
+            // legitimately differ in date and are not a cross-year drift —
+            // flagging them would fire the card on perfectly normal data.
+            const years = [...new Set(copies.map(c => c.year))];
+            if (years.length < 2) return;
+
+            const differing = copies => {
+                const first = copies[0];
+                return copies.some(c => c.list !== first.list || fieldsDiffer(c, first));
+            };
+            if (differing(copies)) {
+                findings.push({ description: copies[0].description, copies });
             }
         });
         return findings;
