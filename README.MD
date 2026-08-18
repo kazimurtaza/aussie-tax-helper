@@ -178,6 +178,16 @@ All other 2025-2026 rates — income tax brackets, LITO, and PHI rebate rates �
 
 ## Changelog
 
+### Version 1.10.0
+* ***Fixed***
+    * ***Identical-assets warning on services:*** The $300 immediate-deduction test is a *depreciating asset* rule; a software subscription is a service consumed as paid, so it is deductible in full with no threshold. The warning previously fired on eleven Claude.AI Pro subscriptions ($374) and two Max subscriptions ($304.50). Items can now be tagged `assetType` Equipment (default) / Service / Consumable on all three entry forms; only equipment-class items participate in the $300 grouping. Stored data without the field behaves identically (a migration stamps it idempotently), and both CSV tables gain an Asset Type column.
+* ***Added***
+    * ***Cross-year consistency audit:*** Storage is per financial year, so a depreciating asset must be re-entered each year it declines in value — and nothing verified the copies agreed. `auditCrossYearAssets` reports same-description items whose cost, date, depreciable flag, effective life or method differ between years, or that live in different lists. Shown as a red "records disagree" card on the summary; JSON exports carry a top-level `crossYearAudit` array and CSV a "Cross-Year Asset Consistency" block. Report-only.
+    * ***Written-down value in the schedule:*** Each depreciation row now reads `2025-26: $259.60 (opening $389.39 → closing $129.80)` at full cost basis — the number an accountant carries forward — alongside the work-share claim, pro-rata note and current-year bolding, which are unchanged.
+    * ***Same-day set notice:*** The second limb of s 40-80(2): items bought the same day that together cost more than $300 *might* form a set and lose the immediate deduction. Surfaced as a question in its own slate card (distinct from the identical-assets warning), with services/consumables excluded and identical-description groups left to the strong warning.
+* ***Improved***
+    * ***PHI own-share guidance:*** The private health insurance inputs now state they take your own share from your own statement — each adult beneficiary receives a separate statement, and entering household totals distorts the rebate offset (a real error that invented a $13.63 liability). 354 Jest tests (up from 332).
+
 ### Version 1.9.0
 * ***Added***
     * ***Occupancy expenses:*** Each WFH property period can record rent or mortgage interest, apportioned by the existing floor-area ratio into the actual-cost deduction. Opt-in field with an ATO caution — occupancy costs are only deductible for employees in limited circumstances.

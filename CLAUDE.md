@@ -31,7 +31,7 @@ js/
   ui.js                # UIManager IIFE -- DOM manipulation, modals, form rendering
   app.js               # App IIFE -- event wiring, orchestration, state management
 tests/
-  calculations.test.js # 332 Jest tests (>90% coverage on calculations.js + constants.js)
+  calculations.test.js # 354 Jest tests (>90% coverage on calculations.js + constants.js)
 .github/workflows/
   test.yml             # CI: runs tests on PRs and non-main pushes
   static.yml           # CD: tests then deploys to GitHub Pages on main push
