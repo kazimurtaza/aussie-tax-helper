@@ -440,7 +440,7 @@ const UIManager = (() => {
             row.appendChild(createCell(asset.description));
             row.appendChild(createCell(asset.date));
             row.appendChild(createCell(formatCurrency(asset.cost)));
-            row.appendChild(createCell(`${normaliseWorkPct(asset.workPercentage, 100)}%`));
+            row.appendChild(createCell(`${TaxCalculations.normaliseWorkPct(asset.workPercentage, 100)}%`));
             row.appendChild(createCell(methodDisplay));
             row.appendChild(createCell(formatCurrency(deduction), ['font-semibold']));
             row.appendChild(createCell(claimScheduleHtml, ['text-xs'], true));
