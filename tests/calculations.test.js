@@ -2816,3 +2816,150 @@ describe('auditCrossYearAssets — same-year duplicates and per-field pins', () 
         loadConstantsForYear('2024-2025');
     });
 });
+// ─────────────────────────────────────────────
+// Bulk group retag (warning-card action semantics)
+// ─────────────────────────────────────────────
+describe('bulk group retag from the identical-assets warning', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+    const makeData = () => makeAppData({
+        generalExpenses: [
+            // Service-shaped group: 11 identical over $300 (would false-warn untagged)
+            ...Array.from({ length: 11 }, (_, i) =>
+                ({ id: `sub${i}`, description: 'Software Pro subscription', date: '2024-08-15', cost: 34, workPercentage: 100, isDepreciable: false, assetType: 'equipment' })),
+            // Real equipment group: 8 identical RAM modules
+            ...Array.from({ length: 8 }, (_, i) =>
+                ({ id: `ram${i}`, description: 'RAM module', date: '2024-09-01', cost: 224, workPercentage: 100, isDepreciable: false, assetType: 'equipment' })),
+            // A depreciable item and a WFH-side asset so both deduction paths run
+            { id: 'dep1', description: 'Monitor', date: '2024-10-01', cost: 1200, workPercentage: 100, isDepreciable: true, effectiveLife: 4, depreciationMethod: 'prime_cost', assetType: 'equipment' },
+        ],
+        wfh: {
+            method: 'actual_cost', hoursLog: [], totalMinutes: 0,
+            actualCostDetails: {
+                properties: [],
+                assets: [{ id: 'wfh1', description: 'Desk', date: '2024-11-01', cost: 450, workPercentage: 80, isDepreciable: false, assetType: 'equipment' }],
+            },
+        },
+    });
+    // Exactly what App.retagIdenticalGroup does on confirm: route each item
+    // to its list by `source` and set assetType by id — never by description.
+    const applyRetag = (appData, groups, descriptionKey, assetType) => {
+        const group = groups.find(g => g.description === descriptionKey);
+        group.items.forEach(({ id, source }) => {
+            const list = source === 'WFH Assets'
+                ? appData.wfh.actualCostDetails.assets
+                : appData.generalExpenses;
+            const item = list.find(i => i.id === id);
+            if (item) item.assetType = assetType;
+        });
+    };
+    test('retagging a group removes exactly that group from the warnings', () => {
+        const data = makeData();
+        const before = TaxCalculations.calculateYearSummary(data).identicalAssetWarnings;
+        expect(before.map(w => w.description).sort()).toEqual(['RAM module', 'Software Pro subscription']);
+        applyRetag(data, before, 'Software Pro subscription', 'service');
+        const after = TaxCalculations.calculateYearSummary(data).identicalAssetWarnings;
+        expect(after.map(w => w.description)).toEqual(['RAM module']);   // equipment group survives
+        expect(after[0].count).toBe(8);
+    });
+    test('overallTotalDeductions is byte-identical before and after the retag', () => {
+        const data = makeData();
+        const before = TaxCalculations.calculateYearSummary(data).overallTotalDeductions;
+        const warnings = TaxCalculations.calculateYearSummary(data).identicalAssetWarnings;
+        applyRetag(data, warnings, 'Software Pro subscription', 'service');
+        applyRetag(data, warnings, 'RAM module', 'consumable');
+        const after = TaxCalculations.calculateYearSummary(data).overallTotalDeductions;
+        expect(after).toBe(before);   // toBe, not toBeCloseTo: exact equality
+    });
+    test('retag routes by id only — a same-description id in the other list is untouched', () => {
+        const data = makeAppData({
+            generalExpenses: [{ id: 'gen-1', description: 'Cable', date: '2024-08-01', cost: 200, workPercentage: 100, isDepreciable: false, assetType: 'equipment' }],
+            wfh: {
+                method: 'actual_cost', hoursLog: [], totalMinutes: 0,
+                actualCostDetails: {
+                    properties: [],
+                    assets: [{ id: 'wfh-1', description: 'Cable', date: '2024-08-02', cost: 200, workPercentage: 100, isDepreciable: false, assetType: 'equipment' }],
+                },
+            },
+        });
+        // The warning group crosses both lists; retag with a stale WFH id that
+        // no longer exists (simulating routing to the wrong list) must not
+        // fall back to matching by description.
+        applyRetag(data, [{ description: 'Cable', items: [
+            { id: 'gen-1', source: 'General Expenses' },
+            { id: 'nonexistent-id', source: 'WFH Assets' },
+        ]}], 'Cable', 'service');
+        expect(data.generalExpenses[0].assetType).toBe('service');
+        expect(data.wfh.actualCostDetails.assets[0].assetType).toBe('equipment');  // untouched
+    });
+});
+// ─────────────────────────────────────────────
+// Bulk retag round-trip: export → import preserves assetType
+// ─────────────────────────────────────────────
+describe('bulk retag survives export → import', () => {
+    let localStorageStub;
+    let StorageManager;
+    beforeEach(() => {
+        jest.resetModules();
+        const store = {};
+        localStorageStub = {
+            getItem: (k) => (k in store ? store[k] : null),
+            setItem: (k, v) => { store[k] = String(v); },
+            removeItem: (k) => { delete store[k]; },
+            key: (i) => Object.keys(store)[i] ?? null,
+            get length() { return Object.keys(store).length; },
+        };
+        global.localStorage = localStorageStub;
+        require('../js/constants.js');
+        require('../js/calculations.js');
+        require('../js/storage.js');
+        StorageManager = global.StorageManager;
+        loadConstantsForYear('2024-2025');
+    });
+    afterAll(() => {
+        delete global.localStorage;
+        jest.resetModules();
+        require('../js/constants.js');
+        require('../js/calculations.js');
+        loadConstantsForYear('2024-2025');
+    });
+    const yearData = () => ({
+        userSettings: { currentSection: 'dashboard-section', financialYear: '2024-2025' },
+        taxpayerDetails: { filingStatus: 'single' },
+        income: { payg: [], other: { bankInterest: 0, dividendsUnfranked: 0, dividendsFranked: 0, frankingCredits: 0, netCapitalGains: 0 } },
+        generalExpenses: [
+            { id: 's1', description: 'Software Pro subscription', date: '2024-08-15', cost: 34, workPercentage: 100, isDepreciable: false, assetType: 'service', category: 'other' },
+            { id: 'r1', description: 'RAM module', date: '2024-09-01', cost: 224, workPercentage: 100, isDepreciable: false, assetType: 'equipment', category: 'tools' },
+        ],
+        wfh: { method: 'fixed_rate', hoursLog: [], totalMinutes: 0, actualCostDetails: { properties: [], assets: [] } },
+    });
+    test('a retagged service item round-trips with assetType and all fields intact', () => {
+        // Seed storage via loadData's save path
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify(yearData()));
+        // Export
+        let captured = null;
+        global.Blob = class { constructor(parts) { captured = parts.join(''); } };
+        global.URL = { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} };
+        global.document = { getElementById: () => null, createElement: () => ({ style: {}, click: () => {} }), body: { appendChild: () => {}, removeChild: () => {} } };
+        StorageManager.exportData(StorageManager.loadData('2024-2025'), 'json', 'current');
+        // Import via a FileReader stub mirroring storage.js's reader usage
+        class FileReaderStub {
+            readAsText() {
+                this.result = captured;
+                this.onload({ target: { result: captured } });
+            }
+        }
+        global.FileReader = FileReaderStub;
+        let loadedYear = null;
+        StorageManager.importData({ name: 'tax_data.json' }, (data) => { loadedYear = data; });
+        const loaded = StorageManager.loadData('2024-2025');
+        const sub = loaded.generalExpenses.find(e => e.id === 's1');
+        const ram = loaded.generalExpenses.find(e => e.id === 'r1');
+        expect(sub.assetType).toBe('service');       // the retag survives
+        expect(ram.assetType).toBe('equipment');     // and the other items too
+        // All other fields unchanged
+        expect(sub.cost).toBe(34);
+        expect(sub.description).toBe('Software Pro subscription');
+        expect(sub.date).toBe('2024-08-15');
+        expect(loadedYear).not.toBeNull();
+    });
+});

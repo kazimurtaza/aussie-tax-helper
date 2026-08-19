@@ -339,6 +339,32 @@ const App = (() => {
         });
     };
 
+    // One-action retag of an identical-assets warning group as services or
+    // consumables, from the card itself. assetType gates warning detection
+    // only — deductions are untouched. Items are routed to their list by the
+    // group's `source` and matched by id; never by description. Reversible
+    // per item via the Asset Type selector on any edit form.
+    const retagIdenticalGroup = (items, assetType) => {
+        const count = (items || []).length;
+        if (count === 0 || !['service', 'consumable'].includes(assetType)) return;
+        UIManager.showConfirmation(
+            `Mark ${count} item${count === 1 ? '' : 's'} as ${assetType}? This only changes how the $300 warning treats them — your deductions are unaffected. You can undo it per item with the Asset Type selector.`,
+            () => {
+                let changed = 0;
+                items.forEach(({ id, source }) => {
+                    const list = source === 'WFH Assets'
+                        ? appData.wfh.actualCostDetails.assets
+                        : appData.generalExpenses;
+                    const item = list && list.find(i => i.id === id);
+                    if (item) { item.assetType = assetType; changed++; }
+                });
+                if (changed > 0) {
+                    saveAndRefresh();
+                    UIManager.showNotification(`${changed} item${changed === 1 ? '' : 's'} marked as ${assetType}.`);
+                }
+            });
+    };
+
     function handleAddWfhHour(e) {
         e.preventDefault();
         const form = e.target;
@@ -546,7 +572,8 @@ const App = (() => {
         removeGeneralExpense, editGeneralExpense,
         removeWfhHour, removeWfhAsset, editWfhAsset,
         editWfhProperty, removeWfhProperty,
-        moveExpenseToWfh, moveWfhAssetToGeneral
+        moveExpenseToWfh, moveWfhAssetToGeneral,
+        retagIdenticalGroup
     };
 })();
 

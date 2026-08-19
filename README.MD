@@ -178,6 +178,10 @@ All other 2025-2026 rates — income tax brackets, LITO, and PHI rebate rates �
 
 ## Changelog
 
+### Version 1.11.0
+* ***Added***
+    * ***Group retag from the warning card:*** The identical-assets warning card now offers "These are services" / "These are consumables" on each group, so a year of subscription line items can be excluded from the $300 rule in one action instead of editing each item one by one. Asks for confirmation first (it changes how future warnings treat the items), routes each item to its list by id, leaves deductions byte-identical, and is reversible per item via the existing Asset Type selector. 366 Jest tests (up from 362).
+
 ### Version 1.10.0
 * ***Fixed***
     * ***Identical-assets warning on services:*** The $300 immediate-deduction test is a *depreciating asset* rule; a software subscription is a service consumed as paid, so it is deductible in full with no threshold. The warning previously fired on recurring software subscriptions — eleven identical monthly plans and two premium plans — which are services, not assets. Items can now be tagged `assetType` Equipment (default) / Service / Consumable on all three entry forms; only equipment-class items participate in the $300 grouping. Stored data without the field behaves identically (a migration stamps it idempotently), and both CSV tables gain an Asset Type column.

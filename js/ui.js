@@ -551,15 +551,29 @@ const UIManager = (() => {
         document.getElementById('summary-final-outcome').textContent = outcomeText;
 
         // Identical low-value assets: the ATO tests the $300 threshold on
-        // the combined cost, so surface groups for review (never reclassify).
+        // the combined cost, so surface groups for review (never reclassify
+        // silently). Each group carries a one-action retag — the user is
+        // already judging the group here — routed through App so storage
+        // writes stay out of the renderer.
         const warnBox = document.getElementById('identical-assets-warning');
         const warnList = document.getElementById('identical-assets-warning-list');
         warnList.innerHTML = '';
         warnBox.classList.toggle('hidden', (identicalAssetWarnings || []).length === 0);
         (identicalAssetWarnings || []).forEach(group => {
             const li = document.createElement('li');
-            li.textContent = `"${group.description}" × ${group.count} — combined ${formatCurrency(group.combinedCost)} `
+            const span = document.createElement('span');
+            span.textContent = `"${group.description}" × ${group.count} — combined ${formatCurrency(group.combinedCost)} `
                 + `(${group.items.map(i => `${i.source}: ${formatCurrency(i.cost)}`).join(', ')})`;
+            li.appendChild(span);
+            [['service', 'These are services'], ['consumable', 'These are consumables']].forEach(([type, label]) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = label;
+                btn.className = 'text-xs underline ml-2 text-amber-900 hover:text-amber-700 font-semibold';
+                btn.setAttribute('aria-label', `Mark the ${group.count} "${group.description}" items as ${type} and stop flagging them`);
+                btn.addEventListener('click', () => App.retagIdenticalGroup(group.items, type));
+                li.appendChild(btn);
+            });
             warnList.appendChild(li);
         });
 

@@ -581,7 +581,9 @@
                     <p class="text-xs text-amber-800 mt-2">
                         The ATO tests the $300 immediate-deduction threshold on the <em>combined</em> cost of identical or substantially identical assets
                         you started to hold this income year — these items may need to be depreciated instead of claimed in full. Assets bought as a set
-                        (e.g. a desk and chair marketed together) can also lose the immediate deduction. This is a warning only; nothing has been changed.
+                        (e.g. a desk and chair marketed together) can also lose the immediate deduction. If a group is really a service or consumable
+                        (a subscription, printer filament), use the button to mark it as such — your deductions don't change, the group just stops being
+                        flagged, and you can undo it per item with the Asset Type selector. This is a warning only; nothing is changed automatically.
                     </p>
                 </div>
                 <div id="sameday-set-notice" class="hidden mb-4 p-4 rounded-lg border border-slate-300 bg-slate-50">
@@ -676,6 +678,12 @@
             <div class="bg-white p-6 rounded-lg shadow-lg">
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
+                    <div>
+                        <h4 class="font-semibold">Version 1.11.0</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-green-600">Added:</strong> One-action group retag on the identical-assets warning card — if a flagged group is really a service (a subscription) or a consumable (printer filament), mark all of its items in one click instead of editing them one by one. Asks first, never changes deductions, and is reversible per item with the Asset Type selector.</li>
+                        </ul>
+                    </div>
                     <div>
                         <h4 class="font-semibold">Version 1.10.0</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
