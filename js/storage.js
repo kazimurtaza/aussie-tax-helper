@@ -139,6 +139,16 @@ const StorageManager = (() => {
                 delete log.hours;
             });
         }
+        // Stamp assetType on items saved before the field existed. A missing
+        // value already reads as 'equipment' everywhere, so this is a
+        // normalisation for the UI/editors, not a behaviour change — and
+        // idempotent: the second run finds nothing left to stamp.
+        (data.generalExpenses || []).forEach(exp => {
+            if (!exp.assetType) exp.assetType = 'equipment';
+        });
+        (data.wfh?.actualCostDetails?.assets || []).forEach(asset => {
+            if (!asset.assetType) asset.assetType = 'equipment';
+        });
         return data;
     };
 
@@ -235,6 +245,33 @@ const StorageManager = (() => {
         }
     };
 
+    // Cross-year consistency audit: a depreciating asset must be re-entered
+    // in every year it declines in value, and nothing verified the copies
+    // agreed. Reads every stored year and reports same-description items
+    // whose cost/date/life/method/depreciable flag differ between years, or
+    // that live in different lists. Report-only. Pass the set of years being
+    // exported so a current-year-only export doesn't drag in audit findings
+    // from years that aren't in the file.
+    const getCrossYearAssetAudit = (years = null) => {
+        if (typeof TaxCalculations === 'undefined') return [];
+        const wanted = Array.isArray(years) ? years : getAllStoredYears();
+        const yearsData = {};
+        wanted.forEach(year => {
+            try {
+                const raw = localStorage.getItem(getStorageKey(year));
+                if (raw) yearsData[year] = JSON.parse(raw);
+            } catch (e) {
+                // Corrupt year — the export path already warns about those.
+            }
+        });
+        try {
+            return TaxCalculations.auditCrossYearAssets(yearsData);
+        } catch (e) {
+            console.error('Cross-year asset audit failed:', e);
+            return [];
+        }
+    };
+
     // Calculated summary for one year's data, computed under that year's
     // constants — withYearConstants swaps the globals and restores them even
     // on error, so no caller-level cleanup is needed. Returns null for years
@@ -290,7 +327,10 @@ const StorageManager = (() => {
                     const summary = computeYearSummary(yr, d);
                     if (summary) calculatedSummaries[yr] = summary;
                 });
-                dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: exportYearsData, calculatedSummaries }, null, 2);
+                // Cross-year audit spans years, so it rides at the top level
+                // rather than inside any one year's summary.
+                const crossYearAudit = getCrossYearAssetAudit(Object.keys(exportYearsData));
+                dataStr = JSON.stringify({ exportVersion: '2', exportDate: today, years: exportYearsData, calculatedSummaries, crossYearAudit }, null, 2);
                 blobType = 'application/json';
                 fileExtension = 'json';
             } else {
@@ -372,6 +412,21 @@ const StorageManager = (() => {
                         s += `"Note: the ATO excludes assets that are one of a number of identical or substantially identical assets started to hold in the year when together they cost more than $300. These may need to be depreciated instead - review before claiming."\n\n`;
                     }
 
+                    // Same-day purchases: the "set of assets" limb of the $300
+                    // test — a question for the user, not a finding.
+                    const sets = (summary && summary.sameDaySetNotices) || [];
+                    if (sets.length > 0) {
+                        s += `"Possible sets acquired on the same day (check, not a finding)"\n`;
+                        s += `"Date","Count","Combined Cost (AUD)","Items"\n`;
+                        sets.forEach(set => {
+                            const itemsStr = set.items
+                                .map(i => `${i.source}: ${i.description} (${money(i.cost)})`)
+                                .join('; ');
+                            s += `"${set.date}","${set.count}","${money(set.combinedCost)}","${csvCell(itemsStr)}"\n`;
+                        });
+                        s += `"Note: items bought together as a set (interdependent, marketed together, or designed to be used together) lose the immediate deduction when the set costs more than $300. Unrelated items bought the same day are not a set."\n\n`;
+                    }
+
                     s += `"Taxpayer Details"\n${arrayToCsv(
                         [data.taxpayerDetails],
                         ['Filing Status', 'Spouse Income', 'Children', 'Medicare Exempt', 'Medicare Exempt Days', 'Has Private Hospital Cover', 'Reportable Fringe Benefits', 'Personal Super Contribution', 'PHI Age Bracket', 'PHI Premiums Paid (Jul-Mar)', 'PHI Premiums Paid (Apr-Jun)', 'PHI Rebate Received'],
@@ -385,8 +440,8 @@ const StorageManager = (() => {
                     )}\n\n`;
                     s += `"General Expenses"\n${arrayToCsv(
                         withDeduction(data.generalExpenses, 0),
-                        ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
-                        ['description', 'date', 'cost', 'category', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
+                        ['Description', 'Date', 'Cost', 'Category', 'Work %', 'Asset Type', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
+                        ['description', 'date', 'cost', 'category', 'workPercentage', 'assetType', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
                     )}\n\n`;
                     s += `"Work-From-Home Details"\n"Method:","${data.wfh.method}"\n\n`;
                     s += `"WFH Hours Log"\n${arrayToCsv(data.wfh.hoursLog, ['Date', 'Minutes'], ['date', 'minutes'])}\n\n`;
@@ -398,8 +453,8 @@ const StorageManager = (() => {
                     )}\n\n`;
                     s += `"WFH Actual Cost - Assets"\n${arrayToCsv(
                         withDeduction(data.wfh.actualCostDetails.assets, 100),
-                        ['Description', 'Date', 'Cost', 'Work %', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
-                        ['description', 'date', 'cost', 'workPercentage', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
+                        ['Description', 'Date', 'Cost', 'Work %', 'Asset Type', 'Depreciable', 'Effective Life', 'Depreciation Method', 'Deduction This FY ($)'],
+                        ['description', 'date', 'cost', 'workPercentage', 'assetType', 'isDepreciable', 'effectiveLife', 'depreciationMethod', 'deductionThisFY']
                     )}\n\n`;
                     return s;
                 };
@@ -412,6 +467,19 @@ const StorageManager = (() => {
                 dataStr = Object.entries(exportYearsData).map(([yr, d]) =>
                     window.withYearConstants(yr, () => buildYearCsv(d, yr, computeYearSummary(yr, d)))
                 ).join('\n');
+                // The audit spans years, so it appends once after all year
+                // blocks rather than inside any one of them.
+                const audit = getCrossYearAssetAudit(Object.keys(exportYearsData));
+                if (audit.length > 0) {
+                    dataStr += `"Cross-Year Asset Consistency"\n`;
+                    dataStr += `"Description","Year","List","Cost","Date","Depreciable","Effective Life","Method"\n`;
+                    audit.forEach(finding => {
+                        finding.copies.forEach(copy => {
+                            dataStr += `"${csvCell(finding.description)}","${csvCell(copy.year)}","${csvCell(copy.list)}","${csvCell(copy.cost)}","${csvCell(copy.date)}","${csvCell(copy.isDepreciable)}","${csvCell(copy.effectiveLife)}","${csvCell(copy.depreciationMethod)}"\n`;
+                        });
+                    });
+                    dataStr += `"Note: storage is per financial year, so a depreciating asset is re-entered each year it declines in value. These copies disagree - decide which record is correct and update the other year."\n`;
+                }
                 blobType = 'text/csv;charset=utf-8;';
                 fileExtension = 'csv';
             }
@@ -611,6 +679,9 @@ const StorageManager = (() => {
         getYearsWithData,
         detectDefaultYear,
         saveActiveYearPreference,
+        getCrossYearAssetAudit,
         setNotifyCallback
     };
 })();
+
+window.StorageManager = StorageManager;

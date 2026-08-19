@@ -147,6 +147,9 @@ const TaxCalculations = (() => {
             amount: capped * (workPct / 100) * proRata,
             daysOwned: isAcqYear ? acqDaysOwned : null,
             fyDays: isAcqYear ? acqFYDays : null,
+            // Written-down values at full cost basis — the figures an
+            // accountant carries forward, distinct from the work-share claim.
+            openingValueBefore,
             remainingValueAfter: Math.max(0, openingValueBefore - annual * proRata),
         };
     };
@@ -249,6 +252,13 @@ const TaxCalculations = (() => {
     // app surfaces a warning and the user decides; nothing is reclassified.
     const IDENTICAL_ASSET_THRESHOLD = 300;
 
+    // The $300 test is a *depreciating asset* rule. Services and consumables
+    // are consumed as paid for — no asset is held — so they are deductible in
+    // full under the general deduction provision with no threshold and no
+    // identical-items rule. A missing assetType reads as equipment so stored
+    // data from before the field existed behaves unchanged.
+    const isAssetClassItem = (item) => (item.assetType || 'equipment') === 'equipment';
+
     const normaliseDescription = (desc) =>
         String(desc ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -256,7 +266,7 @@ const TaxCalculations = (() => {
         const candidates = [
             ...(generalExpenses || []).map(item => ({ ...item, source: 'General Expenses' })),
             ...(wfhAssets || []).map(item => ({ ...item, source: 'WFH Assets' })),
-        ].filter(item => !item.isDepreciable && dateInFinancialYear(item.date, financialYear));
+        ].filter(item => !item.isDepreciable && isAssetClassItem(item) && dateInFinancialYear(item.date, financialYear));
 
         const groups = new Map();
         candidates.forEach(item => {
@@ -279,8 +289,107 @@ const TaxCalculations = (() => {
             .filter(group => group.combinedCost > IDENTICAL_ASSET_THRESHOLD);
     };
 
-    const calculateWfhActualCostDeduction = (details) => {
-        if (!details) return 0;
+    // The other limb of s 40-80(2): the immediate deduction is also
+    // unavailable when the asset is part of a *set* acquired in the income
+    // year whose total cost exceeds $300. Whether items form a set
+    // (interdependent, marketed together, designed for use together) is a
+    // judgement call no grouping heuristic can make, so this surfaces
+    // same-day equipment purchases as a QUESTION for the user — a much
+    // softer signal than the identical-items warning. Identical-description
+    // groups are excluded: the strong warning already covers them.
+    const findSameDayPurchaseSets = (generalExpenses = [], wfhAssets = [], financialYear = window.FINANCIAL_YEAR) => {
+        const candidates = [
+            ...(generalExpenses || []).map(item => ({ ...item, source: 'General Expenses' })),
+            ...(wfhAssets || []).map(item => ({ ...item, source: 'WFH Assets' })),
+        ].filter(item => !item.isDepreciable && isAssetClassItem(item) && dateInFinancialYear(item.date, financialYear));
+
+        const byDate = new Map();
+        candidates.forEach(item => {
+            if (!item.date) return;
+            // Normalise the date string: dateInFinancialYear accepts
+            // non-padded forms ('2025-8-25'), which must group with their
+            // padded equivalents rather than forming a separate bucket.
+            const [y, m, d] = item.date.split('-').map(Number);
+            const key = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            if (!byDate.has(key)) byDate.set(key, []);
+            byDate.get(key).push(item);
+        });
+
+        return [...byDate.entries()]
+            .filter(([, items]) => items.length > 1)
+            .map(([date, items]) => ({
+                date,   // normalised YYYY-MM-DD key
+                financialYear,
+                count: items.length,
+                distinctDescriptions: new Set(items.map(i => normaliseDescription(i.description))).size,
+                combinedCost: items.reduce((sum, i) => sum + (parseFloat(i.cost) || 0), 0),
+                items: items.map(({ id, description: d, cost, source }) => ({ id, description: d, cost, source })),
+            }))
+            .filter(set => set.distinctDescriptions > 1 && set.combinedCost > IDENTICAL_ASSET_THRESHOLD);
+    };
+
+    // A depreciating asset must be re-entered in every year it declines in
+    // value (storage is per financial year), and nothing verified the copies
+    // agreed — in practice copies diverge on cost, effective life, the
+    // depreciable flag itself, and even which list the item lives in. Each
+    // year's schedule is computed from its own copy, so the divergence is
+    // silent and the carried written-down value is wrong. Report-only: the
+    // user decides which record is correct.
+    const auditCrossYearAssets = (yearsData) => {
+        const byDescription = new Map();
+        Object.entries(yearsData || {}).forEach(([year, appData]) => {
+            const lists = [
+                { list: 'General Expenses', items: appData.generalExpenses || [] },
+                { list: 'WFH Assets', items: (appData.wfh && appData.wfh.actualCostDetails && appData.wfh.actualCostDetails.assets) || [] },
+            ];
+            lists.forEach(({ list, items }) => {
+                items.forEach(item => {
+                    const key = normaliseDescription(item.description);
+                    if (!key) return;
+                    if (!byDescription.has(key)) byDescription.set(key, []);
+                    byDescription.get(key).push({
+                        year, list,
+                        description: item.description,
+                        cost: parseFloat(item.cost) || 0,
+                        date: item.date || '',
+                        isDepreciable: !!item.isDepreciable,
+                        effectiveLife: item.isDepreciable ? normaliseEffectiveLife(item.effectiveLife) : 0,
+                        depreciationMethod: item.isDepreciable ? (item.depreciationMethod || 'prime_cost') : '',
+                        assetType: item.assetType || 'equipment',
+                    });
+                });
+            });
+        });
+
+        const fieldsDiffer = (a, b) =>
+            a.cost !== b.cost ||
+            a.date !== b.date ||
+            a.isDepreciable !== b.isDepreciable ||
+            a.effectiveLife !== b.effectiveLife ||
+            a.depreciationMethod !== b.depreciationMethod ||
+            a.assetType !== b.assetType;
+
+        const findings = [];
+        byDescription.forEach((copies, key) => {
+            // Only compare copies from DIFFERENT years. Same-year duplicates
+            // (a subscription re-entered monthly, identical consumables)
+            // legitimately differ in date and are not a cross-year drift —
+            // flagging them would fire the card on perfectly normal data.
+            const years = [...new Set(copies.map(c => c.year))];
+            if (years.length < 2) return;
+
+            const differing = copies => {
+                const first = copies[0];
+                return copies.some(c => c.list !== first.list || fieldsDiffer(c, first));
+            };
+            if (differing(copies)) {
+                findings.push({ description: copies[0].description, copies });
+            }
+        });
+        return findings;
+    };
+
+    const calculateWfhActualCostDeduction = (details) => {        if (!details) return 0;
         const properties = details.properties || [details];
         const runningExpenses = properties.reduce((sum, prop) =>
             sum + calculateWfhRunningExpensesDeduction(prop), 0);
@@ -480,6 +589,10 @@ const TaxCalculations = (() => {
             appData.generalExpenses,
             (appData.wfh && appData.wfh.actualCostDetails && appData.wfh.actualCostDetails.assets) || [],
         );
+        const sameDaySetNotices = findSameDayPurchaseSets(
+            appData.generalExpenses,
+            (appData.wfh && appData.wfh.actualCostDetails && appData.wfh.actualCostDetails.assets) || [],
+        );
         return {
             financialYear: window.FINANCIAL_YEAR,
             totalAssessableIncome,
@@ -493,6 +606,7 @@ const TaxCalculations = (() => {
             medicareLevy,
             mls,
             identicalAssetWarnings,
+            sameDaySetNotices,
             offsets,
             netTaxPayable,
             finalOutcome,
@@ -545,7 +659,11 @@ const TaxCalculations = (() => {
             }
 
             remainingValue = row.remainingValueAfter;
-            const amountStr = `${fyLabel}: ${fmt(row.amount)}${proRataNote}`;
+            // Show the claim plus the opening/closing written-down value at
+            // full cost basis — the number an accountant carries forward, so
+            // a disagreement against a prepared schedule is self-diagnosing.
+            const wdvNote = ` <span style="opacity:0.55;font-size:0.8em">(opening ${fmt(row.openingValueBefore)} → closing ${fmt(row.remainingValueAfter)})</span>`;
+            const amountStr = `${fyLabel}: ${fmt(row.amount)}${proRataNote}${wdvNote}`;
             schedule.push(isCurrent ? `<strong>${amountStr}</strong>` : amountStr);
         }
 
@@ -572,6 +690,8 @@ const TaxCalculations = (() => {
         normaliseWorkPct,
         dateInFinancialYear,
         findIdenticalAssetGroups,
+        findSameDayPurchaseSets,
+        auditCrossYearAssets,
         calculateDepreciationForFinancialYear,
         calculateWfhActualCostDeduction,
         calculateWfhRunningExpensesDeduction,

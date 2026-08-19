@@ -9,7 +9,7 @@ Client-side Australian tax deductions estimator for individuals, particularly sa
 ## Stack
 - **HTML + Tailwind CSS (CDN)** -- no build step for frontend
 - **Vanilla JavaScript (ES6 IIFEs)** -- four modules loaded via `<script>` tags in `index.html`
-- **Jest (v30)** -- unit tests for calculation logic only; Node 22
+- **Jest (v30)** -- calculation unit tests (node env) plus a jsdom boot smoke test that loads the real page headlessly; Node 22
 - **GitHub Pages** -- static deployment from `main` branch root
 - **GitHub Actions** -- two workflows: `test.yml` (PRs and non-main pushes) and `static.yml` (main pushes, runs tests then deploys)
 
@@ -31,7 +31,7 @@ js/
   ui.js                # UIManager IIFE -- DOM manipulation, modals, form rendering
   app.js               # App IIFE -- event wiring, orchestration, state management
 tests/
-  calculations.test.js # 332 Jest tests (>90% coverage on calculations.js + constants.js)
+  calculations.test.js # 354 Jest tests (>90% coverage on calculations.js + constants.js)
 .github/workflows/
   test.yml             # CI: runs tests on PRs and non-main pushes
   static.yml           # CD: tests then deploys to GitHub Pages on main push
@@ -46,7 +46,7 @@ tests/
 - **State:** `appData` object in `app.js` is the single source of truth. Structure defined by `StorageManager.getDefaultData()`.
 - **Window globals:** Tax constants are set on `window` by `loadConstantsForYear()`. Test suite uses `global.window = global` to simulate browser.
 - **CSS:** Tailwind classes in HTML + a small `<style>` block in `index.html` for animations, modals, and form styling overrides. No separate CSS file.
-- **Testing:** Jest tests in `tests/calculations.test.js`. Tests require source files via `require()` (not ES imports). Coverage is enforced: 90% lines/functions, 80% branches.
+- **Testing:** Jest tests in `tests/calculations.test.js` (node env, calculation layer only — 90/90/80 coverage gates on calculations.js + constants.js) and `tests/dom-smoke.test.js` (jsdom env, boots the real page; UI/app/storage files are deliberately outside coverage collection). Tests require source files via `require()` (not ES imports). Coverage is enforced: 90% lines/functions, 80% branches.
 - **Accessibility:** Modals for confirmations (not `alert`/`confirm`). Focus styles on inputs. Semantic HTML with `<fieldset>`/`<legend>`.
 - **HTML escaping:** `escapeHtml()` in `calculations.js` (exported as `TaxCalculations.escapeHtml`) is used for all user-supplied text in table rendering. Event handlers use `addEventListener` — no inline `onclick`.
 - **No console.log in production:** Debug logging is removed before commits.

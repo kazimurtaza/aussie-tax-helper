@@ -271,17 +271,24 @@
                             <div>
                                 <label id="phi-period1-label" for="phi-premiums-paid-period1" class="block text-sm font-medium text-gray-700">Premiums Paid (Jul 2024 - Mar 2025):</label>
                                 <input type="number" id="phi-premiums-paid-period1" name="phi-premiums-paid-period1" step="0.01" min="0">
+                                <p class="tooltip-text mt-1">Your share from your own statement only.</p>
                             </div>
                             <div>
                                 <label id="phi-period2-label" for="phi-premiums-paid-period2" class="block text-sm font-medium text-gray-700">Premiums Paid (Apr 2025 - Jun 2025):</label>
                                 <input type="number" id="phi-premiums-paid-period2" name="phi-premiums-paid-period2" step="0.01" min="0">
+                                <p class="tooltip-text mt-1">Your share from your own statement only.</p>
                             </div>
                             <div>
                                 <label for="phi-rebate-received" class="block text-sm font-medium text-gray-700">Rebate Received ($):</label>
                                 <input type="number" id="phi-rebate-received" name="phi-rebate-received" step="0.01" min="0" placeholder="From your statement">
+                                <p class="tooltip-text mt-1">Your share from your own statement only.</p>
                             </div>
                         </div>
-                        <p class="tooltip-text mt-2">Enter details from your private health insurance statement to calculate your tax offset.</p>
+                        <p class="tooltip-text mt-2">
+                            Enter amounts from <strong>your own</strong> private health insurance statement only — not the household policy total. Each adult
+                            beneficiary on the policy receives a separate statement showing their share of the policy only; your spouse's share belongs on
+                            their own return. Entering household totals here overstates your premiums and rebate and distorts the offset.
+                        </p>
                     </fieldset>
 
                     <button type="submit" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors">Save Details</button>
@@ -393,6 +400,15 @@
                             <div class="md:col-span-2">
                                 <label for="expense-work-percentage" class="block text-sm font-medium text-gray-700">Work-Related Use (%):</label>
                                 <input type="number" id="expense-work-percentage" name="expense-work-percentage" min="0" max="100" value="100" step="1">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label for="expense-asset-type" class="block text-sm font-medium text-gray-700">Asset Type:</label>
+                                <select id="expense-asset-type" name="expense-asset-type">
+                                    <option value="equipment" selected>Equipment (physical asset)</option>
+                                    <option value="service">Service (subscription, support plan)</option>
+                                    <option value="consumable">Consumable (used up, e.g. toner)</option>
+                                </select>
+                                <p class="tooltip-text mt-1">Services and consumables are deducted in full when paid — the ATO's $300 asset tests don't apply to them.</p>
                             </div>
                             <div class="md:col-span-2 flex items-center space-x-2">
                                 <input type="checkbox" id="expense-is-depreciable" name="expense-is-depreciable" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
@@ -565,7 +581,27 @@
                     <p class="text-xs text-amber-800 mt-2">
                         The ATO tests the $300 immediate-deduction threshold on the <em>combined</em> cost of identical or substantially identical assets
                         you started to hold this income year — these items may need to be depreciated instead of claimed in full. Assets bought as a set
-                        (e.g. a desk and chair marketed together) can also lose the immediate deduction. This is a warning only; nothing has been changed.
+                        (e.g. a desk and chair marketed together) can also lose the immediate deduction. If a group is really a service or consumable
+                        (a subscription, printer filament), use the button to mark it as such — your deductions don't change, the group just stops being
+                        flagged, and you can undo it per item with the Asset Type selector. This is a warning only; nothing is changed automatically.
+                    </p>
+                </div>
+                <div id="sameday-set-notice" class="hidden mb-4 p-4 rounded-lg border border-slate-300 bg-slate-50">
+                    <h3 class="text-sm font-semibold text-slate-700 mb-1">Worth checking: items bought on the same day</h3>
+                    <ul id="sameday-set-notice-list" class="list-disc pl-5 text-sm text-slate-700 space-y-1"></ul>
+                    <p class="text-xs text-slate-600 mt-2">
+                        Were these bought together as a <em>set</em> (interdependent, marketed together, or designed to be used together)? If so, the ATO tests the
+                        $300 threshold on the set's total cost and they may need to be depreciated. Unrelated items bought the same day are not a set — this is a
+                        question, not a warning, and nothing has been changed.
+                    </p>
+                </div>
+                <div id="crossyear-audit-warning" class="hidden mb-4 p-4 rounded-lg border border-red-300 bg-red-50">
+                    <h3 class="text-sm font-semibold text-red-800 mb-1">Records disagree across years</h3>
+                    <ul id="crossyear-audit-warning-list" class="list-disc pl-5 text-sm text-red-900 space-y-1"></ul>
+                    <p class="text-xs text-red-800 mt-2">
+                        Storage is per financial year, so a depreciating asset is re-entered in each year it declines in value — and these copies don't match.
+                        Each year's schedule is computed from its own copy, so the carried written-down value is wrong until they agree.
+                        Decide which record is correct and update the other year. Nothing is changed automatically.
                     </p>
                 </div>
                 <div class="summary-grid space-y-2 text-gray-700 text-lg">
@@ -642,6 +678,29 @@
             <div class="bg-white p-6 rounded-lg shadow-lg">
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
+                    <div>
+                        <h4 class="font-semibold">Version 1.11.1</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> The WFH section failed to render — a scripting error introduced in v1.9.0 left the assets and property tables empty and the method stuck on "Not Selected". Summary totals were unaffected, but the whole section was unusable.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> A headless boot test that loads the real page and fails CI on any rendering error, so this class of defect cannot reach the deployed site silently again.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold">Version 1.11.0</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-green-600">Added:</strong> One-action group retag on the identical-assets warning card — if a flagged group is really a service (a subscription) or a consumable (printer filament), mark all of its items in one click instead of editing them one by one. Asks first, never changes deductions, and is reversible per item with the Asset Type selector.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold">Version 1.10.0</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-red-600">Fixed:</strong> The identical-assets warning no longer fires on services and consumables — software subscriptions are consumed as paid, not held as assets, so the ATO's $300 test never applied to them. Items can now be tagged Equipment / Service / Consumable when added; existing data is unchanged and treated as equipment.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> Cross-year consistency audit. Because storage is per financial year, a depreciating asset is re-entered each year — the summary now shows a red card when copies of the same asset disagree across years (different cost, life, method, or list), and exports carry the detail.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> Each year of the depreciation schedule now shows the opening and closing written-down value alongside the claim — the figure an accountant carries forward, so any disagreement against a prepared schedule is self-diagnosing.</li>
+                            <li><strong class="font-medium text-green-600">Added:</strong> A softer "worth checking" notice for same-day purchases that might form a set over $300 (the second limb of the $300 rule), worded as a question and kept separate from the identical-assets warning.</li>
+                            <li><strong class="font-medium text-yellow-600">Improved:</strong> The private health insurance inputs now make clear they take <em>your own share</em> from your own statement — each adult beneficiary gets a separate statement, and household totals distort the rebate offset.</li>
+                        </ul>
+                    </div>
                     <div>
                         <h4 class="font-semibold">Version 1.9.0</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
@@ -863,6 +922,15 @@
                         <label for="wfh-asset-work-percentage" class="block text-sm font-medium text-gray-700">Work-Related Use (%):</label>
                         <input type="number" id="wfh-asset-work-percentage" name="wfh-asset-work-percentage" min="0" max="100" value="100" step="1">
                     </div>
+                    <div class="md:col-span-2">
+                        <label for="wfh-asset-asset-type" class="block text-sm font-medium text-gray-700">Asset Type:</label>
+                        <select id="wfh-asset-asset-type" name="wfh-asset-asset-type">
+                            <option value="equipment" selected>Equipment (physical asset)</option>
+                            <option value="service">Service (subscription, support plan)</option>
+                            <option value="consumable">Consumable (used up, e.g. toner)</option>
+                        </select>
+                        <p class="tooltip-text mt-1">Services and consumables are deducted in full when paid — the ATO's $300 asset tests don't apply to them.</p>
+                    </div>
                     <div class="md:col-span-2 flex items-center space-x-2">
                         <input type="checkbox" id="wfh-asset-is-depreciable" name="wfh-asset-is-depreciable" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         <label for="wfh-asset-is-depreciable" class="text-sm font-medium text-gray-700">Is this a depreciable asset (cost > $300 and lasts > 1 year)?</label>
@@ -1024,6 +1092,15 @@
                     <div class="md:col-span-2">
                         <label for="edit-expense-work-percentage" class="block text-sm font-medium text-gray-700">Work-Related Use (%):</label>
                         <input type="number" id="edit-expense-work-percentage" name="edit-expense-work-percentage" min="0" max="100" step="1">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="edit-expense-asset-type" class="block text-sm font-medium text-gray-700">Asset Type:</label>
+                        <select id="edit-expense-asset-type" name="edit-expense-asset-type">
+                            <option value="equipment" selected>Equipment (physical asset)</option>
+                            <option value="service">Service (subscription, support plan)</option>
+                            <option value="consumable">Consumable (used up, e.g. toner)</option>
+                        </select>
+                        <p class="tooltip-text mt-1">Services and consumables are deducted in full when paid — the ATO's $300 asset tests don't apply to them.</p>
                     </div>
                     <div class="md:col-span-2 flex items-center space-x-2">
                         <input type="checkbox" id="edit-expense-is-depreciable" name="edit-expense-is-depreciable" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">

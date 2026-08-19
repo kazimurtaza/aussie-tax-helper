@@ -277,6 +277,7 @@ const App = (() => {
             cost: clampNum(form['expense-cost'].value),
             category: form['expense-category'].value,
             workPercentage: clampPctOr(form['expense-work-percentage'].value, 100),
+            assetType: form['expense-asset-type'].value || 'equipment',
             isDepreciable: isDepreciable,
             effectiveLife: isDepreciable ? clampNum(form['expense-effective-life'].value) : 0,
             depreciationMethod: isDepreciable ? form['depreciation-method'].value : 'prime_cost',
@@ -320,6 +321,7 @@ const App = (() => {
                 cost: clampNum(form['edit-expense-cost'].value),
                 category: form['edit-expense-category'].value,
                 workPercentage: clampPctOr(form['edit-expense-work-percentage'].value, 100),
+                assetType: form['edit-expense-asset-type'].value || 'equipment',
                 isDepreciable: isDepreciable,
                 effectiveLife: isDepreciable ? clampNum(form['edit-expense-effective-life'].value) : 0,
                 depreciationMethod: isDepreciable ? form['edit-depreciation-method'].value : 'prime_cost',
@@ -335,6 +337,32 @@ const App = (() => {
             appData.generalExpenses = appData.generalExpenses.filter(exp => exp.id !== id);
             saveAndRefresh();
         });
+    };
+
+    // One-action retag of an identical-assets warning group as services or
+    // consumables, from the card itself. assetType gates warning detection
+    // only — deductions are untouched. Items are routed to their list by the
+    // group's `source` and matched by id; never by description. Reversible
+    // per item via the Asset Type selector on any edit form.
+    const retagIdenticalGroup = (items, assetType) => {
+        const count = (items || []).length;
+        if (count === 0 || !['service', 'consumable'].includes(assetType)) return;
+        UIManager.showConfirmation(
+            `Mark ${count} item${count === 1 ? '' : 's'} as ${assetType}? This only changes how the $300 warning treats them — your deductions are unaffected. You can undo it per item with the Asset Type selector.`,
+            () => {
+                let changed = 0;
+                items.forEach(({ id, source }) => {
+                    const list = source === 'WFH Assets'
+                        ? appData.wfh.actualCostDetails.assets
+                        : appData.generalExpenses;
+                    const item = list && list.find(i => i.id === id);
+                    if (item) { item.assetType = assetType; changed++; }
+                });
+                if (changed > 0) {
+                    saveAndRefresh();
+                    UIManager.showNotification(`${changed} item${changed === 1 ? '' : 's'} marked as ${assetType}.`);
+                }
+            });
     };
 
     function handleAddWfhHour(e) {
@@ -432,6 +460,7 @@ const App = (() => {
             date: form['wfh-asset-date'].value,
             cost: clampNum(form['wfh-asset-cost'].value),
             workPercentage: clampPctOr(form['wfh-asset-work-percentage'].value, 100),
+            assetType: form['wfh-asset-asset-type'].value || 'equipment',
             isDepreciable: isDepreciable,
             effectiveLife: isDepreciable ? clampNum(form['wfh-asset-effective-life'].value) : 0,
             depreciationMethod: isDepreciable ? form['wfh-asset-depreciation-method'].value : 'prime_cost',
@@ -481,6 +510,7 @@ const App = (() => {
             date: exp.date,
             cost: exp.cost,
             workPercentage: exp.workPercentage,
+            assetType: exp.assetType || 'equipment',
             isDepreciable: exp.isDepreciable,
             effectiveLife: exp.effectiveLife || 0,
             depreciationMethod: exp.depreciationMethod || 'prime_cost',
@@ -500,6 +530,7 @@ const App = (() => {
             date: asset.date,
             cost: asset.cost,
             workPercentage: asset.workPercentage,
+            assetType: asset.assetType || 'equipment',
             isDepreciable: asset.isDepreciable,
             effectiveLife: asset.effectiveLife || 0,
             depreciationMethod: asset.depreciationMethod || 'prime_cost',
@@ -541,7 +572,8 @@ const App = (() => {
         removeGeneralExpense, editGeneralExpense,
         removeWfhHour, removeWfhAsset, editWfhAsset,
         editWfhProperty, removeWfhProperty,
-        moveExpenseToWfh, moveWfhAssetToGeneral
+        moveExpenseToWfh, moveWfhAssetToGeneral,
+        retagIdenticalGroup
     };
 })();
 

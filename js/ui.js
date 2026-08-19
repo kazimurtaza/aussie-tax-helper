@@ -42,6 +42,7 @@ const UIManager = (() => {
             form['wfh-asset-date'].value = asset.date;
             form['wfh-asset-cost'].value = asset.cost;
             form['wfh-asset-work-percentage'].value = asset.workPercentage || 100;
+            form['wfh-asset-asset-type'].value = asset.assetType || 'equipment';
             form['wfh-asset-is-depreciable'].checked = asset.isDepreciable;
 
             if (asset.isDepreciable) {
@@ -76,6 +77,7 @@ const UIManager = (() => {
         form['edit-expense-cost'].value = expenseItem.cost;
         form['edit-expense-category'].value = expenseItem.category;
         form['edit-expense-work-percentage'].value = expenseItem.workPercentage;
+        form['edit-expense-asset-type'].value = expenseItem.assetType || 'equipment';
         form['edit-expense-is-depreciable'].checked = expenseItem.isDepreciable;
         document.getElementById('edit-depreciation-fields').classList.toggle('hidden', !expenseItem.isDepreciable);
         if (expenseItem.isDepreciable) {
@@ -438,7 +440,7 @@ const UIManager = (() => {
             row.appendChild(createCell(asset.description));
             row.appendChild(createCell(asset.date));
             row.appendChild(createCell(formatCurrency(asset.cost)));
-            row.appendChild(createCell(`${normaliseWorkPct(asset.workPercentage, 100)}%`));
+            row.appendChild(createCell(`${TaxCalculations.normaliseWorkPct(asset.workPercentage, 100)}%`));
             row.appendChild(createCell(methodDisplay));
             row.appendChild(createCell(formatCurrency(deduction), ['font-semibold']));
             row.appendChild(createCell(claimScheduleHtml, ['text-xs'], true));
@@ -492,7 +494,7 @@ const UIManager = (() => {
             totalGeneralDeductions, totalWfhDeductions, totalSuperDeductions,
             overallTotalDeductions, taxableIncome,
             grossTax, medicareLevy, mls, offsets, netTaxPayable, finalOutcome,
-            identicalAssetWarnings,
+            identicalAssetWarnings, sameDaySetNotices,
         } = TaxCalculations.calculateYearSummary(appData);
 
         const outcomeText = finalOutcome >= 0 ? `${formatCurrency(finalOutcome)} Refund` : `${formatCurrency(Math.abs(finalOutcome))} Payable`;
@@ -549,16 +551,67 @@ const UIManager = (() => {
         document.getElementById('summary-final-outcome').textContent = outcomeText;
 
         // Identical low-value assets: the ATO tests the $300 threshold on
-        // the combined cost, so surface groups for review (never reclassify).
+        // the combined cost, so surface groups for review (never reclassify
+        // silently). Each group carries a one-action retag — the user is
+        // already judging the group here — routed through App so storage
+        // writes stay out of the renderer.
         const warnBox = document.getElementById('identical-assets-warning');
         const warnList = document.getElementById('identical-assets-warning-list');
         warnList.innerHTML = '';
         warnBox.classList.toggle('hidden', (identicalAssetWarnings || []).length === 0);
         (identicalAssetWarnings || []).forEach(group => {
             const li = document.createElement('li');
-            li.textContent = `"${group.description}" × ${group.count} — combined ${formatCurrency(group.combinedCost)} `
+            const span = document.createElement('span');
+            span.textContent = `"${group.description}" × ${group.count} — combined ${formatCurrency(group.combinedCost)} `
                 + `(${group.items.map(i => `${i.source}: ${formatCurrency(i.cost)}`).join(', ')})`;
+            li.appendChild(span);
+            [['service', 'These are services'], ['consumable', 'These are consumables']].forEach(([type, label]) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = label;
+                btn.className = 'text-xs underline ml-2 text-amber-900 hover:text-amber-700 font-semibold';
+                btn.setAttribute('aria-label', `Mark the ${group.count} "${group.description}" items as ${type} and stop flagging them`);
+                btn.addEventListener('click', () => App.retagIdenticalGroup(group.items, type));
+                li.appendChild(btn);
+            });
             warnList.appendChild(li);
+        });
+
+        // Same-day purchases: the "set of assets" limb is a judgement call,
+        // so this is a question in its own softer card — never mixed with
+        // the identical-assets warning above.
+        const setBox = document.getElementById('sameday-set-notice');
+        const setList = document.getElementById('sameday-set-notice-list');
+        setList.innerHTML = '';
+        setBox.classList.toggle('hidden', (sameDaySetNotices || []).length === 0);
+        (sameDaySetNotices || []).forEach(set => {
+            const li = document.createElement('li');
+            li.textContent = `${set.date} — ${set.count} items totalling ${formatCurrency(set.combinedCost)} `
+                + `(${set.items.map(i => `${i.description} (${formatCurrency(i.cost)})`).join(', ')})`;
+            setList.appendChild(li);
+        });
+
+        // Cross-year consistency: same asset re-entered across years but the
+        // copies disagree. Read-only audit over stored years; rendered as a
+        // red "records disagree" card — a factual finding, unlike the amber
+        // judgement-call warnings above.
+        const auditBox = document.getElementById('crossyear-audit-warning');
+        const auditList = document.getElementById('crossyear-audit-warning-list');
+        auditList.innerHTML = '';
+        let auditFindings = [];
+        try {
+            auditFindings = (typeof StorageManager !== 'undefined' && StorageManager.getCrossYearAssetAudit)
+                ? StorageManager.getCrossYearAssetAudit() : [];
+        } catch (e) {
+            auditFindings = [];
+        }
+        auditBox.classList.toggle('hidden', auditFindings.length === 0);
+        auditFindings.forEach(finding => {
+            const li = document.createElement('li');
+            const copies = finding.copies.map(c =>
+                `${c.year} (${c.list}): ${formatCurrency(c.cost)}${c.isDepreciable ? `, ${c.effectiveLife}yr ${c.depreciationMethod === 'diminishing_value' ? 'DV' : 'PC'}` : ', not depreciable'}`).join(' · ');
+            li.textContent = `"${finding.description}" — ${copies}`;
+            auditList.appendChild(li);
         });
     };
 
@@ -580,3 +633,5 @@ const UIManager = (() => {
         minutesToTimeString
     };
 })();
+
+window.UIManager = UIManager;

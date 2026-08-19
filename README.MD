@@ -178,6 +178,26 @@ All other 2025-2026 rates — income tax brackets, LITO, and PHI rebate rates �
 
 ## Changelog
 
+### Version 1.11.1
+* ***Fixed***
+    * ***WFH section failed to render:*** `displayWfhAssetsList` called a calculation-layer helper without its module qualifier, throwing on every render — the WFH assets/properties tables sat empty and the method display stayed on "Not Selected" while the summary numbers (rendered earlier in the refresh) stayed correct. Introduced in v1.9.0.
+* ***Added***
+    * ***Headless boot test:*** a jsdom smoke test loads the real `index.html`, runs `App.init()` against a seeded dataset, and fails on any page error, empty table or unset control — the calculation suite never loads the UI layer, which is exactly why this bug shipped. 372 Jest tests (up from 366).
+
+### Version 1.11.0
+* ***Added***
+    * ***Group retag from the warning card:*** The identical-assets warning card now offers "These are services" / "These are consumables" on each group, so a year of subscription line items can be excluded from the $300 rule in one action instead of editing each item one by one. Asks for confirmation first (it changes how future warnings treat the items), routes each item to its list by id, leaves deductions byte-identical, and is reversible per item via the existing Asset Type selector. 366 Jest tests (up from 362).
+
+### Version 1.10.0
+* ***Fixed***
+    * ***Identical-assets warning on services:*** The $300 immediate-deduction test is a *depreciating asset* rule; a software subscription is a service consumed as paid, so it is deductible in full with no threshold. The warning previously fired on recurring software subscriptions — eleven identical monthly plans and two premium plans — which are services, not assets. Items can now be tagged `assetType` Equipment (default) / Service / Consumable on all three entry forms; only equipment-class items participate in the $300 grouping. Stored data without the field behaves identically (a migration stamps it idempotently), and both CSV tables gain an Asset Type column.
+* ***Added***
+    * ***Cross-year consistency audit:*** Storage is per financial year, so a depreciating asset must be re-entered each year it declines in value — and nothing verified the copies agreed. `auditCrossYearAssets` reports same-description items whose cost, date, depreciable flag, effective life or method differ between years, or that live in different lists. Shown as a red "records disagree" card on the summary; JSON exports carry a top-level `crossYearAudit` array and CSV a "Cross-Year Asset Consistency" block. Report-only.
+    * ***Written-down value in the schedule:*** Each depreciation row now shows the opening and closing written-down value at full cost basis — the number an accountant carries forward — alongside the work-share claim, pro-rata note and current-year bolding, which are unchanged.
+    * ***Same-day set notice:*** The second limb of s 40-80(2): items bought the same day that together cost more than $300 *might* form a set and lose the immediate deduction. Surfaced as a question in its own slate card (distinct from the identical-assets warning), with services/consumables excluded and identical-description groups left to the strong warning.
+* ***Improved***
+    * ***PHI own-share guidance:*** The private health insurance inputs now state they take your own share from your own statement — each adult beneficiary receives a separate statement, and entering household totals distorts the rebate offset. 362 Jest tests (up from 332).
+
 ### Version 1.9.0
 * ***Added***
     * ***Occupancy expenses:*** Each WFH property period can record rent or mortgage interest, apportioned by the existing floor-area ratio into the actual-cost deduction. Opt-in field with an ATO caution — occupancy costs are only deductible for employees in limited circumstances.

@@ -2027,6 +2027,38 @@ describe('findIdenticalAssetGroups', () => {
             expect.arrayContaining(['General Expenses', 'WFH Assets']));
     });
 
+    test('services are excluded — 11 identical subscriptions never warn', () => {
+        // The defect: eleven identical monthly subscriptions at $34 raised a warning.
+        // A subscription is a service consumed as paid, not a depreciating
+        // asset, so the s 40-80(2) $300 test does not apply once the items
+        // are tagged as services (the default remains equipment).
+        const subs = Array.from({ length: 11 }, (_, i) =>
+            item({ id: `s${i}`, description: 'Software Pro subscription', cost: 34, assetType: 'service' }));
+        expect(TaxCalculations.findIdenticalAssetGroups(subs, [])).toHaveLength(0);
+        // Two Max subscriptions at $152.25 — also over $300 combined.
+        expect(TaxCalculations.findIdenticalAssetGroups(
+            [item({ id: 'm1', description: 'Software Max subscription', cost: 152.25, assetType: 'service' }),
+             item({ id: 'm2', description: 'Software Max subscription', cost: 152.25, assetType: 'service' })], [])
+        ).toHaveLength(0);
+    });
+
+    test('consumables are excluded too, and the equipment default still warns', () => {
+        expect(TaxCalculations.findIdenticalAssetGroups(
+            [item({ id: 'c1', description: 'Toner cartridge', cost: 200, assetType: 'consumable' }),
+             item({ id: 'c2', description: 'Toner cartridge', cost: 200, assetType: 'consumable' })], [])
+        ).toHaveLength(0);
+        // Missing assetType reads as equipment — stored data from before the
+        // field existed keeps warning exactly as before.
+        expect(TaxCalculations.findIdenticalAssetGroups(
+            [item({ id: 'e1', description: 'Cable', cost: 200 }),
+             item({ id: 'e2', description: 'Cable', cost: 200 })], [])
+        ).toHaveLength(1);
+        expect(TaxCalculations.findIdenticalAssetGroups(
+            [item({ id: 'e3', description: 'Cable', cost: 200, assetType: 'equipment' }),
+             item({ id: 'e4', description: 'Cable', cost: 200, assetType: 'equipment' })], [])
+        ).toHaveLength(1);
+    });
+
     test('combined cost of exactly $300 does not warn (strictly more than $300)', () => {
         const groups = TaxCalculations.findIdenticalAssetGroups(
             [item({ cost: 200 }), item({ cost: 100, id: 'b' })], []);
@@ -2310,10 +2342,12 @@ describe('generateDepreciationSchedule', () => {
 
     test('explicit 0% work-use renders $0.00 rows, not 100% amounts', () => {
         // The schedule previously coerced 0 to 100 via `|| 100`, so an asset
-        // that claims $0 displayed a full-cost schedule.
+        // that claims $0 displayed a full-cost schedule. Claims must be $0;
+        // the cost-basis written-down-value notes are legitimately non-zero.
         const result = TaxCalculations.generateDepreciationSchedule(asset({ workPercentage: 0 }));
         expect(result).toMatch(/2024-25:/);
-        expect(result).not.toMatch(/\$[1-9]/);          // no non-zero amount anywhere
+        const claims = result.split('<br>').map(row => row.match(/: \$([\d,]+\.\d{2})/)[1]);
+        claims.forEach(claim => expect(claim).toBe('0.00'));
         expect(result).toMatch(/2024-25:.*\$0\.00/);    // current-FY row shows zero
     });
 
@@ -2455,5 +2489,477 @@ describe('calculateDepreciationForFinancialYear — date validation', () => {
 
     test('valid date within FY → non-zero deduction', () => {
         expect(TaxCalculations.calculateDepreciationForFinancialYear(1000, 100, 5, '2024-07-01')).toBeGreaterThan(0);
+    });
+});
+// ─────────────────────────────────────────────
+// Storage migration: assetType stamping (idempotent)
+// ─────────────────────────────────────────────
+describe('storage migration — assetType', () => {
+    let localStorageStub;
+    let StorageManager;
+    const hadLocalStorage = Object.prototype.hasOwnProperty.call(global, 'localStorage');
+    beforeEach(() => {
+        jest.resetModules();
+        const store = {};
+        localStorageStub = {
+            getItem: (k) => (k in store ? store[k] : null),
+            setItem: (k, v) => { store[k] = String(v); },
+            removeItem: (k) => { delete store[k]; },
+            key: (i) => Object.keys(store)[i] ?? null,
+            get length() { return Object.keys(store).length; },
+        };
+        global.localStorage = localStorageStub;
+        // storage.js exposes itself on window (= global here), not via
+        // module.exports, and reads the window.* tax globals.
+        require('../js/constants.js');
+        require('../js/calculations.js');
+        require('../js/storage.js');
+        StorageManager = global.StorageManager;
+        loadConstantsForYear('2024-2025');
+    });
+    afterAll(() => {
+        // Restore the file-top module world for every later describe: drop
+        // the stub and re-point the globals at the original requires so the
+        // suite has no order dependence on this block.
+        if (hadLocalStorage) delete global.localStorage;
+        jest.resetModules();
+        require('../js/constants.js');
+        require('../js/calculations.js');
+        loadConstantsForYear('2024-2025');
+    });
+    const legacyData = () => ({
+        userSettings: { currentSection: 'dashboard-section', financialYear: '2024-2025' },
+        taxpayerDetails: { filingStatus: 'single' },
+        income: { payg: [], other: { bankInterest: 0, dividendsUnfranked: 0, dividendsFranked: 0, frankingCredits: 0, netCapitalGains: 0 } },
+        generalExpenses: [
+            { id: 'e1', description: 'Software Pro subscription', date: '2024-08-01', cost: 34, workPercentage: 100, isDepreciable: false, category: 'other' },
+            { id: 'e2', description: 'Monitor', date: '2024-09-01', cost: 500, workPercentage: 100, isDepreciable: true, effectiveLife: 4, depreciationMethod: 'prime_cost', category: 'tools' },
+        ],
+        wfh: {
+            method: 'fixed_rate', hoursLog: [], totalMinutes: 0,
+            actualCostDetails: {
+                properties: [],
+                assets: [{ id: 'w1', description: 'Desk', date: '2024-07-15', cost: 350, workPercentage: 100, isDepreciable: false }],
+            },
+        },
+    });
+    test('pre-migration data loads with all values unchanged and assetType stamped', () => {
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify(legacyData()));
+        const loaded = StorageManager.loadData('2024-2025');
+        // Values unchanged...
+        expect(loaded.generalExpenses[0].description).toBe('Software Pro subscription');
+        expect(loaded.generalExpenses[0].cost).toBe(34);
+        expect(loaded.generalExpenses[1].effectiveLife).toBe(4);
+        expect(loaded.wfh.actualCostDetails.assets[0].cost).toBe(350);
+        // ...and every item stamped.
+        expect(loaded.generalExpenses.map(e => e.assetType)).toEqual(['equipment', 'equipment']);
+        expect(loaded.wfh.actualCostDetails.assets[0].assetType).toBe('equipment');
+    });
+    test('an explicit service assetType survives the migration untouched', () => {
+        const data = legacyData();
+        data.generalExpenses[0].assetType = 'service';
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify(data));
+        const loaded = StorageManager.loadData('2024-2025');
+        expect(loaded.generalExpenses[0].assetType).toBe('service');
+        expect(loaded.generalExpenses[1].assetType).toBe('equipment');
+    });
+    test('migration is idempotent — running it twice changes nothing', () => {
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify(legacyData()));
+        const once = StorageManager.loadData('2024-2025');
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify(once));
+        const twice = StorageManager.loadData('2024-2025');
+        expect(twice.generalExpenses).toEqual(once.generalExpenses);
+        expect(twice.wfh.actualCostDetails.assets).toEqual(once.wfh.actualCostDetails.assets);
+    });
+    test('empty and shapeless data pass through without throwing', () => {
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify({
+            userSettings: {}, taxpayerDetails: { filingStatus: 'single' },
+            income: { payg: [], other: {} }, generalExpenses: [],
+            wfh: { method: 'fixed_rate', hoursLog: [], totalMinutes: 0, actualCostDetails: { properties: [], assets: [] } },
+        }));
+        expect(() => StorageManager.loadData('2024-2025')).not.toThrow();
+    });
+});
+// ─────────────────────────────────────────────
+// findSameDayPurchaseSets (set-of-assets limb, question not warning)
+// ─────────────────────────────────────────────
+describe('findSameDayPurchaseSets', () => {
+    beforeEach(() => loadConstantsForYear('2025-2026'));
+    const item = (overrides = {}) => ({
+        id: 'x', description: 'Item', date: '2025-09-15',
+        cost: 50, workPercentage: 100, isDepreciable: false, ...overrides,
+    });
+    test('seven different hardware items bought the same day totalling over $300 raise a notice', () => {
+        // Seven different non-depreciable items on one day, combined just
+        // over the $300 threshold.
+        const costs = [59.00, 49.00, 45.00, 39.00, 55.00, 42.00, 44.00];
+        const items = costs.map((cost, i) => item({
+            id: `d${i}`, description: `Part ${String.fromCharCode(65 + i)}`, cost,
+        }));
+        const sets = TaxCalculations.findSameDayPurchaseSets(items, []);
+        expect(sets).toHaveLength(1);
+        expect(sets[0].date).toBe('2025-09-15');
+        expect(sets[0].count).toBe(7);
+        expect(sets[0].combinedCost).toBeCloseTo(333.00, 2);
+    });
+    test('identical-description groups are the strong warning\'s job, not a set notice', () => {
+        const sets = TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'a', description: 'RAM', cost: 200 }), item({ id: 'b', description: 'ram', cost: 200 })], []);
+        expect(sets).toHaveLength(0);
+    });
+    test('services and consumables are excluded from the set grouping', () => {
+        const sets = TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'a', description: 'Part A', cost: 200, assetType: 'service' }),
+             item({ id: 'b', description: 'Part B', cost: 200, assetType: 'consumable' })], []);
+        expect(sets).toHaveLength(0);
+    });
+    test('same-day items at or under $300 combined raise no notice', () => {
+        expect(TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'a', description: 'A', cost: 150 }), item({ id: 'b', description: 'B', cost: 150 })], [])
+        ).toHaveLength(0);   // exactly $300 stays exclusive
+        expect(TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'c', description: 'C', cost: 150.01 }), item({ id: 'd', description: 'D', cost: 150 })], [])
+        ).toHaveLength(1);
+    });
+    test('items on different days do not group', () => {
+        expect(TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'a', description: 'A', cost: 200, date: '2025-09-15' }),
+             item({ id: 'b', description: 'B', cost: 200, date: '2025-08-26' })], [])
+        ).toHaveLength(0);
+    });
+    test('depreciable items and out-of-FY items are excluded', () => {
+        expect(TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'a', description: 'A', cost: 200, isDepreciable: true, effectiveLife: 4 }),
+             item({ id: 'b', description: 'B', cost: 200 })], [])
+        ).toHaveLength(0);
+        expect(TaxCalculations.findSameDayPurchaseSets(
+            [item({ id: 'c', description: 'C', cost: 200, date: '2023-08-25' }),
+             item({ id: 'd', description: 'D', cost: 200, date: '2023-08-25' })], [])
+        ).toHaveLength(0);
+    });
+    test('calculateYearSummary exposes sameDaySetNotices', () => {
+        const data = makeAppData({
+            generalExpenses: [
+                item({ id: 'a', description: 'Part A', cost: 200 }),
+                item({ id: 'b', description: 'Part B', cost: 150 }),
+            ],
+        });
+        const s = TaxCalculations.calculateYearSummary(data);
+        expect(s.sameDaySetNotices).toHaveLength(1);
+        expect(s.sameDaySetNotices[0].combinedCost).toBeCloseTo(350, 2);
+    });
+});
+// ─────────────────────────────────────────────
+// Depreciation schedule: opening/closing written-down value
+// ─────────────────────────────────────────────
+describe('generateDepreciationSchedule — written-down value shown per row', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+    test('each row shows opening → closing WDV at full cost basis', () => {
+        // Mid-year DV purchase: year 1 is day-pro-rated, then full 2/life on
+        // the diminishing balance. The opening WDV each year is the figure a
+        // prepared depreciation schedule carries — previously it existed
+        // only inside the engine.
+        const result = TaxCalculations.generateDepreciationSchedule({
+            isDepreciable: true, cost: 800, workPercentage: 100, effectiveLife: 3,
+            date: '2024-09-10', depreciationMethod: 'diminishing_value',
+        });
+        expect(result).toMatch(/2024-25: \$429\.59.*opening \$800\.00 → closing \$370\.41/);
+        expect(result).toMatch(/2025-26: \$246\.94.*opening \$370\.41 → closing \$123\.47/);
+        expect(result).toMatch(/2026-27: \$82\.31.*opening \$123\.47 → closing \$41\.16/);
+        // Closing of one year is exactly the opening of the next.
+        expect(result).toMatch(/closing \$370\.41.*2025-26: \$246\.94.*opening \$370\.41/);
+    });
+    test('WDV is full cost basis — unaffected by a partial work percentage', () => {
+        const full = TaxCalculations.generateDepreciationSchedule({
+            isDepreciable: true, cost: 1200, workPercentage: 100, effectiveLife: 3,
+            date: '2024-07-01', depreciationMethod: 'prime_cost',
+        });
+        const half = TaxCalculations.generateDepreciationSchedule({
+            isDepreciable: true, cost: 1200, workPercentage: 50, effectiveLife: 3,
+            date: '2024-07-01', depreciationMethod: 'prime_cost',
+        });
+        expect(full).toMatch(/2024-25: \$400\.00.*opening \$1,200\.00 → closing \$800\.00/);
+        expect(half).toMatch(/2024-25: \$200\.00.*opening \$1,200\.00 → closing \$800\.00/);
+    });
+    test('Immediate and Invalid date outputs are unchanged', () => {
+        expect(TaxCalculations.generateDepreciationSchedule({ isDepreciable: false })).toBe('Immediate');
+        expect(TaxCalculations.generateDepreciationSchedule({
+            isDepreciable: true, cost: 500, effectiveLife: 4, workPercentage: 100, date: 'nope',
+        })).toBe('Invalid date');
+    });
+});
+// ─────────────────────────────────────────────
+// auditCrossYearAssets (cross-year consistency, report-only)
+// ─────────────────────────────────────────────
+describe('auditCrossYearAssets', () => {
+    const dep = (overrides = {}) => ({
+        description: 'Asset', date: '2024-11-30', cost: 500.45, workPercentage: 100,
+        isDepreciable: true, effectiveLife: 2, depreciationMethod: 'diminishing_value', ...overrides,
+    });
+    const year = (generalExpenses = [], wfhAssets = []) => ({
+        generalExpenses,
+        wfh: { method: 'actual_cost', hoursLog: [], totalMinutes: 0, actualCostDetails: { properties: [], assets: wfhAssets } },
+    });
+    test('flags field drift between years (the GPU case)', () => {
+        const findings = TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep()]),
+            '2025-2026': year([dep({ cost: 500.00, effectiveLife: 4 })]),
+        });
+        expect(findings).toHaveLength(1);
+        expect(findings[0].description).toBe('Asset');
+        expect(findings[0].copies.map(c => c.cost)).toEqual([500.45, 500]);
+        expect(findings[0].copies.map(c => c.effectiveLife)).toEqual([2, 4]);
+    });
+    test('flags a flip from depreciable to non-depreciable', () => {
+        const findings = TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep({ description: 'Accelerator card', cost: 435.38, date: '2024-08-05', effectiveLife: 1 })]),
+            '2025-2026': year([dep({ description: 'Accelerator card', cost: 173.00, date: '2024-07-01', isDepreciable: false, effectiveLife: 0, depreciationMethod: 'prime_cost' })]),
+        });
+        expect(findings).toHaveLength(1);
+        const copies = findings[0].copies;
+        expect(copies[0].isDepreciable).toBe(true);
+        expect(copies[1].isDepreciable).toBe(false);
+    });
+    test('flags the same asset living in different lists', () => {
+        const findings = TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep({ description: 'Tablet' })], []),
+            '2025-2026': year([], [dep({ description: 'Tablet' })]),
+        });
+        expect(findings).toHaveLength(1);
+        expect(new Set(findings[0].copies.map(c => c.list))).toEqual(new Set(['General Expenses', 'WFH Assets']));
+    });
+    test('identical copies across years and single-year items report nothing', () => {
+        expect(TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep()]),
+            '2025-2026': year([dep()]),
+            '2026-2027': year([dep()]),
+        })).toHaveLength(0);
+        expect(TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep()]),
+        })).toHaveLength(0);
+    });
+    test('non-depreciable items are audited too (same-description services across years)', () => {
+        // A subscription re-entered each year with a changed price is a real
+        // disagreement worth surfacing, so non-depreciable items participate.
+        const findings = TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep({ description: 'Software Pro subscription', isDepreciable: false, cost: 34, effectiveLife: 0 })]),
+            '2025-2026': year([dep({ description: 'Software Pro subscription', isDepreciable: false, cost: 100, effectiveLife: 0 })]),
+        });
+        expect(findings).toHaveLength(1);
+    });
+    test('empty/shapeless input is safe', () => {
+        expect(TaxCalculations.auditCrossYearAssets(null)).toHaveLength(0);
+        expect(TaxCalculations.auditCrossYearAssets({})).toHaveLength(0);
+        expect(TaxCalculations.auditCrossYearAssets({ '2024-2025': {} })).toHaveLength(0);
+    });
+});
+// ─────────────────────────────────────────────
+// auditCrossYearAssets — review follow-up regressions
+// ─────────────────────────────────────────────
+describe('auditCrossYearAssets — same-year duplicates and per-field pins', () => {
+    const dep = (overrides = {}) => ({
+        description: 'Asset', date: '2024-10-15', cost: 500, workPercentage: 100,
+        isDepreciable: true, effectiveLife: 3, depreciationMethod: 'prime_cost', ...overrides,
+    });
+    const year = (generalExpenses = [], wfhAssets = []) => ({
+        generalExpenses,
+        wfh: { method: 'actual_cost', hoursLog: [], totalMinutes: 0, actualCostDetails: { properties: [], assets: wfhAssets } },
+    });
+    test('same-year duplicates with different dates are NOT a cross-year finding', () => {
+        // Monthly subscriptions re-entered in one year, identical consumables
+        // bought months apart — normal data, must stay silent. The original
+        // audit fired the red card on exactly this pattern.
+        const subs = Array.from({ length: 11 }, (_, i) =>
+            dep({ description: 'Software Pro subscription', date: `2024-${String(8 + (i > 3 ? 1 : 0)).padStart(2, '0')}-15`, cost: 34, isDepreciable: false, effectiveLife: 0 }));
+        expect(TaxCalculations.auditCrossYearAssets({ '2024-2025': year(subs) })).toHaveLength(0);
+        expect(TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep({ description: 'Toner', date: '2024-08-01', cost: 89, isDepreciable: false, effectiveLife: 0 }),
+                                dep({ description: 'Toner', date: '2024-11-20', cost: 89, isDepreciable: false, effectiveLife: 0 })]),
+        })).toHaveLength(0);
+    });
+    // One pin per compared field — the mutation check showed the original
+    // suite left four of five comparisons deletable while green. The
+    // depreciable flip is exercised via a life-0 item; note the flag
+    // comparison can never be the SOLE discriminator (the copy record
+    // collapses method to '' for non-depreciable items and guarantees
+    // non-empty for depreciable ones, so a flag flip always changes the
+    // method too) — it is defence-in-depth and is mutation-unreachable.
+    const scenarios = [
+        ['date drift', { date: '2024-10-15' }, { date: '2024-11-15' }],
+        ['depreciable flip (life 0)', { isDepreciable: true, effectiveLife: 0 }, { isDepreciable: false, effectiveLife: 0 }],
+        ['effective-life drift', { effectiveLife: 3 }, { effectiveLife: 5 }],
+        ['method drift', { depreciationMethod: 'prime_cost' }, { depreciationMethod: 'diminishing_value' }],
+        ['assetType drift', { isDepreciable: false, effectiveLife: 0 }, { isDepreciable: false, effectiveLife: 0, assetType: 'service' }],
+    ];
+    test.each(scenarios)('%s is flagged', (_label, a, b) => {
+        const findings = TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep(a)]),
+            '2025-2026': year([dep(b)]),
+        });
+        expect(findings).toHaveLength(1);
+    });
+    test('fractional vs whole effective life normalises before comparing', () => {
+        expect(TaxCalculations.auditCrossYearAssets({
+            '2024-2025': year([dep({ effectiveLife: 0.5 })]),
+            '2025-2026': year([dep({ effectiveLife: 1 })]),
+        })).toHaveLength(0);
+    });
+    test('same-day sets group across the two lists and normalise date keys', () => {
+        loadConstantsForYear('2025-2026');
+        const sets = TaxCalculations.findSameDayPurchaseSets(
+            [{ id: 'a', description: 'Part A', date: '2025-9-15', cost: 200, workPercentage: 100, isDepreciable: false }],
+            [{ id: 'b', description: 'Part B', date: '2025-09-15', cost: 200, workPercentage: 100, isDepreciable: false }],
+            '2025-2026');
+        expect(sets).toHaveLength(1);
+        expect(sets[0].date).toBe('2025-09-15');   // normalised key, not the raw '2025-9-15'''
+        expect(new Set(sets[0].items.map(i => i.source))).toEqual(new Set(['General Expenses', 'WFH Assets']));
+        loadConstantsForYear('2024-2025');
+    });
+});
+// ─────────────────────────────────────────────
+// Bulk group retag (warning-card action semantics)
+// ─────────────────────────────────────────────
+describe('bulk group retag from the identical-assets warning', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+    const makeData = () => makeAppData({
+        generalExpenses: [
+            // Service-shaped group: 11 identical over $300 (would false-warn untagged)
+            ...Array.from({ length: 11 }, (_, i) =>
+                ({ id: `sub${i}`, description: 'Software Pro subscription', date: '2024-08-15', cost: 34, workPercentage: 100, isDepreciable: false, assetType: 'equipment' })),
+            // Real equipment group: 8 identical RAM modules
+            ...Array.from({ length: 8 }, (_, i) =>
+                ({ id: `ram${i}`, description: 'RAM module', date: '2024-09-01', cost: 224, workPercentage: 100, isDepreciable: false, assetType: 'equipment' })),
+            // A depreciable item and a WFH-side asset so both deduction paths run
+            { id: 'dep1', description: 'Monitor', date: '2024-10-01', cost: 1200, workPercentage: 100, isDepreciable: true, effectiveLife: 4, depreciationMethod: 'prime_cost', assetType: 'equipment' },
+        ],
+        wfh: {
+            method: 'actual_cost', hoursLog: [], totalMinutes: 0,
+            actualCostDetails: {
+                properties: [],
+                assets: [{ id: 'wfh1', description: 'Desk', date: '2024-11-01', cost: 450, workPercentage: 80, isDepreciable: false, assetType: 'equipment' }],
+            },
+        },
+    });
+    // Exactly what App.retagIdenticalGroup does on confirm: route each item
+    // to its list by `source` and set assetType by id — never by description.
+    const applyRetag = (appData, groups, descriptionKey, assetType) => {
+        const group = groups.find(g => g.description === descriptionKey);
+        group.items.forEach(({ id, source }) => {
+            const list = source === 'WFH Assets'
+                ? appData.wfh.actualCostDetails.assets
+                : appData.generalExpenses;
+            const item = list.find(i => i.id === id);
+            if (item) item.assetType = assetType;
+        });
+    };
+    test('retagging a group removes exactly that group from the warnings', () => {
+        const data = makeData();
+        const before = TaxCalculations.calculateYearSummary(data).identicalAssetWarnings;
+        expect(before.map(w => w.description).sort()).toEqual(['RAM module', 'Software Pro subscription']);
+        applyRetag(data, before, 'Software Pro subscription', 'service');
+        const after = TaxCalculations.calculateYearSummary(data).identicalAssetWarnings;
+        expect(after.map(w => w.description)).toEqual(['RAM module']);   // equipment group survives
+        expect(after[0].count).toBe(8);
+    });
+    test('overallTotalDeductions is byte-identical before and after the retag', () => {
+        const data = makeData();
+        const before = TaxCalculations.calculateYearSummary(data).overallTotalDeductions;
+        const warnings = TaxCalculations.calculateYearSummary(data).identicalAssetWarnings;
+        applyRetag(data, warnings, 'Software Pro subscription', 'service');
+        applyRetag(data, warnings, 'RAM module', 'consumable');
+        const after = TaxCalculations.calculateYearSummary(data).overallTotalDeductions;
+        expect(after).toBe(before);   // toBe, not toBeCloseTo: exact equality
+    });
+    test('retag routes by id only — a same-description id in the other list is untouched', () => {
+        const data = makeAppData({
+            generalExpenses: [{ id: 'gen-1', description: 'Cable', date: '2024-08-01', cost: 200, workPercentage: 100, isDepreciable: false, assetType: 'equipment' }],
+            wfh: {
+                method: 'actual_cost', hoursLog: [], totalMinutes: 0,
+                actualCostDetails: {
+                    properties: [],
+                    assets: [{ id: 'wfh-1', description: 'Cable', date: '2024-08-02', cost: 200, workPercentage: 100, isDepreciable: false, assetType: 'equipment' }],
+                },
+            },
+        });
+        // The warning group crosses both lists; retag with a stale WFH id that
+        // no longer exists (simulating routing to the wrong list) must not
+        // fall back to matching by description.
+        applyRetag(data, [{ description: 'Cable', items: [
+            { id: 'gen-1', source: 'General Expenses' },
+            { id: 'nonexistent-id', source: 'WFH Assets' },
+        ]}], 'Cable', 'service');
+        expect(data.generalExpenses[0].assetType).toBe('service');
+        expect(data.wfh.actualCostDetails.assets[0].assetType).toBe('equipment');  // untouched
+    });
+});
+// ─────────────────────────────────────────────
+// Bulk retag round-trip: export → import preserves assetType
+// ─────────────────────────────────────────────
+describe('bulk retag survives export → import', () => {
+    let localStorageStub;
+    let StorageManager;
+    beforeEach(() => {
+        jest.resetModules();
+        const store = {};
+        localStorageStub = {
+            getItem: (k) => (k in store ? store[k] : null),
+            setItem: (k, v) => { store[k] = String(v); },
+            removeItem: (k) => { delete store[k]; },
+            key: (i) => Object.keys(store)[i] ?? null,
+            get length() { return Object.keys(store).length; },
+        };
+        global.localStorage = localStorageStub;
+        require('../js/constants.js');
+        require('../js/calculations.js');
+        require('../js/storage.js');
+        StorageManager = global.StorageManager;
+        loadConstantsForYear('2024-2025');
+    });
+    afterAll(() => {
+        delete global.localStorage;
+        jest.resetModules();
+        require('../js/constants.js');
+        require('../js/calculations.js');
+        loadConstantsForYear('2024-2025');
+    });
+    const yearData = () => ({
+        userSettings: { currentSection: 'dashboard-section', financialYear: '2024-2025' },
+        taxpayerDetails: { filingStatus: 'single' },
+        income: { payg: [], other: { bankInterest: 0, dividendsUnfranked: 0, dividendsFranked: 0, frankingCredits: 0, netCapitalGains: 0 } },
+        generalExpenses: [
+            { id: 's1', description: 'Software Pro subscription', date: '2024-08-15', cost: 34, workPercentage: 100, isDepreciable: false, assetType: 'service', category: 'other' },
+            { id: 'r1', description: 'RAM module', date: '2024-09-01', cost: 224, workPercentage: 100, isDepreciable: false, assetType: 'equipment', category: 'tools' },
+        ],
+        wfh: { method: 'fixed_rate', hoursLog: [], totalMinutes: 0, actualCostDetails: { properties: [], assets: [] } },
+    });
+    test('a retagged service item round-trips with assetType and all fields intact', () => {
+        // Seed storage via loadData's save path
+        localStorageStub.setItem('aussieTaxHelperData-2025', JSON.stringify(yearData()));
+        // Export
+        let captured = null;
+        global.Blob = class { constructor(parts) { captured = parts.join(''); } };
+        global.URL = { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} };
+        global.document = { getElementById: () => null, createElement: () => ({ style: {}, click: () => {} }), body: { appendChild: () => {}, removeChild: () => {} } };
+        StorageManager.exportData(StorageManager.loadData('2024-2025'), 'json', 'current');
+        // Import via a FileReader stub mirroring storage.js's reader usage
+        class FileReaderStub {
+            readAsText() {
+                this.result = captured;
+                this.onload({ target: { result: captured } });
+            }
+        }
+        global.FileReader = FileReaderStub;
+        let loadedYear = null;
+        StorageManager.importData({ name: 'tax_data.json' }, (data) => { loadedYear = data; });
+        const loaded = StorageManager.loadData('2024-2025');
+        const sub = loaded.generalExpenses.find(e => e.id === 's1');
+        const ram = loaded.generalExpenses.find(e => e.id === 'r1');
+        expect(sub.assetType).toBe('service');       // the retag survives
+        expect(ram.assetType).toBe('equipment');     // and the other items too
+        // All other fields unchanged
+        expect(sub.cost).toBe(34);
+        expect(sub.description).toBe('Software Pro subscription');
+        expect(sub.date).toBe('2024-08-15');
+        expect(loadedYear).not.toBeNull();
     });
 });
