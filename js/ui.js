@@ -633,3 +633,5 @@ const UIManager = (() => {
         minutesToTimeString
     };
 })();
+
+window.UIManager = UIManager;
