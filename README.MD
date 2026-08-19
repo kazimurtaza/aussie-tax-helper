@@ -178,6 +178,12 @@ All other 2025-2026 rates — income tax brackets, LITO, and PHI rebate rates �
 
 ## Changelog
 
+### Version 1.11.1
+* ***Fixed***
+    * ***WFH section failed to render:*** `displayWfhAssetsList` called a calculation-layer helper without its module qualifier, throwing on every render — the WFH assets/properties tables sat empty and the method display stayed on "Not Selected" while the summary numbers (rendered earlier in the refresh) stayed correct. Introduced in v1.9.0.
+* ***Added***
+    * ***Headless boot test:*** a jsdom smoke test loads the real `index.html`, runs `App.init()` against a seeded dataset, and fails on any page error, empty table or unset control — the calculation suite never loads the UI layer, which is exactly why this bug shipped. 372 Jest tests (up from 366).
+
 ### Version 1.11.0
 * ***Added***
     * ***Group retag from the warning card:*** The identical-assets warning card now offers "These are services" / "These are consumables" on each group, so a year of subscription line items can be excluded from the $300 rule in one action instead of editing each item one by one. Asks for confirmation first (it changes how future warnings treat the items), routes each item to its list by id, leaves deductions byte-identical, and is reversible per item via the existing Asset Type selector. 366 Jest tests (up from 362).
