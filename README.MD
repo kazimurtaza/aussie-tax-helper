@@ -178,6 +178,10 @@ All other 2025-2026 rates — income tax brackets, LITO, and PHI rebate rates �
 
 ## Changelog
 
+### Version 1.11.2
+* ***Added***
+    * ***WFH property field basis + live preview:*** The property modal's cost fields now state which basis they want — electricity, gas and occupancy are the full household bill (the app applies the floor-area percentage itself), internet is the full bill (apportioned by its work %), phone and stationery are claimed as entered — and the modal shows the estimated deduction live as you type, computed by the same calculation the totals use. This closes the failure where an already-apportioned work share was apportioned a second time. No stored data changes. 377 Jest tests (up from 372).
+
 ### Version 1.11.1
 * ***Fixed***
     * ***WFH section failed to render:*** `displayWfhAssetsList` called a calculation-layer helper without its module qualifier, throwing on every render — the WFH assets/properties tables sat empty and the method display stayed on "Not Selected" while the summary numbers (rendered earlier in the refresh) stayed correct. Introduced in v1.9.0.

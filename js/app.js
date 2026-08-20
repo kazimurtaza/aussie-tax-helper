@@ -60,6 +60,31 @@ const App = (() => {
         refreshUI();
     };
 
+    // Live floor % and deduction preview for the WFH property modal. Reads the
+    // same values the save handler collects, and the preview calls the real
+    // calculation the totals use — never a re-implementation. Top-level so the
+    // modal-open prefill path (ui.js) can refresh it after populating a form.
+    const updateWfhPropertyPreview = () => {
+        const val = (id) => parseFloat(document.getElementById(id).value) || 0;
+        const o = val('wfh-property-office-area');
+        const t = val('wfh-property-total-home-area');
+        document.getElementById('wfh-property-floor-pct').textContent =
+            (o > 0 && t > 0) ? ((o / t) * 100).toFixed(2) + '%' : '0.00%';
+        const deduction = TaxCalculations.calculateWfhRunningExpensesDeduction({
+            officeArea: o,
+            totalHomeArea: t,
+            electricityCost: val('wfh-property-electricity'),
+            gasCost: val('wfh-property-gas'),
+            occupancyCost: val('wfh-property-occupancy'),
+            internetCost: val('wfh-property-internet'),
+            internetWorkPercent: val('wfh-property-internet-work-pct'),
+            phoneCost: val('wfh-property-phone'),
+            stationeryCost: val('wfh-property-stationery'),
+        });
+        document.getElementById('wfh-property-preview').textContent =
+            deduction.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+    };
+
     const generateId = (prefix) => `${prefix}_${new Date().getTime()}_${Math.random().toString(36).substring(2, 11)}`;
 
     const setupEventListeners = () => {
@@ -145,14 +170,12 @@ const App = (() => {
         document.getElementById('add-wfh-property-btn').addEventListener('click', () => UIManager.showWfhPropertyModal());
         document.getElementById('wfh-property-cancel-btn').addEventListener('click', UIManager.hideWfhPropertyModal);
 
-        // Live floor % update in property modal
-        ['wfh-property-office-area', 'wfh-property-total-home-area'].forEach(id => {
-            document.getElementById(id).addEventListener('input', () => {
-                const o = parseFloat(document.getElementById('wfh-property-office-area').value) || 0;
-                const t = parseFloat(document.getElementById('wfh-property-total-home-area').value) || 0;
-                document.getElementById('wfh-property-floor-pct').textContent =
-                    (o > 0 && t > 0) ? ((o/t)*100).toFixed(2)+'%' : '0.00%';
-            });
+        // Live floor % and deduction preview in the property modal.
+        ['wfh-property-office-area', 'wfh-property-total-home-area', 'wfh-property-electricity',
+         'wfh-property-gas', 'wfh-property-occupancy', 'wfh-property-internet',
+         'wfh-property-internet-work-pct', 'wfh-property-phone', 'wfh-property-stationery',
+        ].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateWfhPropertyPreview);
         });
 
         document.getElementById('wfh-asset-form').addEventListener('submit', handleSaveWfhAsset);
@@ -573,7 +596,8 @@ const App = (() => {
         removeWfhHour, removeWfhAsset, editWfhAsset,
         editWfhProperty, removeWfhProperty,
         moveExpenseToWfh, moveWfhAssetToGeneral,
-        retagIdenticalGroup
+        retagIdenticalGroup,
+        updateWfhPropertyPreview
     };
 })();
 

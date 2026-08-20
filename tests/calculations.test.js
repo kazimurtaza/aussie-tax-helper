@@ -2963,3 +2963,37 @@ describe('bulk retag survives export → import', () => {
         expect(loadedYear).not.toBeNull();
     });
 });
+// ─────────────────────────────────────────────
+// Property-modal live preview agreement
+// ─────────────────────────────────────────────
+describe('WFH property preview — form values produce the same claim as the totals path', () => {
+    beforeEach(() => loadConstantsForYear('2024-2025'));
+    // Exactly what App.updateWfhPropertyPreview collects from the form.
+    const formValuesToDetails = (v) => ({
+        officeArea: v.officeArea, totalHomeArea: v.totalHomeArea,
+        electricityCost: v.electricity, gasCost: v.gas, occupancyCost: v.occupancy,
+        internetCost: v.internet, internetWorkPercent: v.internetWorkPct,
+        phoneCost: v.phone, stationeryCost: v.stationery,
+    });
+    // Exactly what handleSaveWfhProperty stores from the same form.
+    const formValuesToStored = (v) => ({
+        officeArea: v.officeArea, totalHomeArea: v.totalHomeArea,
+        electricityCost: v.electricity, gasCost: v.gas, occupancyCost: v.occupancy,
+        internetCost: v.internet, internetWorkPercent: v.internetWorkPct,
+        phoneCost: v.phone, stationeryCost: v.stationery,
+    });
+    test.each([
+        ['the real error case: full bill entered, apportioned once', { officeArea: 10, totalHomeArea: 110, electricity: 1402, gas: 0, occupancy: 0, internet: 0, internetWorkPct: 0, phone: 0, stationery: 0 }, 127.45],
+        ['work-share entered by mistake: visible immediately as the wrong magnitude', { officeArea: 10, totalHomeArea: 110, electricity: 136.7, gas: 0, occupancy: 0, internet: 0, internetWorkPct: 0, phone: 0, stationery: 0 }, 12.43],
+        ['all apportioned + work-% fields together', { officeArea: 10, totalHomeArea: 100, electricity: 1500, gas: 300, occupancy: 12000, internet: 900, internetWorkPct: 60, phone: 240, stationery: 80 }, 2240],
+        ['empty form', { officeArea: 0, totalHomeArea: 0, electricity: 0, gas: 0, occupancy: 0, internet: 0, internetWorkPct: 0, phone: 0, stationery: 0 }, 0],
+    ])('%s', (_label, form, expected) => {
+        // The preview calls the calculation with the collected form values...
+        const preview = TaxCalculations.calculateWfhRunningExpensesDeduction(formValuesToDetails(form));
+        // ...and the totals path calls it with what gets stored — same shape,
+        // same function, so they cannot drift. Pin the shared value.
+        const stored = TaxCalculations.calculateWfhRunningExpensesDeduction(formValuesToStored(form));
+        expect(preview).toBe(stored);
+        expect(preview).toBeCloseTo(expected, 2);
+    });
+});

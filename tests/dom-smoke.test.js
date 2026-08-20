@@ -179,4 +179,29 @@ describe('boot smoke — real page loads clean under jsdom', () => {
         expect(document.getElementById('wfh-assets-list-body').textContent).toContain('Laptop');
         expect(consoleErrors).toEqual([]);
     });
+
+    test('property modal preview updates live from form input', () => {
+        window.UIManager.showWfhPropertyModal(null);
+        const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input')); };
+        // The real error case shape: full bill, 10/110 floor area.
+        set('wfh-property-office-area', '10');
+        set('wfh-property-total-home-area', '110');
+        set('wfh-property-electricity', '1402');
+        expect(document.getElementById('wfh-property-floor-pct').textContent).toBe('9.09%');
+        expect(document.getElementById('wfh-property-preview').textContent).toBe('$127.45');
+        // Entering the already-apportioned share instead — the number the
+        // user should notice reads an order of magnitude low.
+        set('wfh-property-electricity', '136.7');
+        expect(document.getElementById('wfh-property-preview').textContent).toBe('$12.43');
+        // Occupancy and the work-% fields feed the same preview.
+        set('wfh-property-electricity', '0');
+        set('wfh-property-occupancy', '12000');
+        set('wfh-property-internet', '900');
+        set('wfh-property-internet-work-pct', '60');
+        set('wfh-property-phone', '240');
+        set('wfh-property-stationery', '80');
+        expect(document.getElementById('wfh-property-preview').textContent).toBe('$1,950.91');  // 12000*(10/110)=1090.91 + 540 + 240 + 80
+        expect(consoleErrors).toEqual([]);
+        window.UIManager.hideWfhPropertyModal();
+    });
 });
