@@ -679,6 +679,12 @@
                 <h3 class="text-lg font-semibold mb-4">Changelog</h3>
                 <div class="text-sm space-y-4">
                     <div>
+                        <h4 class="font-semibold">Version 1.11.2</h4>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong class="font-medium text-green-600">Added:</strong> The WFH property modal now shows a live estimated deduction as you type, and its cost fields say which basis they want — electricity, gas and occupancy take the <em>full household bill</em> (the app applies the floor-area % automatically), internet takes the full bill (apportioned by its work %), and phone/stationery are claimed as entered. A user who entered an already-apportioned share had it apportioned a second time, silently cutting a whole year's claim by roughly $226.</li>
+                        </ul>
+                    </div>
+                    <div>
                         <h4 class="font-semibold">Version 1.11.1</h4>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
                             <li><strong class="font-medium text-red-600">Fixed:</strong> The WFH section failed to render — a scripting error introduced in v1.9.0 left the assets and property tables empty and the method stuck on "Not Selected". Summary totals were unaffected, but the whole section was unusable.</li>
@@ -994,10 +1000,12 @@
                     <div>
                         <label for="wfh-property-electricity" class="block text-sm font-medium text-gray-700">Electricity Cost for period ($):</label>
                         <input type="number" id="wfh-property-electricity" step="0.01" min="0" class="mt-1">
+                        <p class="tooltip-text mt-1">The full household bill — the app applies the floor-area % automatically.</p>
                     </div>
                     <div>
                         <label for="wfh-property-gas" class="block text-sm font-medium text-gray-700">Gas Cost for period ($):</label>
                         <input type="number" id="wfh-property-gas" step="0.01" min="0" class="mt-1">
+                        <p class="tooltip-text mt-1">The full household bill — the app applies the floor-area % automatically.</p>
                     </div>
                     <div class="md:col-span-2">
                         <label for="wfh-property-occupancy" class="block text-sm font-medium text-gray-700">Occupancy Costs for period ($) — rent or mortgage interest:</label>
@@ -1005,10 +1013,12 @@
                         <p class="tooltip-text mt-1">
                             <strong>Caution:</strong> occupancy expenses are only deductible for employees in limited circumstances (e.g. a home that is a place of business, not just a home office). Leave blank unless you've confirmed eligibility with the ATO or your agent — the amount is apportioned by the floor-area percentage above.
                         </p>
+                        <p class="tooltip-text mt-1">The full household rent or mortgage interest for the period — the app applies the floor-area % automatically.</p>
                     </div>
                     <div>
                         <label for="wfh-property-internet" class="block text-sm font-medium text-gray-700">Internet Cost for period ($):</label>
                         <input type="number" id="wfh-property-internet" step="0.01" min="0" class="mt-1">
+                        <p class="tooltip-text mt-1">The full bill — the Internet Work % below apportions it.</p>
                     </div>
                     <div>
                         <label for="wfh-property-internet-work-pct" class="block text-sm font-medium text-gray-700">Internet Work %:</label>
@@ -1017,11 +1027,17 @@
                     <div>
                         <label for="wfh-property-phone" class="block text-sm font-medium text-gray-700">Work-Related Phone Costs ($):</label>
                         <input type="number" id="wfh-property-phone" step="0.01" min="0" class="mt-1">
+                        <p class="tooltip-text mt-1">Your work-related portion, claimed as entered.</p>
                     </div>
                     <div>
                         <label for="wfh-property-stationery" class="block text-sm font-medium text-gray-700">Stationery & Consumables ($):</label>
                         <input type="number" id="wfh-property-stationery" step="0.01" min="0" class="mt-1">
+                        <p class="tooltip-text mt-1">Your work-related portion, claimed as entered.</p>
                     </div>
+                </div>
+                <div class="md:col-span-2">
+                    <p class="text-sm">Estimated deduction for this period: <strong id="wfh-property-preview" class="text-purple-700">$0.00</strong>
+                        <span class="tooltip-text">— live preview of the running-expenses claim from the values above.</span></p>
                 </div>
                 <div class="flex justify-end gap-3 mt-6">
                     <button id="wfh-property-cancel-btn" type="button" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300">Cancel</button>

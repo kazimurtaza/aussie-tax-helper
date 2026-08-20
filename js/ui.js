@@ -249,6 +249,8 @@ const UIManager = (() => {
         const title = document.getElementById('wfh-property-modal-title');
         form.reset();
         document.getElementById('wfh-property-floor-pct').textContent = '0.00%';
+        document.getElementById('wfh-property-preview').textContent =
+            (0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
         if (property) {
             title.textContent = 'Edit Property Period';
             document.getElementById('wfh-property-id').value = property.id;
@@ -264,10 +266,9 @@ const UIManager = (() => {
             document.getElementById('wfh-property-internet-work-pct').value = property.internetWorkPercent || '';
             document.getElementById('wfh-property-phone').value = property.phoneCost || '';
             document.getElementById('wfh-property-stationery').value = property.stationeryCost || '';
-            // Update floor pct display
-            const o = parseFloat(property.officeArea) || 0;
-            const t = parseFloat(property.totalHomeArea) || 0;
-            if (o > 0 && t > 0) document.getElementById('wfh-property-floor-pct').textContent = ((o/t)*100).toFixed(2) + '%';
+            // Refresh floor % and the deduction preview from the prefilled
+            // values — one shared updater, no duplicated arithmetic here.
+            if (typeof App !== 'undefined' && App.updateWfhPropertyPreview) App.updateWfhPropertyPreview();
         } else {
             title.textContent = 'Add Property Period';
             document.getElementById('wfh-property-id').value = '';
