@@ -178,6 +178,10 @@ All other 2025-2026 rates — income tax brackets, LITO, and PHI rebate rates �
 
 ## Changelog
 
+### Version 1.11.3
+* ***Fixed***
+    * ***Stale page title:*** the tab title hardwired "Aussie Tax Helper (2024-2025)" and had not changed since multi-year support landed; it now follows the selected financial year, and the page gained a `<meta name="description">` it never had. 378 Jest tests (up from 377).
+
 ### Version 1.11.2
 * ***Added***
     * ***WFH property field basis + live preview:*** The property modal's cost fields now state which basis they want — electricity, gas and occupancy are the full household bill (the app applies the floor-area percentage itself), internet is the full bill (apportioned by its work %), phone and stationery are claimed as entered — and the modal shows the estimated deduction live as you type, computed by the same calculation the totals use. This closes the failure where an already-apportioned work share was apportioned a second time. No stored data changes. 377 Jest tests (up from 372).
