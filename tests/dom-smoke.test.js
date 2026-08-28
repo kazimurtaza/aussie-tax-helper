@@ -148,6 +148,9 @@ describe('boot smoke — real page loads clean under jsdom', () => {
     test('method display reflects the saved method, not "Not Selected"', () => {
         expect(document.getElementById('wfh-current-method-display').textContent).toBe('Actual Cost');
     });
+    test('document title follows the active financial year', () => {
+        expect(document.title).toBe('Aussie Tax Helper (2026-2027)');
+    });
 
     test('summary populated and identical-assets warning lit for the cable pair', () => {
         expect(document.getElementById('summary-net-tax').textContent).toMatch(/\$/);

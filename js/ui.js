@@ -153,6 +153,10 @@ const UIManager = (() => {
             el.textContent = year;
         });
 
+        // Keep the tab title on the selected year — it hardwired "2024-2025"
+        // for two years after multi-year support landed.
+        document.title = `Aussie Tax Helper (${year})`;
+
         // Optionally update PHI period labels
         const phiPeriods = Object.keys(window.PHI_REBATE_RATES_PERIODS || {});
         const period1Label = document.getElementById('phi-period1-label');
